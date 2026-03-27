@@ -1,11 +1,20 @@
 # UI Component Interaction Patterns — Reference
 
-**This file is a REFERENCE document, NOT executable code.** It documents interaction patterns for common UI component libraries that the Explorer-Builder may encounter in enterprise applications.
+**WARNING: This file is a HUMAN REFERENCE ONLY. Agents MUST NOT read or use this file.**
 
-In v1, these patterns were hardcoded methods in `base-page.ts`. In v2, the Explorer-Builder discovers component patterns live during exploration and writes verified code to page objects. This reference helps when:
-- The Explorer-Builder needs a hint for a known component type
-- Teams want to create `*.helpers.ts` files with reusable component interactions
-- App-context files reference these patterns
+The selectors below are version-specific and WILL go stale as UI frameworks update. They exist solely to help humans understand HOW different component libraries structure their DOM — not as copy-paste patterns.
+
+**In v2, the Explorer-Builder discovers component patterns LIVE from the real app.** It does NOT need this reference. If you find yourself copying selectors from here into code, STOP — let the Explorer-Builder discover the current selectors instead.
+
+**When this file is useful:**
+- Learning how Kendo/Fluent/MUI dropdowns work (conceptual understanding, not exact selectors)
+- Writing initial `*.helpers.ts` files when you know your app's framework
+- Onboarding new team members to enterprise UI component complexity
+
+**When this file is NOT useful:**
+- As a source of truth for selectors (they go stale)
+- As input for the Explorer-Builder (it uses app-context, not this file)
+- As a substitute for live exploration
 
 ---
 
