@@ -39,6 +39,7 @@ output/**/precheck-report-*.json
 
 # Runtime artifacts
 output/test-data/shared-state.json
+output/test-data/shared-state.json.lock
 
 # Executor backup files
 output/**/*.backup*
