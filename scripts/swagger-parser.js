@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * swagger-parser.js — Structured summary of OpenAPI/Swagger specs for the API Analyst
+ * swagger-parser.js — Structured summary of OpenAPI/Swagger specs for the Explorer-Builder
  *
- * DESIGN PRINCIPLE: This script is a token-saving optimization for the API Analyst agent.
+ * DESIGN PRINCIPLE: This script is a token-saving optimization for API scenario generation.
  * It parses the full Swagger/OpenAPI JSON spec and produces a compact, structured summary
  * with resolved schemas, CRUD groupings, sample request bodies, and auth detection.
- * The API Analyst reads the summary (~5-10K tokens) instead of the raw spec (~50-200K tokens).
+ * The agent reads the summary (~5-10K tokens) instead of the raw spec (~50-200K tokens).
  *
  * - The script NEVER decides which scenarios to generate (that's LLM work)
  * - The script NEVER writes scenario .md files

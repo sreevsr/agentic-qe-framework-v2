@@ -65,25 +65,25 @@ const paths = {
   scenarioMd: folder
     ? resolve('scenarios', type, folder, `${scenario}.md`)
     : resolve('scenarios', type, `${scenario}.md`),
-  generatorReport: folder
-    ? path.join(OUTPUT, folder, `generator-report-${scenario}.md`)
-    : path.join(OUTPUT, `generator-report-${scenario}.md`),
+  explorerReport: folder
+    ? path.join(OUTPUT, 'reports', folder, `explorer-report-${scenario}.md`)
+    : path.join(OUTPUT, 'reports', `explorer-report-${scenario}.md`),
   specFile: folder
     ? path.join(OUTPUT, 'tests', type, folder, `${scenario}.spec.ts`)
     : path.join(OUTPUT, 'tests', type, `${scenario}.spec.ts`),
   playwrightConfig: path.join(OUTPUT, 'playwright.config.ts'),
   packageJson: path.join(OUTPUT, 'package.json'),
   envExample: path.join(OUTPUT, '.env.example'),
-  healerReport: folder
-    ? path.join(OUTPUT, folder, `healer-report-${scenario}.md`)
-    : path.join(OUTPUT, `healer-report-${scenario}.md`),
+  executorReport: folder
+    ? path.join(OUTPUT, 'reports', folder, `executor-report-${scenario}.md`)
+    : path.join(OUTPUT, 'reports', `executor-report-${scenario}.md`),
   gitignore: resolve('.gitignore'),
   outputDir: OUTPUT,
 };
 
 const outputPath = folder
-  ? path.join(OUTPUT, folder, `precheck-report-${scenario}.json`)
-  : path.join(OUTPUT, `precheck-report-${scenario}.json`);
+  ? path.join(OUTPUT, 'reports', folder, `precheck-report-${scenario}.json`)
+  : path.join(OUTPUT, 'reports', `precheck-report-${scenario}.json`);
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -233,10 +233,10 @@ function rehash() {
 }
 
 // ---------------------------------------------------------------------------
-// Generator report parsing — extract file manifest
+// Explorer report parsing — extract file manifest
 // ---------------------------------------------------------------------------
-function parseGeneratorManifest() {
-  const content = readFile(paths.generatorReport);
+function parseExplorerManifest() {
+  const content = readFile(paths.explorerReport);
   if (!content) return { found: false, locatorFiles: [], pageFiles: [], testDataFiles: [], helperFiles: [] };
 
   const locatorFiles = [];
@@ -525,10 +525,10 @@ function collectDim8_ApiTestQuality() {
 }
 
 function collectTestExecution() {
-  const content = readFile(paths.healerReport);
-  if (!content) return { healerReportFound: false };
+  const content = readFile(paths.executorReport);
+  if (!content) return { executorReportFound: false };
 
-  const evidence = { healerReportFound: true };
+  const evidence = { executorReportFound: true };
 
   // Extract test pass/fail counts from the Summary table
   // Look for patterns like "Passed | 1" or "Total tests | 1" or "1/1 passed"
@@ -551,19 +551,19 @@ function collectTestExecution() {
   // Determine overall status
   const statusMatch = content.match(/\|\s*Status\s*\|\s*\*\*(.+?)\*\*/i);
   if (statusMatch) {
-    evidence.healerStatus = statusMatch[1].trim();
+    evidence.executorStatus = statusMatch[1].trim();
   } else if (content.match(/ALL PASSING/i)) {
-    evidence.healerStatus = 'ALL PASSING';
+    evidence.executorStatus = 'ALL PASSING';
   } else if (content.match(/IN PROGRESS/i)) {
-    evidence.healerStatus = 'IN PROGRESS';
+    evidence.executorStatus = 'IN PROGRESS';
   } else if (content.match(/REMAINING FAILURES/i)) {
-    evidence.healerStatus = 'REMAINING FAILURES';
+    evidence.executorStatus = 'REMAINING FAILURES';
   } else {
-    evidence.healerStatus = 'UNKNOWN';
+    evidence.executorStatus = 'UNKNOWN';
   }
 
   // Derive a boolean for easy consumption
-  evidence.allTestsPassing = evidence.healerStatus === 'ALL PASSING'
+  evidence.allTestsPassing = evidence.executorStatus === 'ALL PASSING'
     || (evidence.testsPassed !== null && evidence.testsFailed !== null
         && evidence.testsFailed === 0 && evidence.testsPassed > 0);
 
@@ -701,10 +701,10 @@ function main() {
     message: 'dimensions.md not found — LLM must handle all dimensions directly.',
   }];
 
-  // Parse generator report for file manifest
-  const manifest = parseGeneratorManifest();
+  // Parse explorer report for file manifest
+  const manifest = parseExplorerManifest();
   if (!manifest.found) {
-    console.warn(`[review-precheck] WARNING: Generator report not found at ${paths.generatorReport}`);
+    console.warn(`[review-precheck] WARNING: Explorer report not found at ${paths.explorerReport}`);
     console.warn('[review-precheck] Using default file discovery from output/ directory.');
   }
 
@@ -758,7 +758,7 @@ function main() {
     folder: folder || null,
     specFile: fileExists(paths.specFile) ? path.relative(ROOT, paths.specFile) : null,
     scenarioFile: fileExists(paths.scenarioMd) ? path.relative(ROOT, paths.scenarioMd) : null,
-    generatorReportFound: manifest.found,
+    explorerReportFound: manifest.found,
     manifest: {
       locatorFiles: manifest.locatorFiles.map(f => path.relative(ROOT, f)),
       pageFiles: manifest.pageFiles.map(f => path.relative(ROOT, f)),
@@ -798,7 +798,7 @@ function main() {
       'dim9.lifecycleHooks',
       'dim9.sharedData',
       'dim9.apiBehavior',
-      'testExecution.healerStatus',
+      'testExecution.executorStatus',
       'testExecution.passFailCounts',
       'testExecution.fixCycles',
     ],

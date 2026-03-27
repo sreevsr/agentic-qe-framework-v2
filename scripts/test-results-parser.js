@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * test-results-parser.js — Structured failure summary for the Healer agent
+ * test-results-parser.js — Structured failure summary for the Executor agent
  *
- * DESIGN PRINCIPLE: This script is a context-saving optimization for the Healer.
+ * DESIGN PRINCIPLE: This script is a context-saving optimization for the Executor.
  * It parses Playwright's JSON reporter output and produces a concise failure
- * summary. The Healer reads the summary (~10-20 lines) instead of parsing raw
- * terminal output (~30-80 lines per failure), saving context window space for
- * more fix cycles.
+ * summary. The Executor reads the summary (~10-20 lines) instead of parsing raw
+ * terminal output (~30-80 lines per failure), saving context window space.
  *
- * - The script NEVER diagnoses root causes (that's LLM work — Category A-K)
+ * - The script NEVER diagnoses root causes (that's LLM work)
  * - The script NEVER suggests fixes
  * - The script provides "category_hint" as a best-guess from error patterns —
- *   the Healer must verify via Visual Diagnosis Protocol before trusting it
- * - If the JSON file doesn't exist, the Healer falls back to terminal output
+ *   the Executor must verify before trusting it
+ * - If the JSON file doesn't exist, the Executor falls back to terminal output
  *
  * Usage:
  *   node scripts/test-results-parser.js [--json-path=<path>] [--output-path=<path>]
@@ -50,48 +49,47 @@ const outputPath = args['output-path']
 // ---------------------------------------------------------------------------
 // Error pattern → category hint mapping
 //
-// SOURCE OF TRUTH: agents/03-healer/diagnose-failure.md (Step 3)
-// These patterns are a mechanical approximation of the categories defined there.
+// SOURCE OF TRUTH: agents/core/executor.md (Section 3.4: Diagnose)
+// These patterns are a mechanical approximation of the failure types.
 // The category_hint is a starting point for the LLM — not a final diagnosis.
 //
-// DRIFT DETECTION: The script hashes the categories section of diagnose-failure.md
-// and compares against KNOWN_CATEGORIES_HASH. If the hash changes, the parser
-// output includes a categoryDrift warning — the LLM should not trust hints for
-// that run and classify from error messages directly.
+// DRIFT DETECTION: In v2, the Executor's diagnosis rules live in agents/core/executor.md.
+// The script hashes that file's diagnostic section. If it changes, the parser warns
+// the Executor to classify from error messages directly.
 //
 // To update after reviewing category changes:
 //   node scripts/test-results-parser.js --rehash-categories
 // ---------------------------------------------------------------------------
 
-const KNOWN_CATEGORIES_HASH = 'd92f6944be98';
+const KNOWN_CATEGORIES_HASH = 'NOT_YET_HASHED';
 
 function computeCategoryDrift() {
-  const diagnosePath = path.join(ROOT, 'agents', '03-healer', 'diagnose-failure.md');
+  const executorPath = path.join(ROOT, 'agents', 'core', 'executor.md');
   try {
-    const content = fs.readFileSync(diagnosePath, 'utf-8');
-    const match = content.match(/## Step 3: For each failure[\s\S]*?(?=\n---\n|\n## Scenario Integrity|\n## Spec File)/);
-    if (!match) return { status: 'PARSE_ERROR', message: 'Could not find categories section in diagnose-failure.md' };
+    const content = fs.readFileSync(executorPath, 'utf-8');
+    const match = content.match(/### 3\.4: Diagnose[\s\S]*?(?=\n---\n|\n## 4\.)/);
+    if (!match) return { status: 'PARSE_ERROR', message: 'Could not find diagnose section in executor.md' };
     const currentHash = crypto.createHash('sha256').update(match[0].trim()).digest('hex').slice(0, 12);
     if (currentHash !== KNOWN_CATEGORIES_HASH) {
       return {
         status: 'MODIFIED',
         currentHash,
         knownHash: KNOWN_CATEGORIES_HASH,
-        message: 'Category definitions changed since hints were last updated. LLM should classify from error messages directly — do not trust category_hint values.',
+        message: 'Executor diagnosis rules changed since hints were last updated. LLM should classify from error messages directly — do not trust category_hint values.',
       };
     }
     return null; // No drift
   } catch {
-    return { status: 'FILE_NOT_FOUND', message: 'diagnose-failure.md not found — category hints may be stale.' };
+    return { status: 'FILE_NOT_FOUND', message: 'executor.md not found — category hints may be stale.' };
   }
 }
 
 // --rehash-categories mode
 if (process.argv.includes('--rehash-categories')) {
-  const diagnosePath = path.join(ROOT, 'agents', '03-healer', 'diagnose-failure.md');
-  const content = fs.readFileSync(diagnosePath, 'utf-8');
-  const match = content.match(/## Step 3: For each failure[\s\S]*?(?=\n---\n|\n## Scenario Integrity|\n## Spec File)/);
-  if (!match) { console.error('Could not find categories section'); process.exit(1); }
+  const executorPath = path.join(ROOT, 'agents', 'core', 'executor.md');
+  const content = fs.readFileSync(executorPath, 'utf-8');
+  const match = content.match(/### 3\.4: Diagnose[\s\S]*?(?=\n---\n|\n## 4\.)/);
+  if (!match) { console.error('Could not find diagnose section in executor.md'); process.exit(1); }
   const hash = crypto.createHash('sha256').update(match[0].trim()).digest('hex').slice(0, 12);
   console.log(`// Updated KNOWN_CATEGORIES_HASH — paste into test-results-parser.js:`);
   console.log(`const KNOWN_CATEGORIES_HASH = '${hash}';`);
