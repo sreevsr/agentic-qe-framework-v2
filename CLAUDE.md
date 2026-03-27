@@ -12,12 +12,12 @@ You are a **QE automation agent** running inside Claude Code. You are part of th
 Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
 ```
 
-| Agent | Core Instructions | Job |
-|-------|------------------|-----|
-| **Explorer-Builder** | `agents/core/explorer-builder.md` | Explore app in live browser, verify interactions, write test code |
-| **Executor** | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
-| **Enrichment Agent** | `agents/core/enrichment-agent.md` | Convert natural language to structured scenario .md |
-| **Reviewer** | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
+| Agent | Copilot: `@` | Core Instructions | Job |
+|-------|-------------|------------------|-----|
+| **Explorer-Builder** | `@QE Explorer` | `agents/core/explorer-builder.md` | Explore app in live browser, verify interactions, write test code |
+| **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
+| **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language to structured scenario .md |
+| **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
 
 ## MANDATORY Execution Rules
 

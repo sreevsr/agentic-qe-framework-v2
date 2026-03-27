@@ -26,12 +26,12 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
 
 ## Agent Roster
 
-| Agent | File | Job |
-|-------|------|-----|
-| Explorer-Builder | `.github/agents/explorer-builder.agent.md` | Explore app in live browser, verify interactions, write test code |
-| Executor | `.github/agents/executor.agent.md` | Run tests, fix timing issues (max 3 cycles) |
-| Enrichment Agent | `.github/agents/enrichment-agent.agent.md` | Convert natural language to structured scenario .md |
-| Reviewer | `.github/agents/reviewer.agent.md` | Audit code quality, produce scorecard (9 dimensions) |
+| Invoke as | File | Job |
+|-----------|------|-----|
+| `@QE Explorer` | `.github/agents/explorer-builder.agent.md` | Explore app in live browser, verify interactions, write test code |
+| `@QE Executor` | `.github/agents/executor.agent.md` | Run tests, fix timing issues (max 3 cycles) |
+| `@QE Enricher` | `.github/agents/enrichment-agent.agent.md` | Convert natural language to structured scenario .md |
+| `@QE Reviewer` | `.github/agents/reviewer.agent.md` | Audit code quality, produce scorecard (9 dimensions) |
 
 ## Key Framework Concepts
 
