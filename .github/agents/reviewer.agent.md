@@ -17,7 +17,7 @@ Audits generated test code for a single scenario against 9 enterprise QE quality
 2. `agents/shared/keyword-reference.md` — Keyword → code patterns for fidelity checking
 3. `agents/shared/guardrails.md` — Ownership boundaries
 4. `agents/shared/type-registry.md` — Which dimensions apply to which type
-5. `agents/04-reviewer/dimensions.md` — All 9 dimension checklists
+5. `agents/04-reviewer/dimensions/` — 9 individual dimension files (spawned as parallel subagents)
 6. `agents/04-reviewer/scorecard-template.md` — Exact output format
 
 ## Tool Usage (Copilot Agent Mode)

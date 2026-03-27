@@ -21,7 +21,8 @@ Generate the scorecard in this format:
 | 9 | Scenario-to-Code Fidelity | **HIGH** | _/5 | ... |
 
 ## Scenario-to-Code Fidelity Summary
-Source steps: [N] | Spec STEP comments: [N] | Match: YES/NO
+Source steps: [N] | Spec test.step() calls: [N] | Match: YES/NO
+Blocked steps (test.fixme): [N]
 VERIFY: [N]/[N] | VERIFY_SOFT: [N]/[N] | CAPTURE: [N]/[N] | SCREENSHOT: [N]/[N]
 REPORT: [N]/[N] | SAVE: [N]/[N] | CALCULATE: [N]/[N] | API steps: [N]/[N]
 Lifecycle hooks: beforeAll=[Y/N/NA] beforeEach=[Y/N/NA] afterEach=[Y/N/NA] afterAll=[Y/N/NA]
@@ -33,20 +34,21 @@ Missing or incorrect items: [list each, or "None"]
 ## Recommendations (nice to have)
 1. ...
 
-## Verdict: [APPROVED / NEEDS FIXES]
+## Verdict: [APPROVED / NEEDS FIXES / TESTS FAILING]
 ```
 
 **Verdict criteria:**
 - **APPROVED**: Score >= 80% of applicable total AND no dimension below 3 AND Dimension 9 (Scenario-to-Code Fidelity) >= 4
 - **NEEDS FIXES**: Score < 80% OR any dimension below 3 OR Dimension 9 below 4 — list exact fixes required
+- **TESTS FAILING**: TESTS_STATUS=FAILING — Dimension 9 capped at 2/5, verdict MUST be TESTS FAILING regardless of other scores
 
 **N/A dimensions:** When a dimension does not apply to the scenario type (e.g., Dimension 8 "API Test Quality" for a pure web scenario), mark it N/A and reduce the denominator. For example: 9 dimensions = 45 max. If 1 dimension is N/A, the max is 40 and the 80% threshold is 32/40. Always show the adjusted denominator in the Overall Score (e.g., "35/40") and state which dimension is N/A.
 
 **Dimension 9 is the hard gate.** A test framework that scores 5/5 on all other dimensions but drops scenario steps or misses assertions is NOT approved. Fidelity to the scenario is non-negotiable.
 
 Save the review scorecard:
-- With folder: `output/{folder}/review-scorecard-{scenario}.md`
-- Without folder: `output/review-scorecard-{scenario}.md`
+- With folder: `output/reports/{folder}/review-scorecard-{scenario}.md`
+- Without folder: `output/reports/review-scorecard-{scenario}.md`
 
 ## Report Self-Validation
 
