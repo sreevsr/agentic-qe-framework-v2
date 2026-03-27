@@ -1,9 +1,13 @@
 # Keyword Reference — Scenario Keywords and TypeScript Code Patterns
 
-This is the authoritative reference for all scenario keywords. Each agent interprets keywords for its role:
+**MANDATORY: This is the authoritative reference for ALL scenario keywords. Every agent MUST follow these patterns EXACTLY. DO NOT deviate from the code patterns shown here.**
+
+Each agent interprets keywords for its role:
 - **Explorer-Builder:** Explores the keyword action in the live browser AND writes the corresponding TypeScript code
 - **Executor:** Validates keyword implementations work at runtime and fixes timing issues
 - **Reviewer:** Audits keyword implementations against quality standards
+
+**For mobile scenarios:** The same keywords apply. "Click" maps to "Tap", "Scroll" maps to "Swipe", etc. The Explorer-Builder translates mobile-specific language to the appropriate Playwright/Appium code.
 
 ---
 
@@ -80,11 +84,16 @@ The block scope `{ }` prevents variable name collisions when multiple VERIFY_SOF
 
 **Generated code:**
 ```typescript
-// CAPTURE: Read subtotal as {{subtotal}}
-const subtotal = await checkoutPage.getSubtotal();
+// CAPTURE variable MUST be declared with `let` in OUTER test scope (not inside test.step)
+let subtotal: string;
+
+// Inside test.step:
+await test.step('Step 5 — CAPTURE: Read subtotal', async () => {
+  subtotal = await checkoutPage.getSubtotal();
+});
 ```
 
-**Note:** Page objects need getter methods that return the captured value (e.g., `getSubtotal(): Promise<string>`).
+**MANDATORY:** CAPTURE variables MUST use `let` in the outer scope and be assigned inside `test.step()`. Using `const` inside the step makes the value inaccessible to subsequent steps. Page objects MUST have getter methods that return the captured value (e.g., `getSubtotal(): Promise<string>`).
 
 ---
 
@@ -125,10 +134,15 @@ await test.info().attach('checkout-overview', { body: screenshot, contentType: '
 
 **Generated code:**
 ```typescript
-// REPORT: Print subtotal, tax, total
-console.log(`Subtotal: ${subtotal}`);
-test.info().annotations.push({ type: 'subtotal', description: subtotal });
+// The step label with interpolated runtime value IS the primary report.
+// Use template literals so the HTML report shows real data.
+await test.step(`Step 8 — REPORT: Subtotal=${subtotal}, Tax=${tax}, Total=${total}`, async () => {
+  test.info().annotations.push({ type: 'subtotal', description: subtotal });
+  test.info().annotations.push({ type: 'tax', description: tax });
+  test.info().annotations.push({ type: 'total', description: total });
+});
 ```
+**MANDATORY:** The `test.step()` label with template literals IS the report — humans read step labels in the HTML report. `console.log()` is NOT required. `annotations.push()` adds machine-readable data.
 
 ---
 
@@ -223,7 +237,7 @@ await cartPage.validateAllCartPrices();
 test('scenario name', { tag: ['@smoke', '@cart', '@P0'] }, async ({ page }) => { ... });
 ```
 
-**Rule:** Tags must have `@` prefix in generated code. Every test must have tags.
+**MANDATORY:** Tags MUST have `@` prefix in generated code. Every test MUST have tags. DO NOT generate tests without tags.
 
 ---
 
@@ -240,8 +254,8 @@ expect(response.status()).toBe(201);
 const body = await response.json();
 ```
 
-**Rules:**
-- Use Playwright's `request` fixture exclusively — never `fetch` or `axios`
+**MANDATORY Rules:**
+- MUST use Playwright's `request` fixture exclusively — NEVER use `fetch` or `axios`
 - For `api` type: destructure `{ request }` only
 - For `hybrid` type: always destructure both `{ page, request }` — API steps are interleaved with UI steps
 - For `web` type with ad-hoc API steps: destructure both `{ page, request }`
@@ -258,7 +272,7 @@ const body = await response.json();
 process.env.BASE_URL
 ```
 
-**Rule:** All `{{ENV.VARIABLE}}` references become `process.env.VARIABLE`. Never hardcode credentials.
+**MANDATORY:** ALL `{{ENV.VARIABLE}}` references MUST become `process.env.VARIABLE`. NEVER hardcode credentials, URLs, or secrets.
 
 ---
 
@@ -268,7 +282,7 @@ process.env.BASE_URL
 
 - `mock` — API is non-persistent. Explorer-Builder or Executor may adapt tests for non-persistence (use existing IDs, accept mock responses).
 - `live` or missing — API is real. All persistence/assertion guardrails apply with ZERO exceptions.
-- NEVER infer API behavior from the URL or API name. Only the explicit `## API Behavior` header controls this.
+- NEVER infer API behavior from the URL or API name. ONLY the explicit `## API Behavior` header controls this. This is NON-NEGOTIABLE.
 
 ---
 
@@ -299,7 +313,7 @@ test.describe('Feature Name', () => {
   test.beforeAll(async ({ browser }) => {
     // Common Setup Once steps
     // For browser steps: const page = await browser.newPage(); ... await page.close();
-    // For API steps: const ctx = await request.newContext(); ... await ctx.dispose();
+    // For API steps: const ctx = await (await import('@playwright/test')).request.newContext(); ... await ctx.dispose();
   });
 
   test.beforeEach(async ({ page }) => {
@@ -328,13 +342,41 @@ test.describe('Feature Name', () => {
 
 ---
 
-## Step Completeness Rule
+---
 
-Every step in the source scenario MUST produce a corresponding line in the test spec with a `// STEP N: [description]` comment. Never combine, merge, or skip steps — navigation and wait steps matter as much as actions. After writing the spec, count STEP comments vs source steps — they MUST match.
+## Mobile Action Keywords — Mobile Scenario Mapping
+
+For mobile scenarios (type: `mobile` or `mobile-hybrid`), testers use mobile-specific verbs. The Explorer-Builder MUST translate these to the appropriate Appium/WDIO code:
+
+| Scenario writes | Maps to | Generated code (WDIO + Appium) |
+|----------------|---------|-------------------------------|
+| "Tap [element]" | mobile/interact (tap) | `await $('~elementId').click()` |
+| "Long press [element]" | mobile/interact (longPress) | `await driver.touchAction([{action: 'longPress', element: await $('~elementId')}, {action: 'release'}])` |
+| "Swipe up / down / left / right" | mobile/interact (swipe) | `await driver.execute('mobile: swipe', { direction: 'up' })` |
+| "Scroll to [element]" | mobile/interact (scroll) | `await driver.execute('mobile: scrollGesture', { direction: 'down', percent: 0.75 })` |
+| "Type [text] in [field]" | mobile/interact (type) | `const field = await $('~fieldId'); await field.clearValue(); await field.setValue(text);` |
+| "VERIFY: [element] is displayed" | mobile/verify | `expect(await $('~elementId').isDisplayed()).toBe(true)` |
+| "VERIFY: [element] text is [value]" | mobile/verify | `expect(await $('~elementId').getText()).toBe(value)` |
+| "Launch app" | mobile/navigate | `await driver.launchApp()` |
+| "Navigate back" | mobile/navigate | `await driver.back()` |
+| "Switch to WebView" | mobile/navigate | `await driver.switchContext('WEBVIEW_...')` |
+
+**MANDATORY:** After typing in any field, **MUST** hide keyboard: `await driver.hideKeyboard()` — keyboard may block the next element.
+
+**Locator priority for mobile:** `accessibility_id` (`~elementId`) > `id` > `-ios class chain` / `UiSelector` > xpath (LAST resort)
+
+---
+
+## Step Completeness Rule — MANDATORY
+
+**HARD STOP: Every step in the source scenario MUST produce a corresponding `await test.step('Step N — [description]', async () => { ... })` block in the test spec.** NEVER combine, merge, or skip steps — navigation and wait steps matter as much as actions.
+
+After writing the spec, count `test.step()` calls vs source steps — they **MUST match exactly**.
 
 **Step numbering is positional, not user-authored.** The user's step numbers in the scenario .md file may be incorrect, duplicated, out of order, or missing. Do NOT rely on them. Instead:
 - Read the scenario top-to-bottom
 - Assign sequential numbers by position: the first step encountered is STEP 1, the second is STEP 2, etc.
 - Number continuously across all sections: Common Setup Once steps first, then Common Setup, then Scenario steps, then Common Teardown, then Common Teardown Once
-- The `// STEP N:` comment in the generated spec uses these positional numbers, NOT the user's original numbers
-- The total count of `// STEP N:` comments must equal the total count of steps encountered positionally
+- The `test.step('Step N — ...')` in the generated spec uses these positional numbers, NOT the user's original numbers
+- The total count of `test.step()` calls must equal the total count of steps encountered positionally
+- Lifecycle hook steps use semantic prefixes (`[Setup]`, `[Before Each]`, etc.) — NOT step numbers

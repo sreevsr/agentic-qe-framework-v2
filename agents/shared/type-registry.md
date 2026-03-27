@@ -1,8 +1,10 @@
 # Type Registry
 
-Single source of truth for all scenario type definitions. When agents need to determine type-specific behavior, they consult this file.
+**MANDATORY: This is the single source of truth for ALL scenario type definitions.** Every agent MUST consult this file to determine type-specific behavior. DO NOT guess fixture types, file paths, or pipeline stages — look them up here.
 
-**Supported types:** `web`, `api`, `hybrid`
+**Supported types:** `web`, `api`, `hybrid`, `mobile`, `mobile-hybrid`
+
+**Skills per type:** See `skills/registry.md` → "Skill Set by Test Type" for which skills are active per type.
 
 ---
 
@@ -38,8 +40,8 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **Description** | REST API test scenarios using Playwright request fixture |
 | **Scenario input** | `scenarios/api/{scenario}.md` or `scenarios/api/{folder}/{scenario}.md` |
 | **Requires browser exploration?** | No — API scenarios use `request` fixture only, no browser needed |
-| **Explorer-Builder source** | N/A |
-| **Explorer-Builder inputs** | Scenario `.md` only (no analyst report, no Scout report) |
+| **Explorer-Builder source** | Scenario `.md` file (no browser, writes code directly from scenario) |
+| **Explorer-Builder inputs** | Scenario `.md` + app-context (API patterns, if exists) |
 | **Test fixture** | `{ request }` |
 | **Test spec path** | `output/tests/api/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/api/{scenario}.json` |
@@ -48,8 +50,8 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **Helper files apply?** | No |
 | **Scout report used?** | No |
 | **Selector externalization** | N/A |
-| **Executor source file** | Raw scenario `.md` |
-| **Executor debugging context** | N/A |
+| **Executor source file** | Explorer report + parsed results |
+| **Executor debugging context** | Parsed results (status codes, response bodies) + scenario `.md` |
 | **Reviewer: Dimension 4** | N/A — Locator Quality is web-only |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence guardrails |
 | **Pipeline** | Explorer-Builder → Executor → Reviewer (no browser exploration) |
@@ -77,11 +79,48 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence for API steps |
 | **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
 
+### mobile
+
+| Property | Value |
+|----------|-------|
+| **Description** | Native mobile app test scenarios using Appium MCP |
+| **Scenario input** | `scenarios/mobile/{scenario}.md` or `scenarios/mobile/{folder}/{scenario}.md` |
+| **Requires browser exploration?** | Yes — Explorer-Builder uses Appium MCP for native app interaction |
+| **Explorer-Builder source** | Scenario `.md` file |
+| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) |
+| **Test fixture** | WDIO driver (not Playwright fixtures) |
+| **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` |
+| **Test data path** | `output/test-data/mobile/{scenario}.json` |
+| **Creates locator JSONs?** | Yes — `output/locators/mobile/{screen-name}.locators.json` |
+| **Creates page objects?** | Yes — `output/screens/{ScreenName}Screen.ts` (Screen Objects, not Page Objects) |
+| **Helper files apply?** | Yes — `output/screens/{ScreenName}Screen.helpers.ts` |
+| **Scout report used?** | No |
+| **Selector externalization** | Required — accessibility_id > id > class chain/predicate > xpath |
+| **Executor source file** | Explorer report |
+| **Executor debugging context** | Explorer report + parsed results + page source XML |
+| **Reviewer: Dimension 4** | Locator Strategy Quality — audits accessibility_id preference, no index-based xpath |
+| **API Behavior escape hatch** | N/A |
+| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+
+### mobile-hybrid
+
+| Property | Value |
+|----------|-------|
+| **Description** | Combined native mobile + REST API test scenarios |
+| **Scenario input** | `scenarios/mobile/{scenario}.md` with `mobile-hybrid` type |
+| **Requires browser exploration?** | Yes — Appium MCP for native steps |
+| **Test fixture** | WDIO driver + HTTP request client |
+| **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` |
+| **Creates locator JSONs?** | Yes (native steps only) |
+| **Creates page objects?** | Yes — Screen Objects (native steps only) |
+| **API Behavior escape hatch** | Yes — same as hybrid type |
+| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+
 ---
 
 ## Per-Agent Type Lookup
 
-Use this table when an agent needs to decide behavior based on type.
+**MANDATORY: Use these tables when ANY agent needs to decide behavior based on type. DO NOT make assumptions — look up the answer here.**
 
 ### Explorer-Builder
 
@@ -150,7 +189,7 @@ To add a new type (e.g., `mobile`):
 
 1. **Add a new section** to this file following the same property table format
 2. **Add per-agent rows** to the Per-Agent Type Lookup tables (all 4 agent tables)
-3. **Update `path-resolution.md`** — add scenario input path patterns for the new type
+3. **Update scenario templates** — add `scenarios/{type}/_template.md` for the new type
 4. **Update `keyword-reference.md`** — add any new keywords or modify existing keyword behavior
 5. **Update `guardrails.md`** — add any type-specific guardrails or bug signals
 6. **Update the Explorer-Builder** (`agents/core/explorer-builder.md` + `agents/core/code-generation-rules.md`) — add source file patterns, fixture rules

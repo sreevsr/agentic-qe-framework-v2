@@ -73,7 +73,13 @@ Hybrid-specific signals (applies to `hybrid` type only):
 - API returns success but UI element does not reflect the change (e.g., API updates cart, UI still shows old count)
 - UI action triggers API call that fails silently (e.g., form submits, page shows success, but network response was 4xx/5xx)
 
-**How to Flag:** Mark with `test.fixme('POTENTIAL BUG: [description]')`, document in healer report, do NOT adapt the test.
+Mobile-specific signals (applies to `mobile` and `mobile-hybrid` types):
+- App crashes or session lost during a step that should be routine
+- Screen does not transition after tap/swipe that should navigate
+- WebView content does not match native app state
+- Permission dialog blocks interaction but should have been granted
+
+**How to Flag:** Mark with `test.fixme('POTENTIAL BUG: [description]')`, document in the explorer/executor report, do NOT adapt the test.
 
 ---
 
@@ -86,8 +92,10 @@ Hybrid-specific signals (applies to `hybrid` type only):
 
 ## 5. No Hardcoded Waits
 
-- NEVER use `page.waitForTimeout()` or any hardcoded delays anywhere
-- Use proper Playwright waits: `waitForSelector`, `waitForLoadState`, `waitForURL`, `waitForResponse`
+- NEVER use `page.waitForTimeout()` **UNLESS** it carries a `// PACING: [reason]` comment explaining WHY the delay is needed and WHAT component is slow
+- The `// PACING:` comment is a contract — it protects the wait from Reviewer removal. Without the comment, the wait WILL be flagged and removed
+- Use proper Playwright waits FIRST: `waitForSelector`, `waitForLoadState`, `waitForURL`, `waitForResponse`, `waitForFunction`
+- Only fall back to `waitForTimeout` with PACING comment when proper waits don't work (e.g., component has no observable load indicator)
 - Rely on Playwright's auto-waiting where appropriate
 
 ---
@@ -128,7 +136,7 @@ The guardrails in Section 3 are **ABSOLUTE by default**. Only ONE thing override
 **The test scenario is the specification. NO agent MUST alter, reorder, skip, or replace scenario steps to make a test pass.** This is a QA integrity principle — the purpose of the test is to verify the application behaves as the scenario describes, not to find any path that produces a green result.
 
 **What the Executor CAN fix:**
-- Locator selectors (the HOW of finding an element — JSON file updates)
+- Locator path refinement (e.g., selector points to container instead of text node — narrow it). But NOT missing elements — if element is not in DOM at all, escalate to Explorer-Builder
 - Import paths, TypeScript errors, missing dependencies (technical plumbing)
 - Wait strategies (replacing hardcoded waits with proper Playwright waits)
 - Page Object methods (fixing element interaction mechanics)
@@ -150,7 +158,26 @@ The guardrails in Section 3 are **ABSOLUTE by default**. Only ONE thing override
 
 ---
 
-## 10. Platform Compatibility
+## 10. App-Context Files Are ADDITIVE
+
+App-context files (`scenarios/app-contexts/*.md`) store learned patterns. They grow over time as more patterns are discovered.
+
+**Who can write app-context files:**
+- **Humans** — YES. Testers, developers, and QE leads can manually create or edit app-context files with known application patterns. This is encouraged for new app onboarding.
+- **Explorer-Builder** — YES. Writes newly discovered patterns after exploration.
+- **Executor** — YES. Writes pacing patterns discovered during fix cycles.
+- **Enrichment Agent** — Read only (uses app-context to ask smarter questions).
+- **Reviewer** — Read only.
+
+**Rules:**
+- **Patterns are ALWAYS additive** — NEVER remove existing patterns from an app-context file
+- **If a pattern is outdated** — add a `**Superseded by:**` note, DO NOT delete the original
+- **If two pipeline runs or a human + agent edit the same file** — all additions are valid. Keep all.
+- **Human-authored patterns are equally authoritative** — agents MUST read and follow them just like agent-discovered patterns
+
+---
+
+## 11. Platform Compatibility
 
 All agents must follow these rules for cross-platform operation:
 - Use Node.js `path.join()` for all file paths (never hardcode `/` or `\`)
