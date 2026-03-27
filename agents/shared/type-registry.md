@@ -14,9 +14,9 @@ Single source of truth for all scenario type definitions. When agents need to de
 |----------|-------|
 | **Description** | Browser-based UI test scenarios |
 | **Scenario input** | `scenarios/web/{scenario}.md` or `scenarios/web/{folder}/{scenario}.md` |
-| **Requires Analyst?** | Yes — Analyst executes scenario in a real browser via Playwright MCP |
-| **Analyst source** | Scenario `.md` file |
-| **Generator sources** | Analyst report + scenario `.md` + Scout report (if exists) |
+| **Requires browser exploration?** | Yes — Explorer-Builder explores scenario in a live browser via Playwright MCP |
+| **Explorer-Builder source** | Scenario `.md` file |
+| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
 | **Test fixture** | `{ page }` |
 | **Test spec path** | `output/tests/web/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/web/{scenario}.json` |
@@ -25,11 +25,11 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **Helper files apply?** | Yes — `output/pages/{PageName}Page.helpers.ts` |
 | **Scout report used?** | Yes (if exists) — `output/scout-reports/[{folder}/]{scenario}-page-inventory-latest.md` |
 | **Selector externalization** | Required — all selectors in JSON, never in code |
-| **Healer source file** | Analyst report |
-| **Healer selector debugging** | Scout report + DOM fallback chain |
+| **Executor source file** | Explorer report |
+| **Executor debugging context** | Scout report + DOM fallback chain |
 | **Reviewer: Dimension 4** | Locator Quality — audits primary + 2 fallbacks, no raw selectors |
 | **API Behavior escape hatch** | N/A |
-| **Orchestrator pipeline** | Analyst → Generator → Healer → Reviewer → [Healer Review] |
+| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
 
 ### api
 
@@ -37,9 +37,9 @@ Single source of truth for all scenario type definitions. When agents need to de
 |----------|-------|
 | **Description** | REST API test scenarios using Playwright request fixture |
 | **Scenario input** | `scenarios/api/{scenario}.md` or `scenarios/api/{folder}/{scenario}.md` |
-| **Requires Analyst?** | No — scenario `.md` already exists (created by API Analyst or manually) |
-| **Analyst source** | N/A |
-| **Generator sources** | Scenario `.md` only (no analyst report, no Scout report) |
+| **Requires browser exploration?** | No — API scenarios use `request` fixture only, no browser needed |
+| **Explorer-Builder source** | N/A |
+| **Explorer-Builder inputs** | Scenario `.md` only (no analyst report, no Scout report) |
 | **Test fixture** | `{ request }` |
 | **Test spec path** | `output/tests/api/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/api/{scenario}.json` |
@@ -48,11 +48,11 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **Helper files apply?** | No |
 | **Scout report used?** | No |
 | **Selector externalization** | N/A |
-| **Healer source file** | Raw scenario `.md` |
-| **Healer selector debugging** | N/A |
+| **Executor source file** | Raw scenario `.md` |
+| **Executor debugging context** | N/A |
 | **Reviewer: Dimension 4** | N/A — Locator Quality is web-only |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence guardrails |
-| **Orchestrator pipeline** | Generator → Healer → Reviewer → [Healer Review] (skips Analyst) |
+| **Pipeline** | Explorer-Builder → Executor → Reviewer (no browser exploration) |
 
 ### hybrid
 
@@ -60,9 +60,9 @@ Single source of truth for all scenario type definitions. When agents need to de
 |----------|-------|
 | **Description** | Combined browser UI + REST API test scenarios in a single test |
 | **Scenario input** | `scenarios/hybrid/{scenario}.md` or `scenarios/hybrid/{folder}/{scenario}.md` |
-| **Requires Analyst?** | Yes — Analyst executes UI steps in browser and observes API responses |
-| **Analyst source** | Scenario `.md` file |
-| **Generator sources** | Analyst report + scenario `.md` + Scout report (if exists) |
+| **Requires browser exploration?** | Yes — Explorer-Builder explores UI steps in browser, API steps via request fixture |
+| **Explorer-Builder source** | Scenario `.md` file |
+| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
 | **Test fixture** | `{ page, request }` — both fixtures always required |
 | **Test spec path** | `output/tests/hybrid/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/hybrid/{scenario}.json` |
@@ -71,11 +71,11 @@ Single source of truth for all scenario type definitions. When agents need to de
 | **Helper files apply?** | Yes — `output/pages/{PageName}Page.helpers.ts` (UI pages only) |
 | **Scout report used?** | Yes (if exists) — for UI element selectors only |
 | **Selector externalization** | Required for UI elements; N/A for API assertions |
-| **Healer source file** | Analyst report |
-| **Healer selector debugging** | Scout report + DOM fallback chain (UI steps); API diagnostics (API steps) |
+| **Executor source file** | Explorer report |
+| **Executor debugging context** | Scout report + DOM fallback chain (UI steps); API diagnostics (API steps) |
 | **Reviewer: Dimension 4** | Locator Quality — audits UI selectors only; API assertions excluded |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence for API steps |
-| **Orchestrator pipeline** | Analyst → Generator → Healer → Reviewer → [Healer Review] |
+| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
 
 ---
 
@@ -83,43 +83,32 @@ Single source of truth for all scenario type definitions. When agents need to de
 
 Use this table when an agent needs to decide behavior based on type.
 
-### Orchestrator
+### Explorer-Builder
 
 | Decision | web | api | hybrid |
 |----------|-----|-----|--------|
-| Run Analyst (Stage 1)? | Yes | **Skip** — go directly to Generator | Yes |
-| Generator source files | Analyst report + scenario + Scout (if exists) | Scenario `.md` only | Analyst report + scenario + Scout (if exists) |
-| Pass `skip_analyst`? | false (default) | true | false (default) |
-
-### Generator
-
-| Decision | web | api | hybrid |
-|----------|-----|-----|--------|
-| Read analyst report? | Yes | No | Yes |
-| Read Scout report? | Yes (if exists) | No | Yes (if exists) — UI elements only |
+| Open browser? | **YES** — full MCP exploration | **NO** — API only, no browser | **YES** — for UI steps |
 | Create locator JSONs? | Yes — one per page | No | Yes — one per UI page |
 | Create page objects? | Yes — one per page | No | Yes — one per UI page |
 | Discover helper files? | Yes — scan `output/pages/*.helpers.ts` | No | Yes |
-| Test fixture in spec | `{ page }` | `{ request }` | **`{ page, request }`** — always both |
+| Test fixture in spec | `{ page }` | `{ request }` | **`{ page, request }`** — ALWAYS both |
 | beforeAll/afterAll fixture | `{ browser }` (create page manually) | `{ browser }` (use `playwrightRequest.newContext()` for API) | `{ browser }` (create page or request context manually) |
 | beforeEach/afterEach fixture | `{ page }` | `{ request }` | `{ page, request }` |
 | Keyword: SCREENSHOT | `page.screenshot()` + `test.info().attach()` | N/A | `page.screenshot()` + `test.info().attach()` |
 | Keyword: API steps | Optional (ad-hoc mixed) | Primary pattern | **Primary** — interleaved with UI steps |
+| App-context read/write | Yes | Yes (API patterns) | Yes |
 
-### Healer
+### Executor
 
 | Decision | web | api | hybrid |
 |----------|-----|-----|--------|
-| Source file for pre-flight | Analyst report | Raw scenario `.md` | Analyst report |
-| Category C (Wrong Selector) | Try fallbacks → check Scout report → fix interaction → construct from snapshot | N/A | Try fallbacks → Scout → snapshot (UI steps only) |
-| Category G (API Error) | N/A (unless mixed) | Diagnose per-host, check auth, check payload | Diagnose per-host (API steps) |
-| Category H (Hybrid State Mismatch) | N/A | N/A | Flag when UI state contradicts API response |
-| Category I (Shared State Issue) | Yes — browser state from prior test | N/A | Yes — browser state from prior test |
-| Category J (Business Logic Constraint) | Yes — action succeeds but wrong outcome | N/A | Yes — action succeeds but wrong outcome |
+| Source file for diagnosis | Explorer report + error-context.md | Explorer report + parsed results | Explorer report + error-context.md |
+| Selector issues | Escalate — Explorer-Builder already verified selectors | N/A | Escalate (UI steps) |
+| API errors | N/A (unless mixed) | Diagnose per-host, check auth, check payload | Diagnose per-host (API steps) |
+| Hybrid state mismatch | N/A | N/A | Flag when UI state contradicts API response |
 | CRUD persistence guardrail | N/A | Flag as POTENTIAL BUG (unless `API Behavior: mock`) | Flag as POTENTIAL BUG (unless `API Behavior: mock`) |
-| Visual diagnosis protocol | Mandatory — Playwright MCP snapshot + screenshot | N/A (text-based) | Mandatory — Playwright MCP snapshot + screenshot |
-| Same-root-cause detection | 3 consecutive cycles → UNFIXABLE | 3 consecutive cycles → UNFIXABLE | 3 consecutive cycles → UNFIXABLE |
-| Helper file pre-check gate | Yes — never edit `*.helpers.ts` | N/A | Yes — never edit `*.helpers.ts` |
+| Max cycles | 3 | 3 | 3 |
+| Helper file pre-check gate | Yes — NEVER edit `*.helpers.ts` | N/A | Yes — NEVER edit `*.helpers.ts` |
 
 ### Reviewer
 
@@ -149,8 +138,8 @@ These features work identically regardless of type:
 - **beforeEach/afterEach fixture** → per type: `{ page }` (web), `{ request }` (api), `{ page, request }` (hybrid)
 - **Test data** → `output/test-data/{type}/{scenario}.json`
 - **Shared test data** → `output/test-data/shared/` (immutable)
-- **Healer max cycles** → 3 (web healer), 3 (api healer), 5 (detailed instruction default)
-- **Reviewer** → 8 quality dimensions, score 1-5 each
+- **Executor max cycles** → 3 (all types)
+- **Reviewer** → 9 quality dimensions, score 1-5 each
 - **Pipeline summary** → Standardized report format
 
 ---
@@ -164,9 +153,9 @@ To add a new type (e.g., `mobile`):
 3. **Update `path-resolution.md`** — add scenario input path patterns for the new type
 4. **Update `keyword-reference.md`** — add any new keywords or modify existing keyword behavior
 5. **Update `guardrails.md`** — add any type-specific guardrails or bug signals
-6. **Update the Orchestrator** (`.github/agents/orchestrator.agent.md`) — add pipeline stage logic, source file resolution, verification paths
-7. **Update the Generator** (`.github/agents/generator.agent.md` + `agents/02-generator/generate-spec.md`) — add source file patterns, fixture rules
-8. **Update the Healer** (`agents/03-healer/diagnose-failure.md`) — add diagnosis categories for the new type
+6. **Update the Explorer-Builder** (`agents/core/explorer-builder.md` + `agents/core/code-generation-rules.md`) — add source file patterns, fixture rules
+7. **Update the Executor** (`agents/core/executor.md`) — add diagnosis categories for the new type
+8. **Update the Copilot/Claude agent wrappers** (`.github/agents/` + `agents/claude/`) — add new agent wrapper if needed
 9. **Update the Reviewer** (`agents/04-reviewer/dimensions.md`) — clarify which dimensions apply
 10. **Update docs** — `README.md` (supported types), `ENTERPRISE-SCALING-GUIDE.md` (Section 6 capabilities table)
 

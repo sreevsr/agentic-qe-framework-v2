@@ -1,9 +1,8 @@
 # Keyword Reference — Scenario Keywords and TypeScript Code Patterns
 
 This is the authoritative reference for all scenario keywords. Each agent interprets keywords for its role:
-- **Analyst:** Executes and observes the keyword action in the browser
-- **Generator:** Converts the keyword into TypeScript code
-- **Healer:** Validates keyword implementations and protects assertion integrity
+- **Explorer-Builder:** Explores the keyword action in the live browser AND writes the corresponding TypeScript code
+- **Executor:** Validates keyword implementations work at runtime and fixes timing issues
 - **Reviewer:** Audits keyword implementations against quality standards
 
 ---
@@ -12,7 +11,7 @@ This is the authoritative reference for all scenario keywords. Each agent interp
 
 **Scenario:** `VERIFY: Cart badge shows "2"`
 
-**Analyst action:** Check the stated condition on the current page and log pass/fail.
+**Explorer-Builder action:** Check the stated condition on the current page and log pass/fail.
 
 **Generated code:**
 ```typescript
@@ -23,7 +22,7 @@ expect(await inventoryPage.getCartBadgeCount()).toBe(2);
 await expect(page).toHaveURL(/\/dashboard/);
 ```
 
-**Healer rule:** If VERIFY fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value.
+**Executor rule:** If VERIFY fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value.
 
 **Reviewer check:** VERIFY steps must produce `expect()` assertions inline, not just at the end.
 
@@ -33,7 +32,7 @@ await expect(page).toHaveURL(/\/dashboard/);
 
 **Scenario:** `VERIFY_SOFT: Cart badge shows "2"`
 
-**Analyst action:** Same as VERIFY — check the stated condition on the current page and log pass/fail.
+**Explorer-Builder action:** Same as VERIFY — check the stated condition on the current page and log pass/fail.
 
 **Generated code (with auto-screenshot on failure):**
 ```typescript
@@ -67,7 +66,7 @@ The block scope `{ }` prevents variable name collisions when multiple VERIFY_SOF
 - `VERIFY` — The remaining steps depend on this condition being true (e.g., verifying login succeeded before proceeding to checkout)
 - `VERIFY_SOFT` — The remaining steps can run regardless (e.g., checking multiple field values on a summary page)
 
-**Healer rule:** Same as VERIFY — if VERIFY_SOFT fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value. Never convert VERIFY_SOFT to VERIFY or vice versa.
+**Executor rule:** Same as VERIFY — if VERIFY_SOFT fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value. Never convert VERIFY_SOFT to VERIFY or vice versa.
 
 **Reviewer check:** VERIFY_SOFT steps must produce `expect.soft()` assertions. Verify that VERIFY_SOFT is not used for conditions that subsequent steps depend on.
 
@@ -77,7 +76,7 @@ The block scope `{ }` prevents variable name collisions when multiple VERIFY_SOF
 
 **Scenario:** `CAPTURE: Read subtotal as {{subtotal}}`
 
-**Analyst action:** Read the specified value from the page and record it with the `{{variableName}}`.
+**Explorer-Builder action:** Read the specified value from the page and record it with the `{{variableName}}`.
 
 **Generated code:**
 ```typescript
@@ -93,7 +92,7 @@ const subtotal = await checkoutPage.getSubtotal();
 
 **Scenario:** `CALCULATE: {{expectedTotal}} = {{subtotal}} + {{tax}}`
 
-**Analyst action:** Perform the math on captured values and record the result.
+**Explorer-Builder action:** Perform the math on captured values and record the result.
 
 **Generated code:**
 ```typescript
@@ -107,7 +106,7 @@ const expectedTotal = (parseFloat(subtotal.replace('$', '')) + parseFloat(tax.re
 
 **Scenario:** `SCREENSHOT: checkout-overview`
 
-**Analyst action:** Take a visual screenshot and note the filename.
+**Explorer-Builder action:** Take a visual screenshot and note the filename.
 
 **Generated code:**
 ```typescript
@@ -122,7 +121,7 @@ await test.info().attach('checkout-overview', { body: screenshot, contentType: '
 
 **Scenario:** `REPORT: Print subtotal, tax, total`
 
-**Analyst action:** Note that this value should appear in test output — record it.
+**Explorer-Builder action:** Note that this value should appear in test output — record it.
 
 **Generated code:**
 ```typescript
@@ -137,7 +136,7 @@ test.info().annotations.push({ type: 'subtotal', description: subtotal });
 
 **Scenario:** `SAVE: {{orderNumber}} to shared-state.json as "lastOrderNumber"`
 
-**Analyst action:** Note that this value needs to be persisted — record the key name.
+**Explorer-Builder action:** Note that this value needs to be persisted — record the key name.
 
 **Generated code:**
 ```typescript
@@ -159,7 +158,7 @@ saveState('lastOrderNumber', orderNumber);
 | locked_out_user | secret_sauce | error |
 ```
 
-**Analyst action:** Execute only the FIRST data row. Note all rows for the Generator.
+**Explorer-Builder action:** Execute only the FIRST data row. Note all rows for code generation.
 
 **Generated code:**
 ```typescript
@@ -267,7 +266,7 @@ process.env.BASE_URL
 
 **Scenario header:** `## API Behavior: mock` or `## API Behavior: live`
 
-- `mock` — API is non-persistent. Healer may adapt tests for non-persistence (use existing IDs, accept mock responses).
+- `mock` — API is non-persistent. Explorer-Builder or Executor may adapt tests for non-persistence (use existing IDs, accept mock responses).
 - `live` or missing — API is real. All persistence/assertion guardrails apply with ZERO exceptions.
 - NEVER infer API behavior from the URL or API name. Only the explicit `## API Behavior` header controls this.
 
@@ -288,7 +287,7 @@ process.env.BASE_URL
 
 All four sections are optional. Only generate the corresponding hook if the section exists in the scenario file.
 
-**Analyst action:**
+**Explorer-Builder action:**
 - `Common Setup Once` — Execute once at the very start, before any scenario
 - `Common Setup` — Execute before each scenario (existing behavior)
 - `Common Teardown` — Execute after each scenario completes
@@ -323,7 +322,7 @@ test.describe('Feature Name', () => {
 
 **beforeAll/afterAll fixture constraint:** These hooks receive only `{ browser }` from Playwright. If the hook steps require a page, create one manually: `const page = await browser.newPage()` and close it when done. If they require API calls, create a request context: `const ctx = await playwrightRequest.newContext()` and dispose it when done. Always clean up created resources.
 
-**Healer rule:** If `beforeAll` or `afterAll` code uses `{ page }` or `{ request }` fixtures directly, that is a code error — fix by switching to `{ browser }` and creating resources manually.
+**Executor rule:** If `beforeAll` or `afterAll` code uses `{ page }` or `{ request }` fixtures directly, that is a code error — fix by switching to `{ browser }` and creating resources manually.
 
 **Reviewer check:** Verify `beforeAll`/`afterAll` destructure only `{ browser }`, never `{ page }` or `{ request }`.
 
