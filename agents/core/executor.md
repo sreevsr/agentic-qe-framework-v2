@@ -151,6 +151,22 @@ Look at the error-context.md DOM snapshot. Is the failing element present in the
 | TypeScript error | Type mismatch, missing await | Fix the type or add await |
 | Shared state pollution | Previous test left cookies/localStorage/pre-filled forms | Add cleanup in `afterEach` or `beforeEach`, or isolate with new browser context |
 
+### Enterprise Pacing Recipes — Proven Fix Patterns
+
+When the Diagnostic Gate identifies **Interaction Pacing** (element present, action times out), use these specific recipes:
+
+| Component Type | Signal | Recipe |
+|---------------|--------|--------|
+| **Autocomplete/lookup input** | `fill()` types but dropdown doesn't appear | Replace `fill()` with `pressSequentially(value, { delay: 100 })` — gives server time to respond per keystroke |
+| **Kendo/Telerik dropdown** | Click opens nothing or times out | Two-step: `click()` to open → `waitForSelector('.k-animation-container', { state: 'visible' })` → `click()` option |
+| **PCF grid filter** | `fill()` types but grid doesn't filter | Use `pressSequentially()` — PCF filter inputs need keydown/keyup events |
+| **Post-click dynamic content** | Click succeeds but next step fails (content not loaded) | Add `waitForLoadState('networkidle')` after click. If insufficient, add `waitForTimeout(500); // PACING: [component] loads dynamically after [action]` |
+| **Panel/drawer open** | Click opens panel but elements inside aren't ready | Add `waitForSelector('.panel-content', { state: 'visible' })` before interacting with panel content |
+| **SPA navigation** | URL changes but content doesn't update | Add `waitForURL(/expected-path/)` + `waitForSelector('[data-testid="page-indicator"]')` — wait for BOTH URL and content |
+| **Slow enterprise app** | Multiple timeouts across the scenario | Check app-context for documented slowness. Add `// PACING:` waits where needed. Update app-context with timing info |
+
+**MUST** add `// PACING: [reason]` comment to EVERY `waitForTimeout` — this protects it from Reviewer removal. **MUST** update app-context with the discovered pacing pattern.
+
 **The Executor MUST NOT fix (escalate instead):**
 
 | Issue | Signal | Action |
@@ -258,8 +274,12 @@ This ensures pacing fixes discovered by the Executor are available to the Explor
 ## Escalated Issues (not fixed)
 [List with test.fixme markers: POTENTIAL BUG / UNFIXABLE / HELPER ISSUE / SCENARIO BLOCKED]
 
-## App-Context Updates
-[List new patterns written to app-context, or "None"]
+## App-Context Check (MANDATORY before saving report)
+- [ ] PACING comments added during fix cycles? [Y/N]
+- [ ] App-context file exists for this app? [Y/N]
+- [ ] If PACING=Y and app-context=N → **CREATED app-context file** with pacing patterns
+- [ ] If PACING=Y and app-context=Y → **UPDATED app-context file** with new patterns
+- [ ] New patterns written: [list, or "None"]
 ```
 
 ---

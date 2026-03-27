@@ -25,6 +25,9 @@ You NEVER guess selectors. You NEVER assume wait strategies. You open the real a
 | 7 | `skills/registry.md` | Available skills for this scenario type | **YES — ALWAYS** |
 | 8 | App-context file (if exists) | `scenarios/app-contexts/{app-name}.md` — learned patterns | **YES — if file exists** |
 | 9 | `agents/core/scenario-handling.md` | Multi-scenario, subagent splitting, app-context rules | **YES — if scenario has 20+ steps, multiple scenarios, or lifecycle hooks** |
+| 10 | Scout report (if exists) | `output/scout-reports/{scenario}-page-inventory-latest.md` | **YES — if file exists** |
+
+**Scout report integration:** If a Scout report exists for this scenario or application, read it BEFORE starting the core loop. Scout provides a pre-explored DOM inventory with verified selectors, component library detection, and interaction patterns. Use Scout's selectors as FIRST-CHOICE primaries — they override the standard priority chain. Scout is a Phase 5 feature; if no Scout report exists, the Explorer-Builder discovers everything live (which is the default v2 flow).
 
 **Read order matters.** The scenario tells you WHAT to test. The code generation rules tell you HOW to write code. The quality gates tell you WHAT NOT TO DO and HOW TO VERIFY your work. The keyword reference tells you exact code patterns. The guardrails define ownership boundaries. The type registry determines fixtures and skills. The skills registry lists available capabilities. The app-context gives you a head start with known patterns.
 
@@ -377,6 +380,22 @@ Missing or blocked items: [list each, or "None"]
 | {{subtotal}} | Subtotal label in checkout | `.locator('.subtotal').textContent()` | No |
 | {{itemName}} | First grid row name | `.locator('tr:first-child td.name').textContent()` | Yes — uses testData.searchTerm |
 [List each CAPTURE with its exact path, or "No captures in this scenario."]
+
+## Key Decisions Made
+<!-- Audit trail: WHY specific approaches were chosen -->
+| Decision | Choice Made | Reason |
+|----------|-------------|--------|
+| navigate() URL source | process.env.BASE_URL | Single-app scenario |
+| Login method | auth/sso-login (Microsoft SSO) | App-context: Microsoft SSO detected |
+| Filter input interaction | pressSequentially (not fill) | fill() didn't trigger filter events |
+| Grid row scoping | Scoped by row text content | Multiple rows have identical button selectors |
+[Document each non-obvious decision, or "Standard patterns used — no special decisions."]
+
+## App-Context Check
+- [ ] PACING comments exist in generated code? [Y/N]
+- [ ] App-context file exists for this app? [Y/N]
+- [ ] If PACING=Y and app-context=N → **CREATED app-context file** with pacing patterns
+- [ ] If PACING=Y and app-context=Y → **UPDATED app-context file** with new patterns
 
 ## Issues and Warnings
 [List any blocked steps, potential bugs, or concerns]

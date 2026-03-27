@@ -32,6 +32,7 @@ If the input is already a structured scenario `.md` file with clear steps → **
 | **Structured .md** | Full scenario with `## Steps`, numbered steps, keywords | **PASSTHROUGH** — validate format, fix minor issues, DO NOT rewrite |
 | **Natural language** | "Test that a user can log in and add items to cart" | **FULL ENRICHMENT** — interactive Q&A, then produce structured .md |
 | **Partial/mixed** | Some structure but missing details, vague steps | **GAP FILL** — ask about gaps, then produce structured .md |
+| **Swagger/OpenAPI spec** | `.json` file with `openapi` or `swagger` field, or `.parsed.json` | **SPEC → SCENARIOS** — parse spec, generate scenario .md files per resource group (see Section 5) |
 
 ### 3.1: Passthrough Gate
 
@@ -164,7 +165,159 @@ After producing the enriched scenario, assess your confidence:
 
 ---
 
-## 5. Example: Natural Language → Enriched Scenario
+## 5. Swagger/OpenAPI → Scenario Generation
+
+When the input is a Swagger/OpenAPI spec (`.json` file with `openapi` or `swagger` field):
+
+### 5.1: Parse the Spec — MANDATORY
+
+1. Check if a pre-parsed version exists: `{spec-name}.parsed.json`
+2. If NOT pre-parsed → run `node scripts/swagger-parser.js --spec={path}` to produce the parsed summary
+3. Read the parsed summary (compact, token-efficient — ~5-10K tokens vs ~50-200K raw)
+
+### 5.2: Group Endpoints by Resource — MANDATORY
+
+Identify resource groups from the parsed spec (e.g., `/users/*`, `/products/*`, `/orders/*`). Each resource group produces one or more scenario `.md` files.
+
+### 5.3: Generate Scenarios Using 4 Category Templates — MANDATORY
+
+**For EACH resource group, generate scenarios from these templates:**
+
+#### Category A — Happy Path CRUD
+
+```markdown
+# Scenario: {Resource} CRUD Happy Path
+
+## Metadata
+- **Type:** api
+- **Tags:** api, crud, smoke, {resource-name}
+
+## API Behavior: live
+
+## Steps
+1. API POST: {{ENV.API_BASE_URL}}/{resource} with body {sample from schema}
+2. VERIFY: Response status is 201
+3. VERIFY: Response body contains expected fields
+4. CAPTURE: Response $.id as {{resourceId}}
+5. API GET: {{ENV.API_BASE_URL}}/{resource}/{{resourceId}}
+6. VERIFY: Response status is 200
+7. VERIFY: Response body matches created data
+8. API PUT: {{ENV.API_BASE_URL}}/{resource}/{{resourceId}} with body {updated fields}
+9. VERIFY: Response status is 200
+10. API GET: {{ENV.API_BASE_URL}}/{resource}/{{resourceId}}
+11. VERIFY: Response body shows updated values
+12. API DELETE: {{ENV.API_BASE_URL}}/{resource}/{{resourceId}}
+13. VERIFY: Response status is 200 or 204
+14. API GET: {{ENV.API_BASE_URL}}/{resource}/{{resourceId}}
+15. VERIFY: Response status is 404
+```
+
+#### Category B — Negative Tests
+
+```markdown
+# Scenario: {Resource} Negative Tests
+
+## Metadata
+- **Type:** api
+- **Tags:** api, negative, regression, {resource-name}
+
+## API Behavior: live
+
+## Steps
+1. API POST: {{ENV.API_BASE_URL}}/{resource} with body {} (empty)
+2. VERIFY: Response status is 400
+3. API POST: {{ENV.API_BASE_URL}}/{resource} with body {missing required fields}
+4. VERIFY: Response status is 400
+5. VERIFY: Response body contains error message about missing fields
+6. API POST: {{ENV.API_BASE_URL}}/{resource} with body {invalid types — string for number field}
+7. VERIFY: Response status is 400
+8. API GET: {{ENV.API_BASE_URL}}/{resource}/nonexistent-id-99999
+9. VERIFY: Response status is 404
+10. API DELETE: {{ENV.API_BASE_URL}}/{resource}/nonexistent-id-99999
+11. VERIFY: Response status is 404
+12. API GET: {{ENV.API_BASE_URL}}/{resource} without auth header
+13. VERIFY: Response status is 401 or 403
+```
+
+#### Category C — List/Search/Filter
+
+```markdown
+# Scenario: {Resource} List and Search
+
+## Metadata
+- **Type:** api
+- **Tags:** api, list, regression, {resource-name}
+
+## Steps
+1. API GET: {{ENV.API_BASE_URL}}/{resource}
+2. VERIFY: Response status is 200
+3. VERIFY: Response body is array (or has data array property)
+4. VERIFY: Array has expected structure (each item has id, required fields)
+5. API GET: {{ENV.API_BASE_URL}}/{resource}?page=1&limit=10
+6. VERIFY: Response returns paginated results (if API supports pagination)
+7. API GET: {{ENV.API_BASE_URL}}/{resource}?sort=name&order=asc
+8. VERIFY: Results are sorted correctly (if API supports sorting)
+```
+
+#### Category D — Edge Cases
+
+```markdown
+# Scenario: {Resource} Edge Cases
+
+## Metadata
+- **Type:** api
+- **Tags:** api, edge-case, regression, {resource-name}
+
+## Steps
+1. API POST: {{ENV.API_BASE_URL}}/{resource} with body {max-length strings for all string fields}
+2. VERIFY: Response status is 201 or 400 (document which)
+3. API POST: {{ENV.API_BASE_URL}}/{resource} with body {boundary numeric values — 0, -1, MAX_INT}
+4. VERIFY: Response status and behavior documented
+5. API POST: {{ENV.API_BASE_URL}}/{resource} with body {special characters: unicode, quotes, HTML entities}
+6. VERIFY: Response handles special characters safely (no XSS, no SQL injection)
+7. API POST: {{ENV.API_BASE_URL}}/{resource} with DUPLICATE data (same as existing resource)
+8. VERIFY: Response status is 409 Conflict or idempotent 200/201
+9. API POST: {{ENV.API_BASE_URL}}/{resource} with body {only required fields — all optional omitted}
+10. VERIFY: Response status is 201
+11. VERIFY: Optional fields have documented default values
+```
+
+### 5.4: Auth Setup Scenario — Generate If Spec Has Security
+
+If the parsed spec includes security schemes (Bearer token, OAuth, API key):
+
+```markdown
+# Scenario: Auth Setup
+
+## Metadata
+- **Type:** api
+- **Tags:** api, auth, setup
+
+## Steps
+1. API POST: {{ENV.API_BASE_URL}}/auth/login with body {"username": "{{ENV.API_USERNAME}}", "password": "{{ENV.API_PASSWORD}}"}
+2. VERIFY: Response status is 200
+3. CAPTURE: Response $.token as {{authToken}}
+4. SAVE: {{authToken}} to shared-state as "apiToken"
+```
+
+### 5.5: Output — MANDATORY
+
+- Save each scenario to `scenarios/api/{resource-name}-{category}.md`
+- If `--folder` specified: `scenarios/api/{folder}/{resource-name}-{category}.md`
+- Generate a summary file: `scenarios/api/{spec-name}-generation-summary.md` listing all scenarios created, endpoint coverage, and any endpoints NOT covered (with reason)
+
+### 5.6: Rules — MANDATORY
+
+- **MUST** use `{{ENV.API_BASE_URL}}` for all URLs — NEVER hardcode
+- **MUST** use sample bodies from the parsed spec schema (swagger-parser.js generates realistic samples)
+- **MUST** set `## API Behavior: live` by default. Let user change to `mock` if needed
+- **MUST NOT** guess field names or types — use what the spec declares
+- **MUST** ask the user if the spec has ambiguities: "This endpoint has no documented response schema — should I skip it or assume standard JSON?"
+- Category D edge cases MUST use values from the spec's field constraints (minLength, maxLength, minimum, maximum, enum)
+
+---
+
+## 6. Example: Natural Language → Enriched Scenario
 
 **User input:** "Test that a user can log in, browse the SME directory, filter by Sports specialty, and check pagination"
 
@@ -215,7 +368,7 @@ After producing the enriched scenario, assess your confidence:
 
 ---
 
-## 6. Output Location
+## 7. Output Location
 
 **MUST** save the enriched scenario to:
 
@@ -233,7 +386,7 @@ The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 
 ---
 
-## 7. What the Enrichment Agent MUST NOT Do
+## 8. What the Enrichment Agent MUST NOT Do
 
 - **MUST NOT** interact with the application (no browser, no API calls)
 - **MUST NOT** guess selectors or CSS paths
@@ -244,7 +397,7 @@ The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 
 ---
 
-## 8. Platform Compatibility
+## 9. Platform Compatibility
 
 - Enrichment Agent is platform-independent — no browser, no file system access beyond reading/writing scenario files
 - Output `.md` files MUST use LF line endings (enforced by `.gitattributes`)
