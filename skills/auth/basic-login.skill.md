@@ -1,11 +1,19 @@
 # Skill: auth/basic-login
 
 ## Input
-- **usernameSelector**, **passwordSelector**, **submitSelector** (string, required)
-- **credentials**: `{ username, password }` from env vars
+- **usernameSelector** (string, required): Locator name for username input
+- **passwordSelector** (string, required): Locator name for password input
+- **submitSelector** (string, required): Locator name for login button
+- **credentials**: `{ username, password }` from `process.env`
 
 ## Output
 - **authenticated** (boolean), **storageStatePath** (string)
+
+## Rules — MUST Follow
+- **MUST** use `process.env.TEST_USERNAME` and `process.env.TEST_PASSWORD` — NEVER hardcode credentials
+- **MUST** wait for navigation/load state after clicking submit
+- **MUST** verify login succeeded (check URL change, welcome message, or dashboard element)
+- **MUST** save storageState after successful login if other tests need authenticated state
 
 ## Code Pattern
 ```typescript
