@@ -56,11 +56,14 @@ const CORE_FILES = [
   { src: 'shared-state.ts',     dest: path.join('core', 'shared-state.ts') },
 ];
 
+const validateOnly = process.argv.includes('--validate-only');
+
 async function main() {
   console.log('\n=== Agentic QE Framework v2 — Setup ===\n');
   console.log(`${SYMBOLS.info} Platform: ${os.platform()} ${os.arch()}`);
   console.log(`${SYMBOLS.info} Node.js:  ${process.version}`);
   console.log(`${SYMBOLS.info} Root:     ${ROOT}`);
+  if (validateOnly) console.log(`${SYMBOLS.info} Mode:     Validate only (no install)`);
   console.log('');
 
   // Step 1: Validate Node.js version
@@ -119,36 +122,62 @@ async function main() {
   const envExample = path.join(OUTPUT, '.env.example');
   if (!fs.existsSync(envDest) && fs.existsSync(envExample)) {
     fs.copyFileSync(envExample, envDest);
-    console.log(`${SYMBOLS.ok} Created .env from .env.example`);
+    console.log(`${SYMBOLS.ok} Created .env from .env.example — edit with your credentials`);
   } else if (fs.existsSync(envDest)) {
     console.log(`${SYMBOLS.skip} .env already exists`);
   } else {
     console.log(`${SYMBOLS.warn} No .env.example found`);
   }
 
-  // Step 6: Install dependencies
-  console.log(`\n${SYMBOLS.arrow} Installing dependencies in output/...`);
-  try {
-    execSync(`${npmCmd} install`, {
-      cwd: OUTPUT, stdio: 'inherit',
-      env: { ...process.env, npm_config_loglevel: 'warn' },
-    });
-    console.log(`${SYMBOLS.ok} Dependencies installed`);
-  } catch (err) {
-    console.error(`${SYMBOLS.fail} npm install failed.`);
-    process.exit(1);
+  // Step 5b: Create output/.gitignore (for node_modules inside output/)
+  const outputGitignore = path.join(OUTPUT, '.gitignore');
+  if (!fs.existsSync(outputGitignore)) {
+    fs.writeFileSync(outputGitignore, [
+      'node_modules/',
+      '.env',
+      'test-results/',
+      'playwright-report/',
+      'blob-report/',
+      'screenshots/',
+      '',
+    ].join('\n'));
+    console.log(`${SYMBOLS.ok} Created output/.gitignore`);
   }
 
-  // Step 7: Install Playwright browsers
-  const allBrowsers = process.argv.includes('--all-browsers');
-  const browserArg = allBrowsers ? '' : '--with-deps chromium';
-  console.log(`\n${SYMBOLS.arrow} Installing Playwright browsers${allBrowsers ? ' (all)' : ' (Chrome only)'}...`);
-  try {
-    execSync(`${npxCmd} playwright install ${browserArg}`.trim(), { cwd: OUTPUT, stdio: 'inherit' });
-    console.log(`${SYMBOLS.ok} Playwright browsers installed`);
-  } catch (err) {
-    console.error(`${SYMBOLS.fail} Playwright browser install failed.`);
-    process.exit(1);
+  // Step 5c: Initialize shared-state.json (for SAVE/loadState)
+  const sharedStateFile = path.join(OUTPUT, 'test-data', 'shared-state.json');
+  if (!fs.existsSync(sharedStateFile)) {
+    fs.writeFileSync(sharedStateFile, JSON.stringify({}, null, 2));
+    console.log(`${SYMBOLS.ok} Created test-data/shared-state.json`);
+  }
+
+  if (!validateOnly) {
+    // Step 6: Install dependencies
+    console.log(`\n${SYMBOLS.arrow} Installing dependencies in output/...`);
+    try {
+      execSync(`${npmCmd} install`, {
+        cwd: OUTPUT, stdio: 'inherit',
+        env: { ...process.env, npm_config_loglevel: 'warn' },
+      });
+      console.log(`${SYMBOLS.ok} Dependencies installed`);
+    } catch (err) {
+      console.error(`${SYMBOLS.fail} npm install failed.`);
+      process.exit(1);
+    }
+
+    // Step 7: Install Playwright browsers
+    const allBrowsers = process.argv.includes('--all-browsers');
+    const browserArg = allBrowsers ? '' : '--with-deps chromium';
+    console.log(`\n${SYMBOLS.arrow} Installing Playwright browsers${allBrowsers ? ' (all)' : ' (Chrome only)'}...`);
+    try {
+      execSync(`${npxCmd} playwright install ${browserArg}`.trim(), { cwd: OUTPUT, stdio: 'inherit' });
+      console.log(`${SYMBOLS.ok} Playwright browsers installed`);
+    } catch (err) {
+      console.error(`${SYMBOLS.fail} Playwright browser install failed.`);
+      process.exit(1);
+    }
+  } else {
+    console.log(`\n${SYMBOLS.skip} Skipping npm install and browser install (validate-only mode)`);
   }
 
   // Step 8: Validation

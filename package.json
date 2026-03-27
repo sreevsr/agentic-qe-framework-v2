@@ -6,15 +6,16 @@
   "scripts": {
     "setup": "node setup.js",
     "setup:all-browsers": "node setup.js --all-browsers",
-    "precheck": "node scripts/review-precheck.js",
-    "parse-results": "node scripts/test-results-parser.js",
-    "parse-swagger": "node scripts/swagger-parser.js",
-    "scenario-diff": "node scripts/scenario-diff.js",
-    "classify-failures": "node scripts/failure-classifier.js",
-    "collect-metrics": "node scripts/metrics-collector.js",
-    "eval-summary": "node scripts/eval-summary.js",
+    "validate": "node setup.js --validate-only",
+    "precheck": "node scripts/review-precheck.js --",
+    "parse-results": "node scripts/test-results-parser.js --",
+    "parse-swagger": "node scripts/swagger-parser.js --",
+    "scenario-diff": "node scripts/scenario-diff.js --",
+    "classify-failures": "node scripts/failure-classifier.js --",
+    "collect-metrics": "node scripts/metrics-collector.js --",
+    "eval-summary": "node scripts/eval-summary.js --",
     "rehash-skills": "node scripts/rehash-skills.js",
-    "ci:run": "node ci/scripts/ci-test-runner.js"
+    "ci:run": "node ci/scripts/ci-test-runner.js --"
   },
   "engines": {
     "node": ">=18.0.0"
