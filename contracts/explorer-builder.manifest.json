@@ -1,0 +1,26 @@
+{
+  "name": "explorer-builder",
+  "version": "2.0.0",
+  "description": "Explores live application via browser and builds verified Playwright test code",
+  "input": {
+    "scenario": { "type": "file", "format": "markdown", "required": true },
+    "appContext": { "type": "file", "format": "markdown", "required": false },
+    "skills": { "type": "array", "items": "string", "default": ["web/*", "auth/*", "data/*"] },
+    "outputDir": { "type": "string", "required": true, "default": "output" },
+    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": true },
+    "folder": { "type": "string", "required": false },
+    "language": { "type": "string", "enum": ["typescript"], "default": "typescript" }
+  },
+  "output": {
+    "locators": { "type": "file[]", "format": "json", "location": "output/locators/*.locators.json" },
+    "pageObjects": { "type": "file[]", "format": "typescript", "location": "output/pages/*Page.ts" },
+    "specFile": { "type": "file", "format": "typescript", "location": "output/tests/{type}/[{folder}/]{scenario}.spec.ts" },
+    "testData": { "type": "file", "format": "json", "location": "output/test-data/{type}/{scenario}.json" },
+    "report": { "type": "file", "format": "markdown", "location": "output/reports/explorer-report-{scenario}.md" },
+    "appContext": { "type": "file", "format": "markdown", "location": "scenarios/app-contexts/{app}.md" },
+    "metrics": { "type": "file", "format": "json", "location": "output/reports/metrics/explorer-metrics-{scenario}.json" }
+  },
+  "dependencies": { "playwright": ">=1.50.0", "playwright-mcp": "required" },
+  "platforms": ["windows", "linux", "macos"],
+  "maxSubagentDepth": 5
+}

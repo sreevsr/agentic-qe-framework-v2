@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+output/node_modules/
+
+# Environment files
+.env
+output/.env
+
+# IDE
+.vscode/*
+!.vscode/mcp.json
+!.vscode/extensions.json
+.idea/
+
+# Claude Code
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Playwright artifacts (transient)
+output/test-results/
+output/screenshots/
+output/playwright-report/
+output/blob-report/
+
+# Agent reports (transient — regenerated each run)
+output/reports/
+output/**/analyst-report-*.md
+output/**/generator-report-*.md
+output/**/executor-report-*.md
+output/**/explorer-report-*.md
+output/**/healer-report-*.md
+output/**/pipeline-summary-*.md
+output/**/review-scorecard-*.md
+output/**/precheck-report-*.json
+
+# Parsed swagger specs (generated)
+scenarios/api/**/swagger-specs/*.parsed.json
+
+# Scout reports (generated)
+output/scout-reports/
+
+# Storage state (contains auth tokens)
+output/storage-state*.json
+output/auth/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Python (if future language templates used)
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Metrics (generated per run)
+output/reports/metrics/
+
+# Backup files
+*.bak
+*.backup

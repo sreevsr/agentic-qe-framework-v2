@@ -1,0 +1,20 @@
+{
+  "name": "executor",
+  "version": "2.0.0",
+  "description": "Thin verification layer — runs tests, fixes timing issues (max 3 cycles)",
+  "input": {
+    "specFile": { "type": "string", "required": true },
+    "outputDir": { "type": "string", "required": true, "default": "output" },
+    "maxCycles": { "type": "number", "default": 3 },
+    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": true },
+    "folder": { "type": "string", "required": false }
+  },
+  "output": {
+    "passed": { "type": "boolean" },
+    "testResults": { "type": "file", "format": "json", "location": "output/test-results/last-run-parsed.json" },
+    "report": { "type": "file", "format": "markdown", "location": "output/reports/executor-report-{scenario}.md" },
+    "metrics": { "type": "file", "format": "json", "location": "output/reports/metrics/executor-metrics-{scenario}.json" }
+  },
+  "dependencies": { "playwright": ">=1.50.0" },
+  "platforms": ["windows", "linux", "macos"]
+}

@@ -1,0 +1,341 @@
+# Keyword Reference — Scenario Keywords and TypeScript Code Patterns
+
+This is the authoritative reference for all scenario keywords. Each agent interprets keywords for its role:
+- **Analyst:** Executes and observes the keyword action in the browser
+- **Generator:** Converts the keyword into TypeScript code
+- **Healer:** Validates keyword implementations and protects assertion integrity
+- **Reviewer:** Audits keyword implementations against quality standards
+
+---
+
+## VERIFY — Mid-Step Assertions
+
+**Scenario:** `VERIFY: Cart badge shows "2"`
+
+**Analyst action:** Check the stated condition on the current page and log pass/fail.
+
+**Generated code:**
+```typescript
+// VERIFY: Cart badge shows "2"
+expect(await inventoryPage.getCartBadgeCount()).toBe(2);
+
+// VERIFY: URL contains "/dashboard"
+await expect(page).toHaveURL(/\/dashboard/);
+```
+
+**Healer rule:** If VERIFY fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value.
+
+**Reviewer check:** VERIFY steps must produce `expect()` assertions inline, not just at the end.
+
+---
+
+## VERIFY_SOFT — Non-Blocking Assertions
+
+**Scenario:** `VERIFY_SOFT: Cart badge shows "2"`
+
+**Analyst action:** Same as VERIFY — check the stated condition on the current page and log pass/fail.
+
+**Generated code (with auto-screenshot on failure):**
+```typescript
+// VERIFY_SOFT: Cart badge shows "2"
+{
+  const result = await inventoryPage.getCartBadgeCount();
+  expect.soft(result).toBe(2);
+  if (result !== 2) {
+    const screenshot = await page.screenshot({ fullPage: true });
+    await test.info().attach('VERIFY_SOFT-failed-cart-badge', { body: screenshot, contentType: 'image/png' });
+  }
+}
+
+// For URL/page-level assertions:
+// VERIFY_SOFT: URL contains "/dashboard"
+{
+  const url = page.url();
+  expect.soft(url).toContain('/dashboard');
+  if (!url.includes('/dashboard')) {
+    const screenshot = await page.screenshot({ fullPage: true });
+    await test.info().attach('VERIFY_SOFT-failed-url-dashboard', { body: screenshot, contentType: 'image/png' });
+  }
+}
+```
+
+The block scope `{ }` prevents variable name collisions when multiple VERIFY_SOFT steps appear in sequence. The screenshot attachment name should be descriptive: `VERIFY_SOFT-failed-{short-description}`. Each screenshot is bound to the currently running test — Playwright's HTML report shows it under that specific scenario.
+
+**Behavior:** Unlike VERIFY (which stops the test on failure), VERIFY_SOFT logs the failure but **continues executing** the remaining steps. The test is still marked as failed in the report, but all subsequent steps run. Use this when you want to check multiple conditions and see all failures at once, rather than stopping at the first one.
+
+**When to use VERIFY vs VERIFY_SOFT:**
+- `VERIFY` — The remaining steps depend on this condition being true (e.g., verifying login succeeded before proceeding to checkout)
+- `VERIFY_SOFT` — The remaining steps can run regardless (e.g., checking multiple field values on a summary page)
+
+**Healer rule:** Same as VERIFY — if VERIFY_SOFT fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value. Never convert VERIFY_SOFT to VERIFY or vice versa.
+
+**Reviewer check:** VERIFY_SOFT steps must produce `expect.soft()` assertions. Verify that VERIFY_SOFT is not used for conditions that subsequent steps depend on.
+
+---
+
+## CAPTURE — Store Runtime Values
+
+**Scenario:** `CAPTURE: Read subtotal as {{subtotal}}`
+
+**Analyst action:** Read the specified value from the page and record it with the `{{variableName}}`.
+
+**Generated code:**
+```typescript
+// CAPTURE: Read subtotal as {{subtotal}}
+const subtotal = await checkoutPage.getSubtotal();
+```
+
+**Note:** Page objects need getter methods that return the captured value (e.g., `getSubtotal(): Promise<string>`).
+
+---
+
+## CALCULATE — Arithmetic on Captured Values
+
+**Scenario:** `CALCULATE: {{expectedTotal}} = {{subtotal}} + {{tax}}`
+
+**Analyst action:** Perform the math on captured values and record the result.
+
+**Generated code:**
+```typescript
+// CALCULATE: {{expectedTotal}} = {{subtotal}} + {{tax}}
+const expectedTotal = (parseFloat(subtotal.replace('$', '')) + parseFloat(tax.replace('$', ''))).toFixed(2);
+```
+
+---
+
+## SCREENSHOT — Visual Evidence
+
+**Scenario:** `SCREENSHOT: checkout-overview`
+
+**Analyst action:** Take a visual screenshot and note the filename.
+
+**Generated code:**
+```typescript
+// SCREENSHOT: checkout-overview
+const screenshot = await page.screenshot({ fullPage: true });
+await test.info().attach('checkout-overview', { body: screenshot, contentType: 'image/png' });
+```
+
+---
+
+## REPORT — Console Output and Annotations
+
+**Scenario:** `REPORT: Print subtotal, tax, total`
+
+**Analyst action:** Note that this value should appear in test output — record it.
+
+**Generated code:**
+```typescript
+// REPORT: Print subtotal, tax, total
+console.log(`Subtotal: ${subtotal}`);
+test.info().annotations.push({ type: 'subtotal', description: subtotal });
+```
+
+---
+
+## SAVE — Persist Values Across Scenarios
+
+**Scenario:** `SAVE: {{orderNumber}} to shared-state.json as "lastOrderNumber"`
+
+**Analyst action:** Note that this value needs to be persisted — record the key name.
+
+**Generated code:**
+```typescript
+// SAVE: Write {{orderNumber}} to shared-state.json as "lastOrderNumber"
+import { saveState } from '../core/shared-state';
+saveState('lastOrderNumber', orderNumber);
+```
+
+---
+
+## DATASETS — Data-Driven Parameterized Tests
+
+**Scenario:**
+```markdown
+## DATASETS
+| username | password | expectedResult |
+|----------|----------|----------------|
+| standard_user | secret_sauce | success |
+| locked_out_user | secret_sauce | error |
+```
+
+**Analyst action:** Execute only the FIRST data row. Note all rows for the Generator.
+
+**Generated code:**
+```typescript
+import testData from '../test-data/login-datasets.json';
+
+for (const data of testData) {
+  test(`Login: ${data.username || '(empty)'} — expects ${data.expectedResult}`,
+    { tag: ['@regression'] },
+    async ({ page }) => {
+      // Use data.username, data.password, etc.
+  });
+}
+```
+
+---
+
+## SHARED_DATA — Load Reusable Reference Data
+
+**Scenario:** `## SHARED_DATA: users, products`
+
+**Generated code:**
+```typescript
+// SHARED_DATA: users, products
+import { loadTestData } from '../../core/test-data-loader';
+const testData = loadTestData('web/saucedemo-checkout', ['users', 'products']);
+// testData merges shared/users.json + shared/products.json + web/saucedemo-checkout.json
+```
+
+**Reviewer check:** If `SHARED_DATA` keyword is used, spec must import `loadTestData` from `core/test-data-loader` (not direct JSON import).
+
+---
+
+## USE_HELPER — Call Team-Maintained Helper Methods
+
+**Scenario:** `USE_HELPER: CartPage.calculateTotalPrice -> {{cartTotal}}`
+
+**Generated code:**
+```typescript
+// USE_HELPER: CartPage.calculateTotalPrice -> {{cartTotal}}
+const cartTotal = await cartPage.calculateTotalPrice();
+
+// USE_HELPER: CartPage.validateAllCartPrices (no capture — just call it)
+await cartPage.validateAllCartPrices();
+```
+
+**Format:** `USE_HELPER: PageName.methodName` or `USE_HELPER: PageName.methodName -> {{variable}}`
+
+**HARD STOP:** If the helpers file does not exist or the method is not found:
+- Do NOT create the helpers file
+- Do NOT add the method to the base page object
+- Emit a warning comment: `// WARNING: USE_HELPER requested CartPage.calculateTotalPrice but CartPage.helpers.ts not found`
+- Mark the test step with `test.fixme('MISSING HELPER: CartPage.calculateTotalPrice')`
+
+---
+
+## Tags — CI/CD Filtering Labels
+
+**Scenario:** `**Tags:** smoke, cart, P0`
+
+**Generated code:**
+```typescript
+test('scenario name', { tag: ['@smoke', '@cart', '@P0'] }, async ({ page }) => { ... });
+```
+
+**Rule:** Tags must have `@` prefix in generated code. Every test must have tags.
+
+---
+
+## API Steps — REST API Calls
+
+**Scenario:** `API POST: /api/users with body {"name": "John"}`
+
+**Generated code:**
+```typescript
+const response = await request.post('/api/users', {
+  data: { name: 'John' },
+});
+expect(response.status()).toBe(201);
+const body = await response.json();
+```
+
+**Rules:**
+- Use Playwright's `request` fixture exclusively — never `fetch` or `axios`
+- For `api` type: destructure `{ request }` only
+- For `hybrid` type: always destructure both `{ page, request }` — API steps are interleaved with UI steps
+- For `web` type with ad-hoc API steps: destructure both `{ page, request }`
+- Auth headers from environment variables: `Authorization: \`Bearer ${process.env.API_TOKEN}\``
+
+---
+
+## ENV_VARS — Environment Variable References
+
+**Scenario:** `Navigate to {{ENV.BASE_URL}}`
+
+**Generated code:**
+```typescript
+process.env.BASE_URL
+```
+
+**Rule:** All `{{ENV.VARIABLE}}` references become `process.env.VARIABLE`. Never hardcode credentials.
+
+---
+
+## API Behavior — Mock vs Live Declaration
+
+**Scenario header:** `## API Behavior: mock` or `## API Behavior: live`
+
+- `mock` — API is non-persistent. Healer may adapt tests for non-persistence (use existing IDs, accept mock responses).
+- `live` or missing — API is real. All persistence/assertion guardrails apply with ZERO exceptions.
+- NEVER infer API behavior from the URL or API name. Only the explicit `## API Behavior` header controls this.
+
+---
+
+## Multi-Scenario Files
+
+**Scenario:** Multiple `### Scenario:` blocks separated by `---` with optional lifecycle hooks
+
+### Lifecycle Hooks
+
+| Section in `.md` | Playwright Hook | Runs | Fixtures Available |
+|-------------------|----------------|------|--------------------|
+| `## Common Setup Once` | `test.beforeAll()` | Once before all scenarios | `{ browser }` only — no `page` or `request` |
+| `## Common Setup` | `test.beforeEach()` | Before each scenario | `{ page }` / `{ request }` / `{ page, request }` per type |
+| `## Common Teardown` | `test.afterEach()` | After each scenario | `{ page }` / `{ request }` / `{ page, request }` per type |
+| `## Common Teardown Once` | `test.afterAll()` | Once after all scenarios | `{ browser }` only — no `page` or `request` |
+
+All four sections are optional. Only generate the corresponding hook if the section exists in the scenario file.
+
+**Analyst action:**
+- `Common Setup Once` — Execute once at the very start, before any scenario
+- `Common Setup` — Execute before each scenario (existing behavior)
+- `Common Teardown` — Execute after each scenario completes
+- `Common Teardown Once` — Execute once at the very end, after all scenarios
+
+**Generated code:**
+```typescript
+test.describe('Feature Name', () => {
+  test.beforeAll(async ({ browser }) => {
+    // Common Setup Once steps
+    // For browser steps: const page = await browser.newPage(); ... await page.close();
+    // For API steps: const ctx = await request.newContext(); ... await ctx.dispose();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // Common Setup steps
+  });
+
+  test('Scenario 1', { tag: ['@smoke'] }, async ({ page }) => { ... });
+  test('Scenario 2', { tag: ['@regression'] }, async ({ page }) => { ... });
+
+  test.afterEach(async ({ page }) => {
+    // Common Teardown steps
+  });
+
+  test.afterAll(async ({ browser }) => {
+    // Common Teardown Once steps
+    // Same fixture rules as beforeAll
+  });
+});
+```
+
+**beforeAll/afterAll fixture constraint:** These hooks receive only `{ browser }` from Playwright. If the hook steps require a page, create one manually: `const page = await browser.newPage()` and close it when done. If they require API calls, create a request context: `const ctx = await playwrightRequest.newContext()` and dispose it when done. Always clean up created resources.
+
+**Healer rule:** If `beforeAll` or `afterAll` code uses `{ page }` or `{ request }` fixtures directly, that is a code error — fix by switching to `{ browser }` and creating resources manually.
+
+**Reviewer check:** Verify `beforeAll`/`afterAll` destructure only `{ browser }`, never `{ page }` or `{ request }`.
+
+---
+
+## Step Completeness Rule
+
+Every step in the source scenario MUST produce a corresponding line in the test spec with a `// STEP N: [description]` comment. Never combine, merge, or skip steps — navigation and wait steps matter as much as actions. After writing the spec, count STEP comments vs source steps — they MUST match.
+
+**Step numbering is positional, not user-authored.** The user's step numbers in the scenario .md file may be incorrect, duplicated, out of order, or missing. Do NOT rely on them. Instead:
+- Read the scenario top-to-bottom
+- Assign sequential numbers by position: the first step encountered is STEP 1, the second is STEP 2, etc.
+- Number continuously across all sections: Common Setup Once steps first, then Common Setup, then Scenario steps, then Common Teardown, then Common Teardown Once
+- The `// STEP N:` comment in the generated spec uses these positional numbers, NOT the user's original numbers
+- The total count of `// STEP N:` comments must equal the total count of steps encountered positionally

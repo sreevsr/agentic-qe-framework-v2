@@ -1,0 +1,19 @@
+{
+  "name": "reviewer",
+  "version": "2.0.0",
+  "description": "Audits generated test code against 9 quality dimensions, produces scorecard",
+  "input": {
+    "scenario": { "type": "string", "required": true },
+    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": true },
+    "outputDir": { "type": "string", "required": true, "default": "output" },
+    "folder": { "type": "string", "required": false },
+    "testsStatus": { "type": "string", "enum": ["PASSING", "FAILING"], "default": "PASSING" }
+  },
+  "output": {
+    "scorecard": { "type": "file", "format": "markdown", "location": "output/reports/review-scorecard-{scenario}.md" },
+    "precheckResults": { "type": "file", "format": "json", "location": "output/reports/precheck-report-{scenario}.json" },
+    "approved": { "type": "boolean" }
+  },
+  "dependencies": { "review-precheck": "scripts/review-precheck.js" },
+  "platforms": ["windows", "linux", "macos"]
+}

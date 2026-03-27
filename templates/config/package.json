@@ -1,0 +1,23 @@
+{
+  "name": "agentic-qe-tests",
+  "version": "2.0.0",
+  "description": "Auto-generated Playwright test framework by Agentic QE Framework v2",
+  "scripts": {
+    "test": "npx playwright test --project=chrome",
+    "test:smoke": "npx playwright test --grep @smoke --project=chrome",
+    "test:regression": "npx playwright test --grep @regression --project=chrome",
+    "test:api": "npx playwright test --grep @api --project=chrome",
+    "test:hybrid": "npx playwright test --grep @hybrid --project=chrome",
+    "test:p0": "npx playwright test --grep @P0 --project=chrome",
+    "test:p1": "npx playwright test --grep @P1 --project=chrome",
+    "test:headed": "npx playwright test --project=chrome --headed",
+    "typecheck": "tsc --noEmit",
+    "report": "npx playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.0.0",
+    "dotenv": "^16.4.0",
+    "typescript": "^5.7.0"
+  }
+}

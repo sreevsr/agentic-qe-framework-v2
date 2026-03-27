@@ -1,0 +1,66 @@
+name: Run E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite (all, smoke, regression, p0, api)'
+        required: true
+        default: 'smoke'
+        type: choice
+        options: [all, smoke, regression, p0, api]
+      browser:
+        description: 'Browser'
+        required: true
+        default: 'chrome'
+        type: choice
+        options: [chrome, firefox, webkit]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: output/package-lock.json
+
+      - name: Install dependencies
+        run: cd output && npm ci
+
+      - name: Install Playwright browsers
+        run: cd output && npx playwright install --with-deps chromium
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: cd output && npm run test:${{ github.event.inputs.test_suite }}
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          HEADLESS: 'true'
+          CI: 'true'
+
+      - name: Parse test results
+        if: always()
+        run: node scripts/test-results-parser.js --results-dir=output/test-results
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: |
+            output/test-results/
+            output/playwright-report/
+          retention-days: 30
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1

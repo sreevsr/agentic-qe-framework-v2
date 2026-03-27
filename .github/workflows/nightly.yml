@@ -1,0 +1,60 @@
+name: Nightly Regression
+
+on:
+  schedule:
+    - cron: '0 2 * * 1-5'  # 2 AM UTC, Mon-Fri
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: output/package-lock.json
+
+      - name: Install dependencies
+        run: cd output && npm ci
+
+      - name: Install Playwright browsers
+        run: cd output && npx playwright install --with-deps chromium
+
+      - name: Run full regression
+        id: tests
+        continue-on-error: true
+        run: cd output && npx playwright test --project=chrome --reporter=json,html,list
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          HEADLESS: 'true'
+          CI: 'true'
+
+      - name: Parse results
+        if: always()
+        run: node scripts/test-results-parser.js --results-dir=output/test-results
+
+      - name: Classify failures
+        if: steps.tests.outcome == 'failure'
+        run: node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json
+
+      - name: Collect metrics
+        if: always()
+        run: node scripts/metrics-collector.js --run-type=nightly
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ github.run_number }}
+          path: |
+            output/test-results/
+            output/playwright-report/
+            output/reports/metrics/
+          retention-days: 90

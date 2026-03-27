@@ -1,0 +1,17 @@
+{
+  "name": "enrichment-agent",
+  "version": "2.0.0",
+  "description": "Converts natural language test descriptions into structured scenario .md files",
+  "input": {
+    "naturalLanguageInput": { "type": "string", "required": true },
+    "appContext": { "type": "file", "format": "markdown", "required": false },
+    "interactiveMode": { "type": "boolean", "default": true },
+    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": false }
+  },
+  "output": {
+    "enrichedScenario": { "type": "file", "format": "markdown", "location": "scenarios/{type}/{scenario}.md" },
+    "clarifications": { "type": "object[]" },
+    "confidence": { "type": "number" }
+  },
+  "platforms": ["windows", "linux", "macos"]
+}
