@@ -110,13 +110,13 @@
 
 **MANDATORY: Activate ONLY the skills for the scenario type. DO NOT use web skills for API-only scenarios. DO NOT use mobile skills for web scenarios.**
 
-| Type | Active Skills |
-|------|---------------|
-| web | web/*, auth/*, data/*, a11y/* |
-| api | api/*, data/* |
-| hybrid | web/*, api/*, auth/*, data/*, a11y/* |
-| mobile | mobile/*, auth/*, data/* |
-| mobile-hybrid | mobile/*, api/*, auth/*, data/* |
+| Type | Active Skills | Note |
+|------|---------------|------|
+| web | web/*, api/*, auth/*, data/*, a11y/* | api/* included for network interception and ad-hoc API calls during UI flows |
+| api | api/*, data/* | No browser, no auth skills needed |
+| hybrid | web/*, api/*, auth/*, data/*, a11y/* | Full stack — both UI and API |
+| mobile | mobile/*, auth/*, data/* | Native mobile via Appium MCP |
+| mobile-hybrid | mobile/*, api/*, auth/*, data/* | Native mobile + API interleaved |
 
 ---
 

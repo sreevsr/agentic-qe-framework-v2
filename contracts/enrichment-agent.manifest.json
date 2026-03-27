@@ -1,17 +1,77 @@
 {
+  "$schema": "contracts/manifest.schema.json",
   "name": "enrichment-agent",
   "version": "2.0.0",
-  "description": "Converts natural language test descriptions into structured scenario .md files",
+  "protocolVersion": "1.0.0",
+  "description": "Converts natural language or vague test descriptions into structured scenario .md files via interactive Q&A. Passes through well-structured input unchanged.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["natural-language", "scenario-generation", "interactive", "enrichment"],
+  "coreInstructions": ["agents/core/enrichment-agent.md"],
+  "documentationUrl": "agents/core/enrichment-agent.md",
   "input": {
-    "naturalLanguageInput": { "type": "string", "required": true },
-    "appContext": { "type": "file", "format": "markdown", "required": false },
-    "interactiveMode": { "type": "boolean", "default": true },
-    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": false }
+    "naturalLanguageInput": {
+      "type": "string",
+      "mimeType": "text/plain",
+      "required": false,
+      "description": "Free-form natural language test description"
+    },
+    "existingScenario": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "required": false,
+      "description": "Existing scenario .md for validation or gap-filling (passthrough if well-structured)"
+    },
+    "appContext": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "required": false,
+      "description": "App-context file to inform smarter questions"
+    },
+    "interactiveMode": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to ask clarifying questions or best-guess fill gaps"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "required": false,
+      "description": "If not specified, agent infers from input"
+    }
   },
   "output": {
-    "enrichedScenario": { "type": "file", "format": "markdown", "location": "scenarios/{type}/{scenario}.md" },
-    "clarifications": { "type": "object[]" },
-    "confidence": { "type": "number" }
+    "enrichedScenario": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "location": "scenarios/{type}/{scenario-name}.md",
+      "description": "Structured scenario .md ready for Explorer-Builder"
+    },
+    "clarifications": {
+      "type": "object[]",
+      "description": "Questions asked and answers received during enrichment"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence that enriched scenario captures user intent (0.9+ = high, <0.7 = review needed)"
+    }
   },
-  "platforms": ["windows", "linux", "macos"]
+  "security": {
+    "requiredEnvVars": [],
+    "requiresMcp": false,
+    "note": "Enrichment Agent does NOT interact with the application — no browser, no API calls"
+  },
+  "platforms": ["windows", "linux", "macos"],
+  "examples": [
+    "Test that a user can log in, browse the SME directory, filter by Sports specialty, and check pagination",
+    "Enrich scenarios/web/draft-checkout.md — fill in missing VERIFY steps",
+    "Convert this Jira ticket description into a test scenario"
+  ]
 }

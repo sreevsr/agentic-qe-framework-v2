@@ -1,20 +1,93 @@
 {
+  "$schema": "contracts/manifest.schema.json",
   "name": "executor",
   "version": "2.0.0",
-  "description": "Thin verification layer — runs tests, fixes timing issues (max 3 cycles)",
+  "protocolVersion": "1.0.0",
+  "description": "Thin verification layer — runs generated tests, fixes timing/sequencing issues (max 3 cycles). NOT a debugging agent. Selectors already verified by Explorer-Builder.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["testing", "playwright", "verification", "timing-fixes"],
+  "coreInstructions": ["agents/core/executor.md"],
+  "documentationUrl": "agents/core/executor.md",
   "input": {
-    "specFile": { "type": "string", "required": true },
-    "outputDir": { "type": "string", "required": true, "default": "output" },
-    "maxCycles": { "type": "number", "default": 3 },
-    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": true },
-    "folder": { "type": "string", "required": false }
+    "scenario": {
+      "type": "string",
+      "required": true,
+      "description": "Scenario name (for report file naming)"
+    },
+    "specFile": {
+      "type": "string",
+      "required": true,
+      "description": "Path to the spec file to execute"
+    },
+    "outputDir": {
+      "type": "string",
+      "required": true,
+      "default": "output",
+      "description": "Root directory of the generated test project"
+    },
+    "maxCycles": {
+      "type": "number",
+      "default": 3,
+      "description": "Maximum fix cycles before escalating (HARD LIMIT)"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "required": true
+    },
+    "folder": {
+      "type": "string",
+      "required": false,
+      "description": "Optional subfolder for output organization"
+    }
   },
   "output": {
-    "passed": { "type": "boolean" },
-    "testResults": { "type": "file", "format": "json", "location": "output/test-results/last-run-parsed.json" },
-    "report": { "type": "file", "format": "markdown", "location": "output/reports/executor-report-{scenario}.md" },
-    "metrics": { "type": "file", "format": "json", "location": "output/reports/metrics/executor-metrics-{scenario}.json" }
+    "passed": {
+      "type": "boolean",
+      "description": "Whether all tests passed after execution cycles"
+    },
+    "testResults": {
+      "type": "file",
+      "format": "json",
+      "mimeType": "application/json",
+      "location": "output/test-results/last-run-parsed.json",
+      "description": "Parsed test results from test-results-parser.js"
+    },
+    "fixes": {
+      "type": "object[]",
+      "description": "List of fixes applied: { file, change, reason } per fix"
+    },
+    "report": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "location": "output/reports/executor-report-{scenario}.md",
+      "description": "Executor report with cycle history and fix summary"
+    },
+    "metrics": {
+      "type": "file",
+      "format": "json",
+      "mimeType": "application/json",
+      "location": "output/reports/metrics/executor-metrics-{scenario}.json",
+      "description": "Observability metrics (cycles, duration, pass/fail counts)"
+    }
   },
-  "dependencies": { "playwright": ">=1.50.0" },
-  "platforms": ["windows", "linux", "macos"]
+  "security": {
+    "requiredEnvVars": [],
+    "optionalEnvVars": ["BASE_URL", "TEST_USERNAME", "TEST_PASSWORD", "API_BASE_URL", "API_TOKEN"],
+    "requiresMcp": false,
+    "note": "Executor does NOT open a browser — runs tests via npx playwright test"
+  },
+  "dependencies": {
+    "playwright": ">=1.50.0",
+    "test-results-parser": "scripts/test-results-parser.js"
+  },
+  "platforms": ["windows", "linux", "macos"],
+  "examples": [
+    "Run Executor on output/tests/web/saucedemo-login.spec.ts (max 3 cycles)",
+    "Execute tests for scenario epic-table --type=web --folder=epicview"
+  ]
 }

@@ -1,19 +1,84 @@
 {
+  "$schema": "contracts/manifest.schema.json",
   "name": "reviewer",
   "version": "2.0.0",
-  "description": "Audits generated test code against 9 quality dimensions, produces scorecard",
+  "protocolVersion": "1.0.0",
+  "description": "Audits generated test code against 9 enterprise QE quality dimensions. Produces scorecard with per-dimension scores. Uses precheck script for token-efficient evidence collection.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["quality-audit", "code-review", "scorecard", "enterprise-qa", "fidelity"],
+  "coreInstructions": [
+    "agents/core/reviewer.md",
+    "agents/04-reviewer/dimensions.md",
+    "agents/04-reviewer/scorecard-template.md"
+  ],
+  "documentationUrl": "agents/core/reviewer.md",
   "input": {
-    "scenario": { "type": "string", "required": true },
-    "type": { "type": "string", "enum": ["web", "api", "hybrid"], "required": true },
-    "outputDir": { "type": "string", "required": true, "default": "output" },
-    "folder": { "type": "string", "required": false },
-    "testsStatus": { "type": "string", "enum": ["PASSING", "FAILING"], "default": "PASSING" }
+    "scenario": {
+      "type": "string",
+      "required": true,
+      "description": "Scenario name"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "required": true
+    },
+    "outputDir": {
+      "type": "string",
+      "required": true,
+      "default": "output"
+    },
+    "folder": {
+      "type": "string",
+      "required": false,
+      "description": "Optional subfolder"
+    },
+    "testsStatus": {
+      "type": "string",
+      "enum": ["PASSING", "FAILING"],
+      "default": "PASSING",
+      "description": "If FAILING, Dimension 9 (Fidelity) capped at 2/5 and verdict is NEEDS FIXES"
+    }
   },
   "output": {
-    "scorecard": { "type": "file", "format": "markdown", "location": "output/reports/review-scorecard-{scenario}.md" },
-    "precheckResults": { "type": "file", "format": "json", "location": "output/reports/precheck-report-{scenario}.json" },
-    "approved": { "type": "boolean" }
+    "scorecard": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "location": "output/reports/review-scorecard-{scenario}.md",
+      "description": "Quality scorecard with 9 dimension scores and fidelity summary"
+    },
+    "precheckResults": {
+      "type": "file",
+      "format": "json",
+      "mimeType": "application/json",
+      "location": "output/reports/precheck-report-{scenario}.json",
+      "description": "Mechanical evidence from review-precheck.js script"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "NEEDS FIXES", "TESTS FAILING"],
+      "description": "Final review verdict. APPROVED requires: score >= 80%, no dim below 3, Dim 9 >= 4"
+    },
+    "overallScore": {
+      "type": "string",
+      "description": "Score as 'N/M' (e.g., '38/45')"
+    }
   },
-  "dependencies": { "review-precheck": "scripts/review-precheck.js" },
-  "platforms": ["windows", "linux", "macos"]
+  "security": {
+    "requiredEnvVars": [],
+    "requiresMcp": false,
+    "note": "Reviewer does NOT modify any files — read-only audit"
+  },
+  "dependencies": {
+    "review-precheck": "scripts/review-precheck.js"
+  },
+  "platforms": ["windows", "linux", "macos"],
+  "examples": [
+    "Review scenario saucedemo-login --type=web",
+    "Review scenario petstore-crud --type=api --testsStatus=FAILING"
+  ]
 }
