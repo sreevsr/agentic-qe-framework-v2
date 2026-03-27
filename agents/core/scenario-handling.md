@@ -170,6 +170,15 @@ After completing all steps, you MUST update the app-context with NEW patterns yo
    - App-context file path
 5. **Merge results** from all subagents — combine locator JSONs, page objects, spec steps into the final files
 
+### 3.2a: Merge Conflict Rules — MANDATORY
+
+When merging subagent results, conflicts may arise if two subagents touched the same file:
+
+- **Page object:** If both subagents added methods to the same page object, the PARENT keeps both — no duplicates. If method names conflict (both add `clickSubmit`), the LATER subagent's version wins (it has more context about the page's final state)
+- **Locator JSON:** If both added entries to the same locator file, merge all entries. If the same element name has different selectors, keep the one from the LATER step (more recent page state)
+- **Spec steps:** Concatenate in step order — no conflict possible since each subagent owns a distinct step range
+- **App-context:** Merge all learned patterns — no conflict possible (patterns are additive)
+
 ### 3.3: Platform-Specific Subagent Spawning
 
 **Copilot (VS Code 1.113+):**
@@ -208,8 +217,9 @@ Each subsequent subagent restores from this state — NO login replay needed. Th
 When the scenario contains `## DATASETS`:
 
 1. **MUST explore using ONLY the first data row** — DO NOT explore every row
-2. The first row validates that the test flow works
-3. The remaining rows are for parameterization — same flow, different data
+2. If the first row represents an ERROR case (e.g., "locked_out_user"), **prefer exploring a SUCCESS row first** — pick the first row that represents the primary/happy flow
+3. The first row validates that the test flow works
+4. The remaining rows are for parameterization — same flow, different data
 
 ### 4.2: Code Generation — MANDATORY Pattern
 

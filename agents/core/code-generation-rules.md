@@ -113,7 +113,7 @@ test.describe('{Feature Name}', () => {
 
 1. **EVERY step MUST be wrapped in `await test.step('Step N — {description}', async () => { ... })`** — unwrapped code is a FAILURE
 2. **Step numbers MUST be sequential** (1, 2, 3...) — positional count, NOT the user's original numbers
-3. **Step descriptions MUST match the scenario intent** — DO NOT paraphrase to change meaning
+3. **Step descriptions MUST match the scenario intent** — DO NOT paraphrase to change meaning. **MUST use template literals** for runtime values: `` `Step 8 — Lookup ${testData.customerName}` `` — so the HTML report shows real data, not placeholder text
 4. **CAPTURE variables MUST be declared with `let` in the OUTER test scope** — NOT inside test.step. This is a Playwright scoping requirement.
 5. **Tags MUST have `@` prefix:** `{ tag: ['@smoke', '@P0'] }`
 6. **All `{{ENV.VARIABLE}}` MUST become `process.env.VARIABLE`** — NEVER hardcode values
@@ -180,12 +180,15 @@ await test.step('Step 7 — SCREENSHOT: checkout-overview', async () => {
 ```
 
 ### REPORT
+**The step label with interpolated runtime value IS the primary report.** The HTML report shows step labels — use template literals so humans see real data, not placeholder names.
 ```typescript
-await test.step('Step 8 — REPORT: Print subtotal, tax, total', async () => {
+await test.step(`Step 8 — REPORT: Subtotal=${subtotal}, Tax=${tax}, Total=${total}`, async () => {
   test.info().annotations.push({ type: 'subtotal', description: subtotal });
   test.info().annotations.push({ type: 'tax', description: tax });
+  test.info().annotations.push({ type: 'total', description: total });
 });
 ```
+**MUST use template literals in step labels** — `Step 8 — Lookup ${testData.customerName}` not `Step 8 — Lookup {{customerName}}`. The HTML report shows real data this way.
 
 ### SAVE
 ```typescript
@@ -252,7 +255,97 @@ test('Scenario name', { tag: ['@smoke', '@cart', '@P0'] }, async ({ page }) => {
 
 ---
 
-## 5. API CRUD Chain Pattern
+## 5. Multi-Assertion VERIFY — Nested test.step Pattern
+
+When a single VERIFY step checks multiple sub-assertions (e.g., "VERIFY: Order summary shows correct subtotal, tax, and total"), **MUST** use nested `test.step()` for each sub-assertion. This makes the HTML report pinpoint exactly which field failed:
+
+```typescript
+await test.step('Step 10 — VERIFY: Order summary is correct', async () => {
+  await test.step('Verify subtotal', async () => {
+    expect(await summaryPage.getSubtotal()).toBe(expectedSubtotal);
+  });
+  await test.step('Verify tax', async () => {
+    expect(await summaryPage.getTax()).toBe(expectedTax);
+  });
+  await test.step('Verify total', async () => {
+    expect(await summaryPage.getTotal()).toBe(expectedTotal);
+  });
+});
+```
+
+**Why:** Without nesting, a single `test.step` with 3 `expect()` calls shows "Step 10 failed" but doesn't say WHICH assertion. With nesting, the report shows "Step 10 > Verify tax — failed."
+
+---
+
+## 6. Chart and Graph Assertions
+
+### SVG Charts (Readable)
+SVG charts render as DOM elements — axis labels, data values, and legends are readable via `<text>` nodes:
+
+```typescript
+// SVG chart — read data labels
+const labels = await page.locator('svg text.data-label').allTextContents();
+expect(labels).toContain('Q1: $45,000');
+```
+
+### Canvas Charts (NOT Readable)
+Canvas charts render as a single bitmap — **NEVER attempt to read pixel data or internal values.** Only these assertions are possible:
+
+```typescript
+// Canvas chart — ONLY these are valid
+await expect(page.locator('canvas.chart')).toBeVisible(); // chart rendered
+const title = await page.locator('.chart-title').textContent(); // title/legend outside canvas
+expect(title).toContain('Revenue');
+```
+
+**If the scenario requires asserting chart DATA and the chart is Canvas:** Use the API endpoint that feeds the chart. Assert the API response instead of the visual chart. This is more reliable.
+
+**If you cannot determine SVG vs Canvas during exploration:** Take a snapshot. If the element is `<svg>`, it's SVG. If `<canvas>`, it's Canvas. Record this in app-context.
+
+---
+
+## 7. Conditional Steps ("If...Then")
+
+When a scenario step contains a condition (e.g., "If pagination exists, navigate to page 2"):
+
+### During Exploration
+1. Check the condition in the live browser (e.g., is pagination visible?)
+2. If the condition is TRUE → explore and verify the action, write both the condition check AND the action
+3. If the condition is FALSE → write the condition check code that SKIPS the action. Note in the explorer report that the condition was false during exploration
+
+### Code Pattern — MANDATORY
+```typescript
+await test.step('Step 11 — If pagination exists, navigate to page 2', async () => {
+  const hasPagination = await page.locator('[data-testid="pagination"]').isVisible().catch(() => false);
+  if (hasPagination) {
+    await page.locator('[data-testid="page-2"]').click();
+    await page.waitForLoadState('networkidle');
+  } else {
+    console.log('Pagination not present — skipping page 2 navigation');
+  }
+});
+```
+
+**Rules:**
+- **MUST** use `.isVisible().catch(() => false)` for existence checks — handles element not in DOM
+- **MUST** wrap the entire condition + action in ONE `test.step()` — the conditional IS the step
+- **MUST NOT** skip the step entirely if condition is false — the step exists, it just takes the "else" path
+- **MUST NOT** use `test.fixme()` for false conditions — the step executed correctly, the condition was simply false
+- For VERIFY after conditional action: assert ONLY if the action was taken:
+  ```typescript
+  await test.step('Step 12 — VERIFY: Page 2 shows Sports results', async () => {
+    if (hasPagination) {
+      const results = await gridPage.getAllSpecialties();
+      expect(results.every(r => r.includes('Sports'))).toBe(true);
+    } else {
+      console.log('Pagination not present — VERIFY skipped (condition was false)');
+    }
+  });
+  ```
+
+---
+
+## 8. API CRUD Chain Pattern
 
 For create-read-update-delete sequences:
 
@@ -286,7 +379,7 @@ await test.step('Step 3 — API DELETE: Remove user', async () => {
 
 ---
 
-## 6. Selector Externalization — HARD STOP
+## 8. Selector Externalization — HARD STOP
 
 **EVERY selector MUST live in a locator JSON file. NO EXCEPTIONS.**
 
@@ -298,7 +391,7 @@ If you find yourself writing a selector directly in a page object or spec file �
 
 ---
 
-## 7. Reusing Existing Code — MANDATORY Checks
+## 9. Reusing Existing Code — MANDATORY Checks
 
 Before creating ANY new file, you MUST check if it already exists:
 
@@ -309,7 +402,7 @@ Before creating ANY new file, you MUST check if it already exists:
 
 ---
 
-## 8. Browser Interaction via MCP
+## 10. Browser Interaction via MCP
 
 The Explorer-Builder uses the Playwright MCP server. Exact tool names depend on the server implementation, but operations map to:
 
@@ -326,7 +419,7 @@ The Explorer-Builder uses the Playwright MCP server. Exact tool names depend on 
 
 ---
 
-## 9. Lifecycle Hook Rules — HARD STOP
+## 11. Lifecycle Hook Rules — HARD STOP
 
 ### beforeAll / afterAll — `{ browser }` ONLY
 

@@ -36,11 +36,12 @@ If the input is already a structured scenario `.md` file with clear steps → **
 ### 3.1: Passthrough Gate
 
 If the input is a well-structured `.md` file:
-1. **MUST** verify it has a Type field (web/api/hybrid)
+1. **MUST** verify it has a Type field (web/api/hybrid/mobile/mobile-hybrid)
 2. **MUST** verify steps are numbered and actionable
 3. **MUST** verify it has an Application section with URL/credentials as `{{ENV.*}}`
-4. If all present → **pass directly to Explorer-Builder — DO NOT modify**
-5. If minor gaps (missing tags, missing type) → fix them, DO NOT rewrite steps
+4. **MUST** verify it has `## API Behavior` header if type is api or hybrid (missing = `live` assumed)
+5. If all present → **pass directly to Explorer-Builder — DO NOT modify**
+6. If minor gaps (missing tags, missing type, missing API Behavior) → fix them, DO NOT rewrite steps
 
 ---
 
@@ -113,8 +114,42 @@ If an app-context file exists for this application:
 7. **If the user mentions "verify" or "check" → use VERIFY keyword**
 8. **If the user mentions "save" or "remember" a value → use CAPTURE keyword**
 9. **If the user mentions "calculate" or "compute" → use CALCULATE keyword**
+10. **Negative tests:** Only include negative/error test cases if the user EXPLICITLY asks ("test wrong password", "test empty form"). DO NOT add them unprompted — the user asked for a specific flow, not a test plan. If you think negatives are important, suggest them in the `## Notes` section as "Consider also testing: [negative cases]"
 
-### 4.6: Confidence Score — MANDATORY
+### 4.6: Mobile Scenario Enrichment
+
+When the user describes a mobile test scenario:
+
+1. **MUST** determine platform: Android, iOS, or both
+2. **MUST** ask for: app package/bundle ID, device/simulator preference
+3. **MUST** use mobile-appropriate action language:
+   - "Tap" instead of "Click"
+   - "Swipe up" instead of "Scroll down"
+   - "Type in [field]" with note about keyboard dismissal
+4. **MUST** set Type to `mobile` (native only) or `mobile-hybrid` (native + API)
+5. **MUST** include in Application section: app identifier, platform, device
+6. Add notes about: expected permission dialogs, orientation requirements, WebView screens
+
+**Example mobile step language:**
+```
+1. Launch the app
+2. Tap "Allow" on location permission dialog
+3. Tap the Login button
+4. Type {{ENV.TEST_USERNAME}} in the email field
+5. Type {{ENV.TEST_PASSWORD}} in the password field
+6. Tap Sign In
+7. VERIFY: Dashboard screen is displayed
+8. Swipe up to scroll to the Reports section
+```
+
+### 4.7: Scenario Size Guidance
+
+If the natural language description would produce a scenario with **40+ steps:**
+- **MUST** inform the user: "This scenario is long (~N steps). The Explorer-Builder may need subagent splitting. Consider breaking it into 2-3 smaller scenarios."
+- **MUST** suggest natural breakpoints for splitting (e.g., "Scenario 1: Login and navigate. Scenario 2: Perform operations. Scenario 3: Verify and cleanup.")
+- If the user wants one scenario, proceed — but add a Note: "This scenario has N steps — subagent splitting recommended."
+
+### 4.8: Confidence Score — MANDATORY
 
 After producing the enriched scenario, assess your confidence:
 
@@ -191,6 +226,8 @@ scenarios/{type}/{scenario-name}.md
 - For web: `scenarios/web/{name}.md`
 - For api: `scenarios/api/{name}.md`
 - For hybrid: `scenarios/hybrid/{name}.md`
+- For mobile: `scenarios/mobile/{name}.md`
+- For mobile-hybrid: `scenarios/mobile/{name}.md` (with `mobile-hybrid` type in metadata)
 
 The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 

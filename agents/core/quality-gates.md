@@ -59,7 +59,7 @@
 
 ### MUST NOT — EVER — UNDER ANY CIRCUMSTANCES:
 - **Selectors in code:** NO raw selectors in page objects or specs — ALL selectors go through LocatorLoader
-- **Hardcoded waits:** NO `page.waitForTimeout()` without a `// PACING:` comment explaining why
+- **Hardcoded waits:** NO `page.waitForTimeout()` UNLESS it carries a `// PACING: [reason]` comment explaining WHY the delay is needed and WHAT component is slow. The comment is a contract — it protects the wait from Reviewer removal. Without the comment, the wait WILL be flagged and removed
 - **Force bypasses:** NO `{ force: true }` — EVER — unless Scout report flags HIT-AREA MISMATCH
 - **Hardcoded credentials:** NO passwords, tokens, keys in code — ALL via `process.env.*`
 - **Changing assertions:** NEVER change expected values in VERIFY — wrong value = POTENTIAL BUG → use `test.fixme('POTENTIAL BUG: ...')`

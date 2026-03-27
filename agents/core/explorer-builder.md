@@ -57,6 +57,8 @@ You NEVER guess selectors. You NEVER assume wait strategies. You open the real a
 | `web` | `{ page }` | **YES** | **YES** | **YES** |
 | `api` | `{ request }` | **NO** | **NO** | **NO** |
 | `hybrid` | `{ page, request }` | **YES** | **YES** (UI steps only) | **YES** (UI steps only) |
+| `mobile` | `{ }` (WDIO) | **YES** (Appium) | **YES** (mobile locators) | **YES** (Screen Objects) |
+| `mobile-hybrid` | `{ }` (WDIO + request) | **YES** | **YES** | **YES** |
 
 ### Step 3.3: Check for Incremental Update
 
@@ -68,6 +70,18 @@ If output files already exist for this scenario:
 5. For deleted steps: remove the corresponding code
 
 If no existing output → full exploration.
+
+### Step 3.4: Resolve Environment Variables for Exploration
+
+During exploration, you need actual values for `{{ENV.*}}` references. Read `output/.env` to get the real URLs and credentials. Use these actual values in the MCP browser. But in the generated code, write `process.env.VARIABLE_NAME` — NEVER hardcode the actual values.
+
+### Step 3.5: Page Object Naming Convention
+
+When creating page objects, use this naming heuristic:
+- Name after the PAGE/VIEW, not the action: `LoginPage`, `DashboardPage`, `CheckoutPage`
+- If multiple views share a URL (SPA with tabs/modals): name after the visible view: `SettingsGeneralPage`, `SettingsSecurityPage`
+- Use PascalCase: `SmeDashboardPage`, not `sme-dashboard-page`
+- One page object per distinct visual page. If unsure, check if the page has a different set of interactive elements — if yes, it's a new page object
 
 ---
 
@@ -193,6 +207,8 @@ Write three things per verified step:
 
 **For the exact format and rules for each, read `agents/core/code-generation-rules.md` — MANDATORY.**
 
+**Before creating a new page object or locator file:** Check if one already exists (see `agents/core/code-generation-rules.md` Section 9). If `LoginPage.ts` exists, **ADD methods** — DO NOT create `LoginPage2.ts`. If `login-page.locators.json` exists, **ADD entries** — DO NOT overwrite.
+
 ---
 
 ## 5. Self-Audit — MANDATORY Before Finishing
@@ -276,7 +292,7 @@ Same as web, but spec goes to `output/tests/hybrid/`.
 
 ---
 
-## 6. Explorer Report — MANDATORY
+## 7. Explorer Report — MANDATORY
 
 **MUST** save to `output/reports/explorer-report-{scenario}.md`:
 
@@ -315,13 +331,29 @@ Missing or blocked items: [list each, or "None"]
 ## App-Context Updates
 [List new patterns discovered, or "None"]
 
+## Dynamic Content Map
+<!-- Record which user actions trigger asynchronous content loading -->
+| Action | Content That Loads | Wait Strategy Used | Approx Duration |
+|--------|-------------------|-------------------|-----------------|
+| Click filter icon | Filter popover + grid update | waitForSelector + waitForFunction | ~2s |
+| Navigate to dashboard | Dashboard widgets load async | waitForLoadState('networkidle') | ~3s |
+[List each observed dynamic content trigger, or "No dynamic content detected."]
+
+## Capture Navigation Map
+<!-- Record HOW each CAPTURE value was obtained — breadcrumb trail for debugging -->
+| Variable | Element | Playwright Expression | Parameterized? |
+|----------|---------|----------------------|----------------|
+| {{subtotal}} | Subtotal label in checkout | `.locator('.subtotal').textContent()` | No |
+| {{itemName}} | First grid row name | `.locator('tr:first-child td.name').textContent()` | Yes — uses testData.searchTerm |
+[List each CAPTURE with its exact path, or "No captures in this scenario."]
+
 ## Issues and Warnings
 [List any blocked steps, potential bugs, or concerns]
 ```
 
 ---
 
-## 7. Metrics — MANDATORY
+## 8. Metrics — MANDATORY
 
 **MUST** write to `output/reports/metrics/explorer-metrics-{scenario}.json`:
 
@@ -349,7 +381,23 @@ Missing or blocked items: [list each, or "None"]
 
 ---
 
-## 8. Error Handling
+## 9. Error Handling
+
+### Partial Report Save Protocol — MANDATORY
+
+**A partial report is ALWAYS better than no report.** If exploration crashes, times out, or is interrupted at ANY point:
+
+1. **MUST** save whatever report sections are complete with a `## PARTIAL REPORT` header:
+   ```markdown
+   ## PARTIAL REPORT
+   **Reason:** [auth failure / app crash / context exhaustion / MCP disconnected]
+   **Steps completed:** {N}/{total}
+   **Last successful step:** Step {N} — {description}
+   ```
+2. **MUST** save any code files written so far (locators, page objects, spec steps)
+3. **MUST** save metrics with `"status": "PARTIAL"`
+
+DO NOT delete partial output. The Executor or a subsequent run can build on partial results.
 
 ### Authentication Failures
 If login fails: **STOP exploration immediately.** Write a partial explorer report explaining the auth failure. DO NOT produce partial test code — the entire scenario depends on auth.
@@ -358,14 +406,21 @@ If login fails: **STOP exploration immediately.** Write a partial explorer repor
 1. Take a screenshot
 2. If the app recovers (reload works) → note it, retry the step
 3. If the app does NOT recover → mark remaining steps as `test.fixme('APP ERROR: ...')`
+4. **MUST** save a partial report with all steps completed so far
 
 ### MCP/Browser Not Available
-- For web/hybrid: **STOP** — cannot explore without browser
+- For web/hybrid: **STOP** — cannot explore without browser. Save partial report.
 - For API: proceed without browser
+
+### Context Window Exhaustion
+If you detect context is running low (40+ step scenario without subagent splitting):
+1. Save all code and report written so far
+2. Save storageState for potential continuation
+3. Note in report: "Context exhausted at Step N — recommend subagent splitting for this scenario"
 
 ---
 
-## 9. Platform Compatibility
+## 10. Platform Compatibility
 
 - **MUST** use `path.join()` for all file paths — NEVER hardcode `/` or `\`
 - All generated code MUST run on Windows, Linux, and macOS

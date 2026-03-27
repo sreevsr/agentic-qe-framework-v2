@@ -61,6 +61,12 @@ Extract from the explorer report:
 | Files Generated | Locator JSONs, page objects, spec file, test data |
 | Step Results | Know which steps were verified vs blocked |
 
+**If the explorer report does NOT exist** (Explorer-Builder crashed or was not run):
+1. Scan `output/tests/{type}/` for the spec file
+2. Scan `output/pages/` for page objects imported by the spec
+3. Scan `output/locators/` for locator files referenced by those page objects
+4. Build the manifest from these scans. Note in the scorecard: "Explorer report not found — manifest built from file scan."
+
 ### Step 3: Read Core Files as Context (NOT scored)
 
 Read these framework files to understand the import chain. **DO NOT score these — they are stable framework code:**
@@ -153,6 +159,8 @@ Missing or incorrect items: [list each, or "None"]
 ```
 
 **MUST fill EVERY field with actual counts.** NO placeholders. NO "N/A" unless the keyword genuinely doesn't exist in the scenario.
+
+**Scoring `test.fixme()` steps:** A `test.fixme()` step COUNTS as present in the spec (the step IS there — it's just blocked). Include fixme steps in the step count. Add a separate line: `Blocked steps (test.fixme): [N]`. Fixme steps do NOT reduce Dim 9 below 4 by themselves — they represent honest documentation of exploration limits, not dropped steps.
 
 ---
 
