@@ -1,23 +1,36 @@
 {
+  "$comment": "CI/CD configuration defaults for Agentic QE Framework v2. Read by ci-test-runner.js.",
   "testSuites": {
-    "smoke": { "grep": "@smoke", "timeout": 30, "retries": 0 },
+    "smoke":      { "grep": "@smoke",      "timeout": 30,  "retries": 0, "$comment": "timeout in minutes" },
     "regression": { "grep": "@regression", "timeout": 120, "retries": 1 },
-    "p0": { "grep": "@P0", "timeout": 60, "retries": 1 },
-    "p1": { "grep": "@P1", "timeout": 60, "retries": 0 },
-    "api": { "grep": "@api", "timeout": 30, "retries": 0 }
+    "p0":         { "grep": "@P0",         "timeout": 60,  "retries": 1 },
+    "p1":         { "grep": "@P1",         "timeout": 60,  "retries": 0 },
+    "api":        { "grep": "@api",        "timeout": 30,  "retries": 0 },
+    "hybrid":     { "grep": "@hybrid",     "timeout": 60,  "retries": 1 },
+    "mobile":     { "grep": "@mobile",     "timeout": 90,  "retries": 1 }
   },
-  "sharding": { "enabled": false, "count": 4 },
+  "sharding": {
+    "enabled": false,
+    "count": 4,
+    "$comment": "When enabled, tests are split across 'count' parallel runners"
+  },
   "browsers": ["chrome"],
   "failureClassification": {
     "stabilityThreshold": 0.95,
     "autoRetryMaxAttempts": 2,
     "autoFixEnabled": false,
-    "autoFixMaxPerRun": 5
+    "autoFixMaxPerRun": 5,
+    "$comment": "stabilityThreshold: tests with pass rate above this are considered flaky, not regression"
   },
   "defectTracking": {
     "tracker": "none",
     "deduplication": true,
-    "autoCloseAfterPassCount": 5
+    "autoCloseAfterPassCount": 5,
+    "$comment": "tracker: none | jira | servicenow. autoCloseAfterPassCount: close ticket after N consecutive passes"
   },
-  "artifacts": { "retentionDays": 30, "nightlyRetentionDays": 90 }
+  "artifacts": {
+    "retentionDays": 30,
+    "nightlyRetentionDays": 90,
+    "$comment": "GitHub Actions artifact retention"
+  }
 }

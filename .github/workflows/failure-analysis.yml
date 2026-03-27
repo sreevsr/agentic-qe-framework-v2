@@ -1,0 +1,66 @@
+name: Failure Analysis & Defect Tracking
+
+on:
+  workflow_run:
+    workflows: ["Run E2E Tests", "Nightly Regression"]
+    types: [completed]
+
+jobs:
+  analyze:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: downloaded-artifacts/
+
+      - name: Find parsed results
+        id: find-results
+        run: |
+          RESULTS=$(find downloaded-artifacts/ -name "last-run-parsed.json" -type f | head -1)
+          if [ -z "$RESULTS" ]; then
+            echo "No parsed results found in artifacts"
+            exit 0
+          fi
+          echo "results_path=$RESULTS" >> $GITHUB_OUTPUT
+          echo "Found: $RESULTS"
+
+      - name: Classify failures
+        if: steps.find-results.outputs.results_path != ''
+        run: |
+          node scripts/failure-classifier.js \
+            --results=${{ steps.find-results.outputs.results_path }} \
+            --output=failure-analysis.json
+
+      - name: Create defect tickets
+        if: steps.find-results.outputs.results_path != '' && vars.DEFECT_TRACKER != '' && vars.DEFECT_TRACKER != 'none'
+        run: |
+          node ci/integrations/connector-interface.js \
+            --analysis=failure-analysis.json \
+            --tracker=${{ vars.DEFECT_TRACKER }}
+        env:
+          DEFECT_TRACKER: ${{ vars.DEFECT_TRACKER }}
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_PROJECT: ${{ vars.JIRA_PROJECT }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+
+      - name: Upload analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-analysis-${{ github.event.workflow_run.run_number }}
+          path: failure-analysis.json
+          retention-days: 90
+          if-no-files-found: ignore

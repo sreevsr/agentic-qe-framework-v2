@@ -11,19 +11,20 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: output/package-lock.json
 
       - name: Install dependencies
-        run: cd output && npm ci
+        run: |
+          cd output
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Install Playwright browsers
         run: cd output && npx playwright install --with-deps chromium
 
-      - name: Run full regression
+      - name: Run full regression suite
         id: tests
         continue-on-error: true
         run: cd output && npx playwright test --project=chrome --reporter=json,html,list
@@ -31,18 +32,20 @@ jobs:
           BASE_URL: ${{ secrets.BASE_URL }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          SSO_EMAIL: ${{ secrets.SSO_EMAIL }}
+          SSO_PASSWORD: ${{ secrets.SSO_PASSWORD }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
           HEADLESS: 'true'
           CI: 'true'
 
-      - name: Parse results
+      - name: Parse test results
         if: always()
         run: node scripts/test-results-parser.js --results-dir=output/test-results
 
       - name: Classify failures
         if: steps.tests.outcome == 'failure'
-        run: node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json
+        run: node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json --output=output/reports/failure-analysis.json
 
       - name: Collect metrics
         if: always()
@@ -56,5 +59,13 @@ jobs:
           path: |
             output/test-results/
             output/playwright-report/
+            output/screenshots/
             output/reports/metrics/
+            output/reports/failure-analysis.json
           retention-days: 90
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "::error::Nightly regression tests failed. Check artifacts for details."
+          exit 1

@@ -1,14 +1,21 @@
 name: Run E2E Tests
 
 on:
+  pull_request:
+    paths:
+      - 'output/tests/**'
+      - 'output/pages/**'
+      - 'output/locators/**'
+      - 'output/core/**'
+      - 'output/playwright.config.ts'
   workflow_dispatch:
     inputs:
       test_suite:
-        description: 'Test suite (all, smoke, regression, p0, api)'
+        description: 'Test suite'
         required: true
         default: 'smoke'
         type: choice
-        options: [all, smoke, regression, p0, api]
+        options: [all, smoke, regression, p0, p1, api, hybrid]
       browser:
         description: 'Browser'
         required: true
@@ -22,26 +29,46 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: output/package-lock.json
 
       - name: Install dependencies
-        run: cd output && npm ci
+        run: |
+          cd output
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Install Playwright browsers
-        run: cd output && npx playwright install --with-deps chromium
+        run: |
+          cd output
+          BROWSER="${{ github.event.inputs.browser || 'chrome' }}"
+          if [ "$BROWSER" = "chrome" ]; then
+            npx playwright install --with-deps chromium
+          elif [ "$BROWSER" = "firefox" ]; then
+            npx playwright install --with-deps firefox
+          elif [ "$BROWSER" = "webkit" ]; then
+            npx playwright install --with-deps webkit
+          fi
 
       - name: Run tests
         id: tests
         continue-on-error: true
-        run: cd output && npm run test:${{ github.event.inputs.test_suite }}
+        run: |
+          cd output
+          SUITE="${{ github.event.inputs.test_suite || 'smoke' }}"
+          BROWSER="${{ github.event.inputs.browser || 'chrome' }}"
+          if [ "$SUITE" = "all" ]; then
+            npx playwright test --project=$BROWSER --reporter=json,html,list
+          else
+            npx playwright test --grep @$SUITE --project=$BROWSER --reporter=json,html,list
+          fi
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          SSO_EMAIL: ${{ secrets.SSO_EMAIL }}
+          SSO_PASSWORD: ${{ secrets.SSO_PASSWORD }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
           HEADLESS: 'true'
@@ -51,7 +78,7 @@ jobs:
         if: always()
         run: node scripts/test-results-parser.js --results-dir=output/test-results
 
-      - name: Upload artifacts
+      - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -59,6 +86,7 @@ jobs:
           path: |
             output/test-results/
             output/playwright-report/
+            output/screenshots/
           retention-days: 30
 
       - name: Fail if tests failed
