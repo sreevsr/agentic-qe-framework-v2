@@ -32,7 +32,20 @@
 
 **If ANY count does not match → DO NOT finish. Go back and fix the gap.**
 
-### 1.3: What Fidelity Means — MANDATORY Understanding
+### 1.3: No Assertion Weakening — HARD STOP
+
+**MUST NOT weaken, generalize, or approximate assertions to make tests pass:**
+
+| Scenario says | CORRECT code | WRONG code (weakened) |
+|--------------|-------------|----------------------|
+| "equals 2" | `.toBe(2)` | `.toBeGreaterThan(0)` |
+| "contains 'Success'" | `.toContain('Success')` | `.toBeTruthy()` |
+| "URL is /dashboard" | `.toHaveURL('/dashboard')` | `.toHaveURL(/.*/)` |
+| "has 5 items" | `.toHaveCount(5)` | `.toHaveCount(expect.any(Number))` |
+
+If the assertion fails with the EXACT expected value → it's a POTENTIAL BUG in the app. Use `test.fixme('POTENTIAL BUG: expected X, found Y')`. DO NOT weaken the assertion to make it pass.
+
+### 1.4: What Fidelity Means — MANDATORY Understanding
 
 - Every scenario step → EXACTLY one `test.step()` block (or `test.fixme()` if blocked)
 - Every VERIFY → EXACTLY one `expect()` hard assertion
@@ -145,15 +158,12 @@ During the core loop, if a popup or overlay appears that is NOT in the scenario:
 
 ### 5.2: Browser-Level Settings
 
-When you discover the app needs specific browser settings, note in the explorer report:
-```typescript
-// Recommendations for playwright.config.ts:
-use: {
-  permissions: ['geolocation', 'notifications'],
-  bypassCSP: true,
-  acceptDownloads: true,
-}
-```
+Common permission grants and Chrome args are pre-configured in `templates/config/playwright.config.ts` (copied to `output/` by setup.js). These include:
+- `permissions: ['geolocation', 'notifications']` — prevents permission dialogs
+- `acceptDownloads: true` — allows file downloads without dialog
+- Chrome arg `--disable-features=PrivateNetworkAccessPermissionPrompt` — suppresses network permission prompt
+
+If the Explorer-Builder encounters additional permission dialogs NOT covered by the default config, **MUST note the needed permission/setting in the explorer report** so the user can update `output/playwright.config.ts`.
 
 ---
 

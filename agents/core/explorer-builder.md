@@ -83,6 +83,18 @@ When creating page objects, use this naming heuristic:
 - Use PascalCase: `SmeDashboardPage`, not `sme-dashboard-page`
 - One page object per distinct visual page. If unsure, check if the page has a different set of interactive elements — if yes, it's a new page object
 
+### Step 3.6: navigate() URL Resolution — 3-Rule Cascade
+
+When generating `navigate()` or `goto()` methods, resolve the URL using this cascade:
+
+| Priority | Rule | Generated Code |
+|----------|------|---------------|
+| 1 | Scenario uses `{{ENV.BASE_URL}}` (single-app) | `await this.page.goto(process.env.BASE_URL!)` |
+| 2 | Scenario specifies a different app URL (multi-app) | `await this.page.goto(process.env.APP2_BASE_URL!)` — create the env var |
+| 3 | No env var available (rare — testing local/dev) | `await this.page.goto('http://localhost:3000') // TODO: move to .env` |
+
+**MUST use process.env for all URLs.** If Rule 3 is needed, add a `// TODO:` comment so the user knows to externalize it.
+
 ---
 
 ## 4. The Core Loop — Explore, Verify, Write
@@ -149,15 +161,34 @@ Classify the step to determine which skill to use:
 
 ### 4.3: Identify the Target Element
 
-**MANDATORY selector priority — try in this order:**
+**MANDATORY selector priority — try in this order (v1 battle-tested strategy):**
 
-1. `data-testid` attribute (most stable — ALWAYS prefer this)
-2. `id` attribute (stable if not auto-generated)
-3. `name` attribute (forms)
-4. Semantic role + accessible name (ARIA)
-5. Placeholder text
-6. Text content (fragile — last resort for primary selector)
-7. CSS selector (structural — use for fallbacks)
+| Priority | Strategy | When to Use | Locator JSON Format |
+|----------|----------|-------------|---------------------|
+| 1 | `getByRole` + accessible name | Element has reliable ARIA role — most resilient, survives DOM restructuring | `role=button[name='Submit']` |
+| 2 | `getByLabel` | Form input with associated label — more stable than ID | `label=Email Address` |
+| 3 | `data-testid` | Explicit automation attribute — never changes accidentally | `testid=submit-btn` |
+| 4 | `id` attribute | Non-auto-generated ID (AVOID ASP.NET/Telerik generated IDs like `ctl00_*`) | `#login-button` |
+| 5 | `name` attribute | Form elements without a label | `[name='username']` |
+| 6 | `getByText` | Unique stable text (AVOID if text changes or appears multiple times) | `text=Sign In` |
+| 7 | `placeholder` | Input with placeholder text | `placeholder=Enter email` |
+| 8 | CSS class / structural | Last resort — fragile, breaks on styling changes. Use for FALLBACKS only | `.btn-primary` |
+
+**Why `role=` is #1 for enterprise apps:** Many enterprise apps don't have `data-testid` (requires dev cooperation). `getByRole` works without dev changes and survives DOM restructuring — buttons remain buttons even if CSS classes change.
+
+**Locator JSON format with type metadata:**
+```json
+{
+  "submitButton": {
+    "primary": "role=button[name='Submit']",
+    "fallbacks": ["[data-testid='submit-btn']", "#submit-button"],
+    "type": "button"
+  }
+}
+```
+The `type` field (`input`|`button`|`link`|`select`|`checkbox`) is metadata that helps the Reviewer verify correct interaction patterns. **MUST include at least 2 fallbacks per element.** Fallbacks SHOULD be CSS-based (they work as raw selectors without prefix resolution).
+
+**Exception — complex component libraries:** When app-context documents known strategies for specific components (Kendo, Fluent UI, PCF), use those strategies directly — they override this priority chain.
 
 **MANDATORY: Check app-context FIRST.** If the app-context says "this app uses Kendo dropdowns" or "filter inputs need pressSequentially", use that knowledge BEFORE trying the default approach. DO NOT waste attempts rediscovering known patterns.
 

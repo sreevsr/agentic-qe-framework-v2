@@ -21,6 +21,15 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: parseInt(process.env.DEFAULT_TIMEOUT || '30000', 10),
     navigationTimeout: parseInt(process.env.NAVIGATION_TIMEOUT || '60000', 10),
+
+    // Browser permissions — grant common permissions to prevent dialogs blocking tests
+    permissions: ['geolocation', 'notifications'],
+
+    // Accept file downloads without dialog
+    acceptDownloads: true,
+
+    // Bypass Content Security Policy (enable if app blocks Playwright injection)
+    // bypassCSP: true,
   },
   projects: [
     {
@@ -30,6 +39,14 @@ export default defineConfig({
         channel: 'chrome',
         headless: process.env.HEADLESS !== 'false',
         viewport: { width: 1920, height: 1080 },
+        launchOptions: {
+          args: [
+            // Suppress Chrome's Private Network Access permission prompt
+            '--disable-features=PrivateNetworkAccessPermissionPrompt',
+            // Uncomment if CORS blocks test API calls from the browser:
+            // '--disable-web-security',
+          ],
+        },
       },
     },
   ],

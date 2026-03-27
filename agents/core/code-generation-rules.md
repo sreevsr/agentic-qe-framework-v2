@@ -10,33 +10,37 @@ Every element you interact with MUST have an entry in a locator JSON file.
 
 **File location:** `output/locators/{page-name}.locators.json`
 
-**Format — EVERY entry MUST have primary + at least 2 fallbacks:**
+**Format — EVERY entry MUST have primary + at least 2 fallbacks + type:**
 
 ```json
 {
   "submitButton": {
-    "primary": "[data-testid='submit-btn']",
+    "primary": "role=button[name='Submit']",
     "fallbacks": [
-      "#submit-button",
-      "button:has-text('Submit')"
-    ]
+      "[data-testid='submit-btn']",
+      "#submit-button"
+    ],
+    "type": "button"
   },
   "usernameInput": {
-    "primary": "[data-testid='username']",
+    "primary": "label=Username",
     "fallbacks": [
-      "#username",
+      "[data-testid='username']",
       "input[name='username']"
-    ]
+    ],
+    "type": "input"
   }
 }
 ```
 
 **Rules — NO EXCEPTIONS:**
-- Primary selector = the one that WORKED during live exploration
-- **MUST** include at least 2 fallback selectors using different strategies
+- Primary selector = the one that WORKED during live exploration. Use semantic prefixes (`role=`, `label=`, `testid=`) — the LocatorLoader resolves them automatically
+- **MUST** include at least 2 fallback selectors. Fallbacks SHOULD be CSS-based (work without prefix resolution)
+- **MUST** include `type` field (`input` | `button` | `link` | `select` | `checkbox` | `text` | `image`) — helps Reviewer verify correct interaction patterns
 - Use descriptive camelCase element names
 - One locator file per page object
 - **NEVER** put selectors directly in page objects or spec files
+- Follow the selector priority from `agents/core/explorer-builder.md` Section 4.3: role > label > testid > id > name > text > placeholder > CSS
 
 ---
 
@@ -76,6 +80,24 @@ export class LoginPage extends BasePage {
 - One page object per distinct page/view
 - **MUST** check if page object already exists before creating — REUSE existing, ADD methods if needed
 - **MUST** check for `*.helpers.ts` files — if `LoginPage.helpers.ts` exists, import `LoginPageWithHelpers as LoginPage` in the spec
+
+### BasePage vs PageObject — Method Placement Binary Test
+
+**Before adding ANY method, apply this test:**
+
+Does the method contain ANY of these?
+- A CSS selector or element ID
+- `page.locator()` with a specific selector
+- `page.evaluate()` with DOM manipulation
+- `frameLocator()` for a specific iframe
+- `pressSequentially`/`fill`/`click` on a specific element
+- Any app-specific or page-specific logic
+
+**If YES → method belongs in `{PageName}Page.ts` (the page object), NOT `core/base-page.ts`.**
+
+**If NO → method is generic and belongs in `core/base-page.ts`.**
+
+BasePage MUST remain generic — it works for ANY app. Page objects contain app-specific logic.
 
 ---
 
@@ -304,7 +326,83 @@ expect(title).toContain('Revenue');
 
 ---
 
-## 7. Conditional Steps ("If...Then")
+## 7. Grid Row Scoping — Avoiding Strict Mode Violations
+
+When interacting with elements INSIDE grid/table rows (buttons, links, checkboxes in a row), Playwright's strict mode will fail with "locator resolved to N elements" if the selector matches across multiple rows.
+
+**MANDATORY: Use two-step scoped locators for in-row elements:**
+
+```typescript
+// WRONG — matches the "Edit" button in EVERY row → strict mode violation
+await page.locator('button:has-text("Edit")').click();
+
+// CORRECT — scope to the specific row first, then find the element within it
+const row = page.locator('tr', { hasText: targetData });
+await row.locator('button:has-text("Edit")').click();
+
+// CORRECT — using data-testid row anchor
+const row = page.locator(`[data-row-id="${rowId}"]`);
+await row.locator('[data-testid="delete-btn"]').click();
+```
+
+**Locator JSON for row-scoped elements:**
+```json
+{
+  "dataGrid": {
+    "primary": "[data-testid='data-grid']",
+    "fallbacks": ["table.data-table", ".grid-container"],
+    "type": "table"
+  },
+  "editButton": {
+    "primary": "button:has-text('Edit')",
+    "fallbacks": ["[data-testid='edit-btn']", ".btn-edit"],
+    "type": "button",
+    "scope": "row"
+  }
+}
+```
+
+The `"scope": "row"` field signals that this element MUST be accessed via a row-scoped locator chain, NOT directly. The page object method MUST accept a row identifier:
+
+```typescript
+async clickEditInRow(rowText: string): Promise<void> {
+  const row = this.page.locator('tr', { hasText: rowText });
+  await row.locator(this.loc.get('editButton')).click();
+}
+```
+
+---
+
+## 8. Comment Conventions — FRAGILE and PACING
+
+### `// FRAGILE:` Convention
+
+Mark selectors or code paths that use fragile strategies (page.evaluate text-walkers, inferred selectors without data-testid, deep CSS paths) with a `// FRAGILE:` comment:
+
+```typescript
+// FRAGILE: No data-testid on this element — uses text content which may change with i18n
+async getStatusText(): Promise<string> {
+  return await this.page.locator('.status-container > span:first-child').textContent() ?? '';
+}
+
+// FRAGILE: Uses page.evaluate to walk DOM text nodes — breaks if DOM structure changes
+async getCellValue(row: number, col: number): Promise<string> {
+  return await this.page.evaluate(([r, c]) => {
+    const cell = document.querySelectorAll('table tbody tr')[r]?.querySelectorAll('td')[c];
+    return cell?.textContent?.trim() ?? '';
+  }, [row, col]);
+}
+```
+
+**The `// FRAGILE:` comment signals to the Reviewer (Dim 1) and humans that this code needs attention.** It is NOT a failure — sometimes fragile is the only option. But it MUST be documented.
+
+### `// PACING:` Convention (recap)
+
+Already documented in quality-gates.md — protects justified `waitForTimeout` calls from Reviewer removal.
+
+---
+
+## 9. Conditional Steps ("If...Then")
 
 When a scenario step contains a condition (e.g., "If pagination exists, navigate to page 2"):
 
@@ -345,7 +443,7 @@ await test.step('Step 11 — If pagination exists, navigate to page 2', async ()
 
 ---
 
-## 8. API CRUD Chain Pattern
+## 10. API CRUD Chain Pattern
 
 For create-read-update-delete sequences:
 
@@ -379,7 +477,7 @@ await test.step('Step 3 — API DELETE: Remove user', async () => {
 
 ---
 
-## 8. Selector Externalization — HARD STOP
+## 11. Selector Externalization — HARD STOP
 
 **EVERY selector MUST live in a locator JSON file. NO EXCEPTIONS.**
 
@@ -391,7 +489,7 @@ If you find yourself writing a selector directly in a page object or spec file �
 
 ---
 
-## 9. Reusing Existing Code — MANDATORY Checks
+## 12. Reusing Existing Code — MANDATORY Checks
 
 Before creating ANY new file, you MUST check if it already exists:
 
@@ -402,7 +500,7 @@ Before creating ANY new file, you MUST check if it already exists:
 
 ---
 
-## 10. Browser Interaction via MCP
+## 13. Browser Interaction via MCP
 
 The Explorer-Builder uses the Playwright MCP server. Exact tool names depend on the server implementation, but operations map to:
 
@@ -419,7 +517,7 @@ The Explorer-Builder uses the Playwright MCP server. Exact tool names depend on 
 
 ---
 
-## 11. Lifecycle Hook Rules — HARD STOP
+## 14. Lifecycle Hook Rules — HARD STOP
 
 ### beforeAll / afterAll — `{ browser }` ONLY
 

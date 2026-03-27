@@ -10,8 +10,10 @@
 ## Checklist — MUST score each item
 
 - [ ] Every element has a primary selector + at least 2 fallbacks in JSON
-- [ ] Primary locators prefer `data-testid` or `id` over CSS classes
-- [ ] No fragile selectors: no `nth-child`, no deep CSS paths, no auto-generated IDs
+- [ ] Every element has a `type` field (`input`|`button`|`link`|`select`|`checkbox`)
+- [ ] Primary locators follow priority: `role=` > `label=` > `testid=` > `id` > `name` > `text=` > CSS. Flag if CSS class is used as primary when semantic alternatives exist
+- [ ] Fallbacks are CSS-based (work without prefix resolution)
+- [ ] No fragile selectors: no `nth-child`, no deep CSS paths, no auto-generated IDs (like `ctl00_*`)
 - [ ] No hardcoded selectors in page objects or test files — ALL selectors go through `LocatorLoader` / `this.loc.get()`
 - [ ] Selector naming is descriptive camelCase (`submitButton`, not `btn1` or `element3`)
 - [ ] For mobile: primary selectors prefer `accessibility_id` > `id` > class chain/predicate. No index-based XPath
