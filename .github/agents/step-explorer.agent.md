@@ -1,6 +1,6 @@
 ---
 name: step-explorer
-description: "Explores a group of scenario steps in an isolated context window. Spawned by QE Explorer for long scenarios."
+description: "Explores a group of scenario steps in an isolated context window. Spawned by QE Explorer for chunked execution (scenarios exceeding maxStepsPerChunk)."
 tools: ['edit/editFiles', 'vscode/runCommand', 'playwright/*', 'read']
 user-invokable: false
 model: ['claude-opus-4-6', 'o4-mini']
@@ -8,7 +8,7 @@ model: ['claude-opus-4-6', 'o4-mini']
 
 # Step Explorer (Subagent)
 
-Explores a specific group of scenario steps within an isolated context window. Spawned by the Explorer-Builder parent agent for long scenarios (40+ steps).
+Explores a specific group of scenario steps within an isolated context window. Spawned by the Explorer-Builder parent agent for chunked execution (scenarios exceeding maxStepsPerChunk).
 
 ## MANDATORY — Read BEFORE starting:
 
@@ -31,6 +31,7 @@ Explores a specific group of scenario steps within an isolated context window. S
 - storageState path (restore authenticated browser state — DO NOT replay login)
 - Partial page objects and locator files from previous step groups
 - App-context file
+- **Chunk number and total:** e.g., "Chunk 2 of 5" — tells you where you are in the pipeline
 
 ## What You MUST Do
 
@@ -39,6 +40,7 @@ Explores a specific group of scenario steps within an isolated context window. S
    - Read step intent → look at page → try interaction → verify → write code
 3. Save storageState for the NEXT step group
 4. Return: updated locator JSONs, page objects, spec steps, any new app-context patterns
+5. Report your chunk status at the end: COMPLETE (all assigned steps explored and code written), PARTIAL (some steps explored, some missing), or FAILED (could not explore any steps in this chunk)
 
 ## What You MUST NOT Do
 
@@ -46,6 +48,9 @@ Explores a specific group of scenario steps within an isolated context window. S
 - Modify files outside your step group's scope
 - Skip steps — every step MUST be explored or marked `test.fixme()`
 - Make architectural decisions — follow the parent agent's plan
+- **MUST NOT** run Self-Audit (Section 5) — the parent handles this on merged output
+- **MUST NOT** generate the explorer report, enriched.md, or metrics files — the parent handles these
+- **MUST NOT** explore steps outside your assigned range
 
 ## Platform Compatibility
 

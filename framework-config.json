@@ -36,6 +36,12 @@
     "$comment": "Controls bug detection sensitivity. uncertainVerdictEnabled: allow UNCERTAIN verdict for ambiguous cases."
   },
 
+  "chunking": {
+    "maxStepsPerChunk": 15,
+    "alwaysChunk": true,
+    "$comment": "maxStepsPerChunk: maximum steps per chunk before spawning a subagent. alwaysChunk: when true, chunked execution is the default mode (Explorer-Builder always creates a chunk plan). Set to false to revert to single-agent Core Loop for all steps."
+  },
+
   "observability": {
     "trackTokens": true,
     "trackContextWindow": true,

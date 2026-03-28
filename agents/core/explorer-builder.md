@@ -109,7 +109,159 @@ When generating `navigate()` or `goto()` methods, resolve the URL using this cas
 
 **MUST use process.env for all URLs.** If Rule 3 is needed, add a `// TODO:` comment so the user knows to externalize it.
 
-## 3.5. Interaction Ledger Protocol — MANDATORY Anti-Fabrication Enforcement
+---
+
+## 3.7. Chunked Execution — DEFAULT Execution Mode
+
+**This is NOT a conditional optimization. This is HOW the Explorer-Builder executes. Every scenario is processed as one or more chunks. The Core Loop (Section 4) ALWAYS runs inside a chunk scope — never as a top-level flow across all steps.**
+
+### 3.7a: Chunk Planning — MANDATORY After Input Processing
+
+After completing Section 3 (Input Processing), BEFORE entering the Core Loop, you MUST:
+
+1. Read `framework-config.json` → `chunking.maxStepsPerChunk` (default: 15) and `chunking.alwaysChunk` (default: true)
+2. Count total steps (already done in Step 3.1b item 4)
+3. Determine execution mode:
+
+| Total Steps | Mode | What Happens |
+|------------|------|--------------|
+| ≤ maxStepsPerChunk | **DIRECT** | Parent runs Core Loop for all steps. No subagents needed. |
+| > maxStepsPerChunk | **CHUNKED** | Parent runs first chunk (auth/setup). Subagents run remaining chunks. |
+
+If `alwaysChunk` is `false` in config, always use DIRECT mode regardless of step count (legacy behavior for debugging).
+
+### 3.7b: Chunk Partitioning Rules
+
+1. **Identify natural breakpoints** from the scenario structure:
+   - Section headers in the scenario (`### Signup Flow`, `### Shopping Flow`, etc.)
+   - Page transitions (steps that navigate to a new URL)
+   - Phase changes (auth → main flow → verification → teardown)
+
+2. **Partition steps into chunks** at these breakpoints, respecting `maxStepsPerChunk`:
+   - Each chunk has AT MOST `maxStepsPerChunk` steps
+   - If a natural section exceeds `maxStepsPerChunk`, split it further at the nearest page transition or logical pause
+   - **Chunk 1 MUST include all authentication/setup steps** (even if this means chunk 1 is smaller than others)
+   - The last chunk includes any teardown/cleanup steps
+
+3. **Record the Chunk Plan** in the explorer report BEFORE starting execution:
+
+```markdown
+## Chunk Plan
+- **Mode:** DIRECT | CHUNKED
+- **maxStepsPerChunk:** {N} (from framework-config.json)
+- **Total steps:** {N}
+- **Total chunks:** {N}
+
+| Chunk | Steps | Section/Breakpoint | Executor |
+|-------|-------|--------------------|----------|
+| 1 | 1-15 | Signup Flow | Parent (direct) |
+| 2 | 16-35 | Shopping Flow | Subagent |
+| 3 | 36-45 | Cart Verification | Subagent |
+| 4 | 46-67 | Checkout + Payment | Subagent |
+| 5 | 68-76 | Invoice + Logout | Subagent |
+```
+
+### 3.7c: DIRECT Mode (≤ maxStepsPerChunk steps)
+
+If total steps ≤ `maxStepsPerChunk`:
+1. The entire scenario is ONE chunk
+2. Parent enters the Core Loop (Section 4) directly for all steps
+3. No subagents are spawned
+4. Proceed to Self-Audit (Section 5) after Core Loop completes
+5. This is equivalent to the pre-chunking behavior — **zero overhead for short scenarios**
+
+### 3.7d: CHUNKED Mode (> maxStepsPerChunk steps) — Four Phases
+
+**Phase 1 — Auth Chunk (Parent executes directly):**
+
+1. Parent enters the Core Loop (Section 4) for **Chunk 1 steps ONLY**
+2. After Chunk 1 completes, parent writes all code files for those steps
+3. Parent saves storageState for subsequent chunks:
+   ```typescript
+   await page.context().storageState({ path: 'output/auth/storage-state.json' });
+   ```
+4. Parent records all files created so far (locator JSONs, page objects, partial spec file)
+
+**Phase 2 — Subagent Chunks (Sequential — one at a time):**
+
+For each remaining chunk (2, 3, ... N), spawn ONE subagent with this prompt:
+
+```
+You are a step-explorer subagent. Explore steps {startStep} to {endStep} of scenario "{scenarioName}".
+This is Chunk {chunkNumber} of {totalChunks}.
+
+MANDATORY READS before starting:
+- agents/core/explorer-builder.md — Section 4 (Core Loop) is your execution guide
+- agents/core/code-generation-rules.md — code patterns
+- agents/core/quality-gates.md — guardrails
+- agents/shared/keyword-reference.md — keyword → code patterns
+- agents/shared/guardrails.md — ownership boundaries
+
+Context:
+- Scenario file: {scenarioPath}
+- App-context: scenarios/app-contexts/{app}.md
+- storageState: output/auth/storage-state.json
+- The MCP browser is ALREADY in the state left by the previous chunk. Take a snapshot FIRST to see where you are.
+- DO NOT replay steps before step {startStep}. DO NOT explore steps after step {endStep}.
+
+Existing files (READ these, ADD to them — do NOT recreate):
+- Page objects: {list of output/pages/*.ts files}
+- Locators: {list of output/locators/*.json files}
+- Spec file: output/tests/{type}/{scenario}.spec.ts — APPEND your test.step() blocks after the existing ones
+
+After exploring all steps in your range:
+1. Save storageState for the next chunk
+2. Report your chunk status: COMPLETE (all steps explored), PARTIAL (some steps missing), or FAILED
+```
+
+**CRITICAL: The subagent references the MCP server by name (shared connection). The browser state persists from the previous chunk — no state reconstruction needed. This works for Playwright MCP (web), Appium MCP (mobile), and both simultaneously (hybrid).**
+
+Wait for each subagent to complete before spawning the next one. Subagents are **sequential**, not parallel — each continues from where the previous left off.
+
+**Phase 3 — Subagent Verification (after each subagent returns):**
+
+After each subagent completes, parent MUST verify:
+1. Check that the spec file has `test.step()` blocks for the step range
+2. Check that locator JSONs and page object files exist for any new pages in the range
+3. If steps in the range have no code AND no `test.fixme()`:
+   - Mark as MISSING in the chunk plan
+   - Log: `Chunk {N}: Steps {list} — MISSING (subagent did not produce output)`
+4. Collect ledger entries from the subagent's output
+
+**Phase 4 — Merge + Finalize (parent responsibility):**
+
+After ALL subagent chunks complete:
+1. **Verify spec completeness:** Count `test.step()` blocks in the spec vs scenario step count
+2. **Check for merge issues:** If multiple subagents added methods to the same page object, verify no duplicate method names
+3. **Run Self-Audit (Section 5)** on the MERGED output
+4. **Generate enriched.md** (Section 6b) from the combined exploration results
+5. **Generate explorer report** (Section 7) with chunk plan, all ledger entries, and per-chunk status
+6. **Generate metrics** (Section 8) with aggregated observability from all chunks
+
+### 3.7e: Subagent Failure Handling
+
+| Subagent Result | Parent Action |
+|----------------|---------------|
+| COMPLETE — all steps explored | Merge files, continue to next chunk |
+| PARTIAL — some steps explored | Merge what exists, mark missing steps as NOT_EXPLORED |
+| FAILED — no steps explored | Mark entire chunk as FAILED, log error, continue to next chunk |
+| Timeout — subagent didn't return | Mark chunk as TIMEOUT, save what exists, continue |
+
+**CRITICAL: The parent MUST NEVER fill in missing steps from its own context.** If a subagent fails to explore steps 20-30, the parent marks those as NOT_EXPLORED. The parent does NOT attempt to explore them itself — its context is consumed by coordination. The report reflects the gap honestly. This is the anti-fabrication principle.
+
+### 3.7f: No-Subagent Fallback
+
+If the platform does not support subagent spawning (no Agent tool available):
+1. Parent runs Core Loop directly for ALL chunks **sequentially**
+2. Between chunks, parent saves a checkpoint: current step number, files created, storageState
+3. If context pressure causes exploration to stop, parent follows Section 9 error handling (partial report with NOT_EXPLORED steps)
+4. This is the **degraded mode** — it may still face the fabrication problem for very long scenarios, but the explicit chunk boundaries provide natural save points
+
+---
+
+## 3.8. Interaction Ledger Protocol — MANDATORY Anti-Fabrication Enforcement
+
+**Scope:** Each chunk (parent or subagent) maintains its own ledger entries for its step range. The parent merges all ledger entries during the Merge + Finalize phase (Section 3.7d Phase 4).
 
 **HARD STOP: The Interaction Ledger is the Explorer-Builder's proof-of-work. Every step explored in the browser MUST leave a structured trace in the explorer report. Steps without ledger entries are classified as NOT_EXPLORED and MUST NOT have corresponding code in the spec.**
 
@@ -152,9 +304,11 @@ These ratios are verified by the Reviewer as a cross-validation check. Abnormal 
 
 ---
 
-## 4. The Core Loop — Explore, Verify, Write
+## 4. The Core Loop — Explore, Verify, Write (Per-Chunk Subroutine)
 
-**This is the heart of the Explorer-Builder. You MUST follow this loop for EVERY step. DO NOT skip steps. DO NOT batch steps. DO NOT write code without verifying in the browser first (except for API-only scenarios).**
+**This is the heart of the Explorer-Builder. It runs WITHIN a chunk scope — either the parent's direct chunk (DIRECT mode) or a subagent's assigned chunk (CHUNKED mode). You MUST follow this loop for EVERY step in YOUR assigned chunk. DO NOT skip steps. DO NOT batch steps. DO NOT write code without verifying in the browser first (except for API-only scenarios).**
+
+**Chunk scope:** You only process steps assigned to your chunk (e.g., steps 16-30). Do NOT look ahead to steps outside your chunk. Do NOT go back to steps before your chunk. If you are a subagent, your first action MUST be to take a browser snapshot to confirm the current page state.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -317,6 +471,8 @@ Write three things per verified step:
 ## 5. Self-Audit — MANDATORY Before Finishing
 
 **HARD STOP: After writing ALL code, you MUST audit your own work BEFORE declaring exploration complete. DO NOT skip this. The Reviewer will catch what you miss, but catching it yourself is faster and cheaper.**
+
+**In CHUNKED mode:** The parent runs Self-Audit on the MERGED output from all chunks. Subagents do NOT run Self-Audit — they only run the Core Loop for their assigned steps. The parent is solely responsible for final fidelity verification across all chunks.
 
 ### 5.1: Structural Self-Audit
 
@@ -518,6 +674,13 @@ User may edit this file. Explorer-Builder will NOT modify it on future runs.
 - **Pages discovered:** {N}
 - **New app-context patterns:** {N}
 
+## Chunk Plan
+| Chunk | Steps | Executor | Status | Steps Explored | Steps Missing |
+|-------|-------|----------|--------|----------------|---------------|
+| 1 | 1-15 | Parent | COMPLETE | 15 | 0 |
+| 2 | 16-30 | Subagent | COMPLETE | 15 | 0 |
+(Include for ALL chunks. In DIRECT mode, show single row with Executor=Parent.)
+
 ## Step Results
 
 | Step | Description | Status | Attempts | Notes |
@@ -610,7 +773,22 @@ Missing or blocked items: [list each, or "None"]
   "stepsPerSnapshot": 0.0,
   "contextWindowPercent": 0,
   "tokenEstimate": 0,
-  "metricsVersion": "2.1.0"
+  "metricsVersion": "2.1.0",
+  "chunking": {
+    "mode": "DIRECT or CHUNKED",
+    "maxStepsPerChunk": 15,
+    "totalChunks": 1,
+    "chunkResults": [
+      {
+        "chunk": 1,
+        "steps": "1-15",
+        "executor": "parent",
+        "status": "COMPLETE",
+        "stepsExplored": 15,
+        "stepsMissing": 0
+      }
+    ]
+  }
 }
 ```
 
@@ -665,7 +843,7 @@ If you detect context is running low (60%+ consumed) AND unexplored steps remain
 5. **MUST** save metrics with `"reportStatus": "PARTIAL"` and `"stepsNotExplored": {count}`
 6. **MUST NOT generate code for unexplored steps.** Any `test.step()` block in the spec for a step that has no corresponding ledger entry is **fabrication**. This is the hardest rule in the framework.
 
-**Prevention:** For scenarios with 40+ steps, the Explorer MUST use subagent splitting BEFORE this situation occurs (see `agents/core/scenario-handling.md` Section 3.1).
+**Prevention:** Chunked execution (Section 3.7) is the PRIMARY prevention mechanism. With maxStepsPerChunk=15 and subagent spawning, no single context window handles more than 15 steps of Core Loop execution. Context exhaustion should only occur in DIRECT mode (short scenarios) or the no-subagent fallback.
 
 ---
 

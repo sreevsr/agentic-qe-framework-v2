@@ -29,7 +29,7 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → 
 | Invoke as | File | Job |
 |-----------|------|-----|
 | `@QE Orchestrator` | `.github/agents/orchestrator.agent.md` | **One-command pipeline** — coordinates all agents in sequence |
-| `@QE Explorer` | `.github/agents/explorer-builder.agent.md` | Explore app in live browser, verify interactions, write test code |
+| `@QE Explorer` | `.github/agents/explorer-builder.agent.md` | Explore app via chunked execution, verify interactions in live browser, write test code |
 | `@QE Executor` | `.github/agents/executor.agent.md` | Run tests, fix timing issues (max 3 cycles) |
 | `@QE Enricher` | `.github/agents/enrichment-agent.agent.md` | Convert natural language / Swagger to structured scenario .md |
 | `@QE Reviewer` | `.github/agents/reviewer.agent.md` | Audit code quality, produce scorecard (9 dimensions) |
@@ -42,6 +42,7 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → 
 - **Folder parameter** is optional — organizes output by app/feature. Without: `output/tests/web/scenario.spec.ts`. With folder: `output/tests/web/my-app/scenario.spec.ts`
 - **Skills** (`skills/`) define agent capabilities — read `skills/registry.md`. Three levels: registry (always loaded) → instructions (on activation) → resources (on demand)
 - **App-contexts** (`scenarios/app-contexts/`) store learned application patterns across runs. Explorer-Builder reads them BEFORE exploring and writes them AFTER. This is the self-improving mechanism.
+- **Chunked execution** — The Explorer-Builder uses chunked execution by default. Scenarios are partitioned into chunks of max 15 steps (configurable via `framework-config.json`). For scenarios > 15 steps, subagents (`step-explorer`) handle each chunk with a fresh context window while sharing the same MCP browser/Appium session. This prevents context pressure from causing the LLM to shortcut exploration.
 - **`## API Behavior: mock`** in a scenario header means the API is non-persistent; agents may adapt tests for non-persistence. No header or `live` = ALL guardrails fully enforced with ZERO exceptions. NEVER infer API behavior from the URL.
 - **Shared test data** (`output/test-data/shared/`) — cross-scenario reference data. **NEVER overwrite or delete** — other scenarios depend on these files.
 - **Helper files** (`output/pages/*.helpers.ts`) are team-maintained companion files. The `USE_HELPER:` keyword invokes helper methods. **NEVER create, modify, or delete** `*.helpers.ts` files from any agent — they are team-owned. If helpers exist, import the helpers class (not the base class).

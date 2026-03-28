@@ -144,34 +144,22 @@ After completing all steps, you MUST update the app-context with NEW patterns yo
 
 ---
 
-## 3. Long Scenario Handling — Subagent Splitting
+## 3. Chunked Execution — Default Mode
 
-### 3.1: When to Split — MANDATORY Evaluation
+### 3.1: Chunking is the Default Execution Mode
 
-**HARD STOP: You MUST split scenarios with 40+ steps into subagents. This is NOT optional. DO NOT proceed with single-agent exploration of 40+ step scenarios.**
+**Chunking is the Explorer-Builder's default execution mode.** There is no step threshold to "trigger" chunking — the Explorer-Builder ALWAYS creates a chunk plan (see `explorer-builder.md` Section 3.7). For short scenarios (≤ `maxStepsPerChunk` from `framework-config.json`, default 15), the plan is trivially one chunk executed directly by the parent. For longer scenarios, the plan has multiple chunks with subagent delegation.
 
-This is a **self-enforced** gate — it is part of the Explorer-Builder's own logic and does NOT depend on the Orchestrator. All agents are fully independent with defined inputs, outputs, and tools. After parsing the scenario (explorer-builder.md Section 3.1b), if `stepsTotal >= 40`:
+**This replaces the previous conditional rule ("split at 40+ steps").** That rule failed because the LLM ignored it under context pressure. Chunking as a default architectural mode is not a rule the LLM can decide to skip — it IS the execution flow.
 
-1. MUST identify natural breakpoints per Section 3.2 below
-2. MUST spawn subagents for each chunk
-3. MUST NOT start the single-agent core loop on 40+ steps
-4. If the platform does not support subagents (no Agent tool available), the Explorer MUST:
-   - Explore only the first 35 steps
-   - Mark remaining steps as `NOT_EXPLORED` in the report
-   - Set report status to `PARTIAL`
-   - Add `## SPLIT REQUIRED: {N} steps exceeds 40-step single-agent limit` to the report
+**Configuration:** `framework-config.json` field `chunking.maxStepsPerChunk` (default: 15). Field `chunking.alwaysChunk` (default: true) — set to `false` to revert to pre-chunking behavior.
 
-**Split when:**
-- Scenario has **40+ steps** (MANDATORY — hard gate, not recommendation)
-- Scenario visits **5+ distinct pages** (many page objects to build)
-- During exploration, context consumption exceeds **60% of available window**
-
-**DO NOT split scenarios under 20 steps** — the overhead of subagent coordination is not worth it for short scenarios.
+**DO NOT split scenarios under 20 steps** advisory is REMOVED — the `maxStepsPerChunk` threshold handles this automatically. A 10-step scenario becomes one DIRECT chunk (zero overhead). A 20-step scenario becomes two chunks.
 
 ### 3.2: How to Split — MANDATORY Steps
 
 1. **Identify natural breakpoints** — page transitions, phase changes, section headers in the scenario
-2. **Group steps into chunks of 10-12** at these breakpoints
+2. **Group steps into chunks of up to `maxStepsPerChunk` (default 15)** at these breakpoints
 3. **MUST save storageState** after auth/setup phase completes:
    ```typescript
    await page.context().storageState({ path: 'output/auth/storage-state.json' });
