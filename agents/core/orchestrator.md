@@ -73,9 +73,11 @@ Delete (ignore errors if they don't exist):
   output/reports/[{folder}/]enrichment-report-{scenario}.md
   output/reports/[{folder}/]precheck-report-{scenario}.json
   output/reports/[{folder}/]review-scorecard-{scenario}.md
+  output/reports/[{folder}/]healer-report-{scenario}.md
   output/reports/[{folder}/]pipeline-summary-{scenario}.md
   output/reports/metrics/explorer-metrics-{scenario}.json
   output/reports/metrics/executor-metrics-{scenario}.json
+  output/reports/metrics/healer-metrics-{scenario}.json
 ```
 
 **DO NOT delete:** locators, page objects, core files, shared test data, or the spec file. Only delete reports.
@@ -93,6 +95,10 @@ Delete (ignore errors if they don't exist):
 │  STAGE 2: Executor (run tests + fix timing — max 3 cycles)          │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
 │  STAGE 3: Reviewer (precheck script + 9-dimension audit)            │
+│  ↓ [if NEEDS FIXES]                                                   │
+│  STAGE 4: Healer (CONDITIONAL — fix code quality issues)             │
+│  ↓ [if healer passes → re-review]                                    │
+│  STAGE 3b: Reviewer (re-review after healer fixes)                   │
 │  ↓                                                                    │
 │  OUTPUT: Pipeline Summary                                             │
 └──────────────────────────────────────────────────────────────────────┘
@@ -212,6 +218,53 @@ Save scorecard to: {REVIEW_SCORECARD}
 
 ---
 
+## 6b. STAGE 4: Healer — CONDITIONAL (only when Reviewer verdict = NEEDS FIXES)
+
+**Decision logic:**
+
+| Reviewer Verdict | Action |
+|-----------------|--------|
+| APPROVED | **SKIP Stage 4** — proceed to Final Verdict |
+| APPROVED WITH CAVEATS | **SKIP Stage 4** — proceed to Final Verdict |
+| NEEDS FIXES | **INVOKE Healer** — fix the issues |
+| TESTS FAILING | **SKIP Stage 4** — Executor already exhausted cycles, Healer cannot help |
+
+**If invoking Healer:**
+
+Delegate to **QE Healer** subagent with:
+
+```
+Read agents/core/healer.md for your instructions.
+Read agents/core/quality-gates.md for guardrails.
+Read agents/shared/guardrails.md for ownership boundaries.
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+FOLDER = {folder}    (only if provided)
+
+Scorecard: {REVIEW_SCORECARD}
+Spec file: {TEST_SPEC}
+Scenario file: {SCENARIO_PATH}
+
+Fix the critical issues identified in the scorecard. Re-run tests to verify.
+
+Save healer report to: {HEALER_REPORT}
+Save metrics to: {HEALER_METRICS}
+```
+
+Where:
+- `HEALER_REPORT` = `output/reports/[{folder}/]healer-report-{scenario}.md`
+- `HEALER_METRICS` = `output/reports/metrics/healer-metrics-{scenario}.json`
+
+**Post-Healer Gate:**
+
+1. **MUST** check that HEALER_REPORT exists. Read the final test status.
+2. If healer test status = **PASSING** → Re-run the Reviewer (Stage 3b) to produce an UPDATED scorecard reflecting the healer's fixes. Use the same Reviewer prompt but note: `"This is a re-review after Healer fixes. The healer-report is at: {HEALER_REPORT}"`
+3. If healer test status = **FAILING** → Record as TESTS FAILING in the pipeline summary. Do NOT re-run Reviewer.
+4. **Maximum one Healer invocation per pipeline run.** Do NOT loop Healer → Reviewer → Healer.
+
+---
+
 ## 7. Final Verdict — MANDATORY Decision Logic
 
 **MUST use this exact logic — DO NOT deviate:**
@@ -220,8 +273,10 @@ Save scorecard to: {REVIEW_SCORECARD}
 |-----------|---------|
 | Reviewer says APPROVED **AND** all tests passing (0 failed, 0 fixme) | **APPROVED** |
 | Reviewer says APPROVED **AND** some tests have `test.fixme()` (potential bugs, not code failures) | **APPROVED WITH CAVEATS** — list each fixme |
-| Reviewer says NEEDS FIXES | **NEEDS FIXES** — list fixes from scorecard |
+| Reviewer says NEEDS FIXES **AND** Healer was invoked **AND** re-review says APPROVED | **APPROVED (after Healer fixes)** — note healer involvement |
+| Reviewer says NEEDS FIXES **AND** Healer was NOT invoked or re-review still says NEEDS FIXES | **NEEDS FIXES** — list remaining fixes |
 | Tests still failing after Executor exhausted all cycles | **TESTS FAILING** — list failing tests |
+| Healer was invoked but tests now failing | **TESTS FAILING** — healer introduced regression |
 | A stage failed or didn't complete | **INCOMPLETE** — {Stage N}: {reason} |
 
 **HARD STOP: NEVER report APPROVED when tests are failing.** A perfect reviewer score on code that doesn't pass is meaningless.
@@ -239,10 +294,10 @@ Save scorecard to: {REVIEW_SCORECARD}
 | Section | Source |
 |---------|--------|
 | Pipeline Results | All agent reports + metrics |
-| Test Execution Summary | Explorer report + Executor report |
-| Quality Metrics | Review scorecard (9 dimension scores) |
-| Token Usage & Performance | `output/reports/metrics/*-metrics-*.json` |
-| Critical Fixes | Explorer report (discoveries) + Executor report (fixes) |
+| Test Execution Summary | Explorer report + Executor report + Healer report (if exists) |
+| Quality Metrics | Review scorecard (9 dimension scores) — use LATEST scorecard if re-reviewed |
+| Token Usage & Performance | `output/reports/metrics/*-metrics-*.json` (explorer, executor, healer) |
+| Critical Fixes | Explorer report (discoveries) + Executor report (fixes) + Healer report (quality fixes) |
 | App-Context Updates | Explorer report + Executor report |
 | Files Generated | Explorer report (Files Generated section) |
 | Key Achievements | All reports |

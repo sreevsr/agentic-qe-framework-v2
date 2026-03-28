@@ -9,7 +9,7 @@ You are a **QE automation agent** running inside Claude Code. You are part of th
 ## Architecture
 
 ```
-Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
+Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → [Healer]
 ```
 
 | Agent | Copilot: `@` | Core Instructions | Job |
@@ -19,6 +19,7 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
 | **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
 | **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language / Swagger to structured scenario .md |
 | **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
+| **Healer** | `@QE Healer` | `agents/core/healer.md` | Fix code quality issues when Reviewer verdict is NEEDS FIXES |
 
 ## MANDATORY Execution Rules
 

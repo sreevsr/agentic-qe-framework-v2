@@ -109,6 +109,47 @@ When generating `navigate()` or `goto()` methods, resolve the URL using this cas
 
 **MUST use process.env for all URLs.** If Rule 3 is needed, add a `// TODO:` comment so the user knows to externalize it.
 
+## 3.5. Interaction Ledger Protocol — MANDATORY Anti-Fabrication Enforcement
+
+**HARD STOP: The Interaction Ledger is the Explorer-Builder's proof-of-work. Every step explored in the browser MUST leave a structured trace in the explorer report. Steps without ledger entries are classified as NOT_EXPLORED and MUST NOT have corresponding code in the spec.**
+
+### Ledger Format
+
+For EACH step, the Explorer MUST record:
+
+1. **Before starting the step:** `<!-- LEDGER:START step={N} -->`
+2. **After each MCP tool call** (snapshot, click, fill, navigate, etc.): `<!-- MCP: {tool_name} | {target_element_or_url} | {result: success/fail/timeout} -->`
+3. **After verification:** `<!-- LEDGER:END step={N} mcp_count={M} status={VERIFIED|BLOCKED|PARTIAL} -->`
+
+**Example:**
+```
+<!-- LEDGER:START step=20 -->
+<!-- MCP: browser_snapshot | /products | success -->
+<!-- MCP: browser_hover | .single-products:has-text('Blue Top') | success -->
+<!-- MCP: browser_click | .product-overlay .add-to-cart | success -->
+<!-- MCP: browser_snapshot | modal verification | success -->
+<!-- LEDGER:END step=20 mcp_count=4 status=VERIFIED -->
+```
+
+### Ledger Rules — HARD STOP
+
+1. **VERIFIED requires MCP proof:** A step CANNOT have `status=VERIFIED` with `mcp_count=0`. Every VERIFIED step must have at least 1 MCP interaction. The ONLY exceptions are:
+   - `CALCULATE` steps (pure arithmetic, no browser)
+   - `REPORT` steps (annotation only, no browser)
+   - `SAVE` steps (shared-state write, no browser)
+2. **No ledger = NOT_EXPLORED:** If a step has no `LEDGER:START` / `LEDGER:END` pair, it MUST appear as `NOT_EXPLORED` in the Step Results table.
+3. **NOT_EXPLORED = no code:** Steps marked `NOT_EXPLORED` MUST NOT have corresponding `test.step()` code in the spec. Generating code for unexplored steps is **fabrication**.
+4. **Ledger is canonical:** The Step Results table in the explorer report MUST be generated FROM the ledger entries, NOT written independently. If the table claims a step is VERIFIED but no ledger entry exists for that step, the claim is false.
+
+### MCP Interaction Ratio Gate
+
+After all exploration is complete, compute these ratios:
+
+1. **MCP ratio** = `total_mcp_calls / stepsTotal`. For web scenarios, this MUST be >= 1.5 (each step needs at minimum a snapshot + an action). If the ratio is below 1.5, add a `## WARNING: LOW MCP RATIO` section to the report explaining why.
+2. **Steps-per-snapshot ratio** = `stepsTotal / mcpSnapshotCount`. This MUST be <= 8 (at least one snapshot every 8 steps). If exceeded, add `## WARNING: LOW SNAPSHOT RATE` to the report.
+
+These ratios are verified by the Reviewer as a cross-validation check. Abnormal ratios are fabrication signals.
+
 ---
 
 ## 4. The Core Loop — Explore, Verify, Write
@@ -135,6 +176,7 @@ When generating `navigate()` or `goto()` methods, resolve the URL using this cas
 │     ├── Locator JSON entry (the verified selector)                  │
 │     ├── Page object method (the verified interaction)               │
 │     └── Spec test.step() block (the verified step)                  │
+│  6a. EMIT LEDGER ENTRY to the explorer report NOW                   │
 │  7. MOVE to next step — DO NOT go back and rewrite previous steps   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -213,6 +255,18 @@ The `type` field (`input`|`button`|`link`|`select`|`checkbox`) is metadata that 
 1. Execute the interaction via MCP tools
 2. Observe the result — did the expected thing happen?
 3. If the app responds with an unexpected popup, cookie banner, or overlay — handle it per `agents/core/quality-gates.md` Section 5
+
+### 4.4a: Auth and Registration Resilience — MANDATORY
+
+**When exploring signup/registration flows**, the Explorer MUST build re-run resilience into the generated code:
+
+1. If the flow uses an email address for signup, the spec MUST generate a unique email per run (e.g., `process.env.SIGNUP_EMAIL.replace('@', `_${Date.now()}@`)`)
+2. This is an Explorer responsibility — NOT an Executor fix. The Executor should NOT waste cycles fixing signup failures caused by duplicate registration
+3. **MUST** document the pattern in app-context: `## Known Pattern: Registration requires unique email per run`
+
+**When exploring SSO/OAuth flows**, if the login page has multiple forms or inputs:
+1. **MUST** scope inputs to the correct form container (not just `input[type='email']` which may match multiple)
+2. **MUST** document the scoping strategy in app-context: `## Known Pattern: Login page has multiple forms — scope to [selector]`
 
 ### 4.5: Apply Bug Detection Gate — MANDATORY
 
@@ -308,6 +362,39 @@ Add the self-audit results to the Fidelity Summary section of the explorer repor
 - Remaining gaps: [list, or "None"]
 ```
 
+### 5.5: Raw Selector Self-Audit — MANDATORY
+
+**HARD STOP: Before finishing, search your own generated files for raw selectors:**
+
+1. **Spec file:** Search for `page.locator(` calls. Count MUST be 0. All interactions MUST go through page object methods.
+2. **Page objects:** Search for `this.page.locator(` calls that do NOT use `this.loc.get()` or `this.loc.getLocator()` as their base. Count MUST be 0.
+   - **Exception:** Row-scoped chaining from a LocatorLoader base IS permitted: `this.page.locator(this.loc.get('cartTable')).locator('tr').filter({hasText: name})` — the base MUST come from LocatorLoader; only the scoping filter may be inline.
+3. **Record in Self-Audit:**
+   ```
+   Raw selector count (spec): {N} (target: 0)
+   Raw selector count (page objects): {N} (target: 0, excluding row-scoped)
+   ```
+4. If count > 0 → fix the raw selectors NOW before finishing.
+
+### 5.6: Output File Completeness — MANDATORY
+
+**HARD STOP: Before finishing, verify ALL mandatory output files exist:**
+
+| File | Mandatory? |
+|------|-----------|
+| `output/locators/*.json` (one per page discovered) | YES |
+| `output/pages/*.ts` (one per page discovered) | YES |
+| `output/tests/{type}/[{folder}/]{scenario}.spec.ts` | YES |
+| `output/test-data/{type}/{scenario}.json` | YES — must also be imported in spec |
+| `output/reports/explorer-report-{scenario}.md` | YES |
+| `output/reports/metrics/explorer-metrics-{scenario}.json` | YES |
+| `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | YES |
+| `scenarios/app-contexts/{app}.md` | YES (create or update) |
+
+If ANY mandatory file is missing → **DO NOT finish. Create it NOW.** The enriched.md file is especially critical — it must be generated during exploration, not as an afterthought.
+
+**Test data usage rule:** If a test-data JSON file is generated, the spec MUST import and use it. Dead test data files (generated but never imported) are a code quality violation. All hardcoded values in the spec that exist in the test data JSON MUST be replaced with `testData.fieldName` references.
+
 ---
 
 ## 6. Output Manifest
@@ -343,7 +430,7 @@ Same as web, but spec goes to `output/tests/hybrid/`.
 
 | File | Location | MANDATORY? |
 |------|----------|-----------|
-| Enriched scenario | `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | **YES — if high-level steps were expanded** |
+| Enriched scenario | `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | **YES — ALWAYS for first exploration** |
 
 ---
 
@@ -507,13 +594,23 @@ Missing or blocked items: [list each, or "None"]
   "stepsVerifiedFirstTry": 0,
   "stepsNeededRetry": 0,
   "stepsBlocked": 0,
+  "stepsNotExplored": 0,
+  "lastExploredStep": 0,
+  "reportStatus": "COMPLETE or PARTIAL",
   "pagesDiscovered": 0,
   "locatorFilesCreated": 0,
   "pageObjectsCreated": 0,
   "pageObjectsReused": 0,
   "appContextPatternsAdded": 0,
   "subagentsSpawned": 0,
-  "skillsUsed": []
+  "skillsUsed": [],
+  "mcpInteractionsTotal": 0,
+  "mcpSnapshotCount": 0,
+  "mcpInteractionRatio": 0.0,
+  "stepsPerSnapshot": 0.0,
+  "contextWindowPercent": 0,
+  "tokenEstimate": 0,
+  "metricsVersion": "2.1.0"
 }
 ```
 
@@ -550,11 +647,25 @@ If login fails: **STOP exploration immediately.** Write a partial explorer repor
 - For web/hybrid: **STOP** — cannot explore without browser. Save partial report.
 - For API: proceed without browser
 
-### Context Window Exhaustion
-If you detect context is running low (40+ step scenario without subagent splitting):
-1. Save all code and report written so far
-2. Save storageState for potential continuation
-3. Note in report: "Context exhausted at Step N — recommend subagent splitting for this scenario"
+### Context Window Exhaustion — HARD STOP
+
+If you detect context is running low (60%+ consumed) AND unexplored steps remain:
+
+1. **MUST** save all code files written so far (locators, page objects, spec steps for explored steps only)
+2. **MUST** save the explorer report with all ledger entries collected so far
+3. **MUST** mark ALL remaining unexplored steps as `NOT_EXPLORED` in the Step Results table
+4. **MUST** set report status to `PARTIAL` with header:
+   ```markdown
+   ## PARTIAL REPORT
+   **Reason:** Context window exhaustion at {N}% capacity
+   **Steps completed:** {N}/{total}
+   **Last successful step:** Step {N} — {description}
+   **Steps NOT_EXPLORED:** {list of step numbers}
+   ```
+5. **MUST** save metrics with `"reportStatus": "PARTIAL"` and `"stepsNotExplored": {count}`
+6. **MUST NOT generate code for unexplored steps.** Any `test.step()` block in the spec for a step that has no corresponding ledger entry is **fabrication**. This is the hardest rule in the framework.
+
+**Prevention:** For scenarios with 40+ steps, the Explorer MUST use subagent splitting BEFORE this situation occurs (see `agents/core/scenario-handling.md` Section 3.1).
 
 ---
 

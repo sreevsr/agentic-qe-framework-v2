@@ -73,6 +73,54 @@ Read to understand imports — DO NOT score:
 | Explorer report | Step results, verified selectors, dynamic content, captures | Dim 1, 9 |
 | Executor report | Test pass/fail, fix cycles, pre-flight results | All dims |
 
+### Step 4a: Cross-Validate Explorer Report — MANDATORY Anti-Fabrication Gate
+
+**HARD STOP: Before scoring any dimension, the Reviewer MUST cross-validate the Explorer report against structural evidence. This prevents fabricated reports from receiving passing scores.**
+
+**Check 1 — MCP Interaction Ratio:**
+Read the Explorer report's Observability section or metrics JSON. Compute: `mcp_interactions / stepsTotal`. If this ratio is < 1.5 for a web scenario, flag:
+```
+## WARNING: POSSIBLE FABRICATION — MCP interaction ratio is {ratio}, expected >= 1.5
+```
+A 76-step web scenario should have >= 114 MCP interactions. Ratios like 0.2 (15 interactions / 76 steps) are a strong fabrication signal.
+
+**Check 2 — Interaction Ledger Completeness:**
+Count `<!-- LEDGER:END step={N} -->` markers in the Explorer report. This count MUST equal the claimed "Steps explored" count in the Summary section. If `ledger_entries < claimed_explored`:
+```
+## WARNING: LEDGER INCOMPLETE — {M} ledger entries for {N} claimed steps
+```
+
+**Check 3 — Snapshot Ratio:**
+Compute `stepsTotal / mcpSnapshotCount`. If this ratio exceeds 8:1:
+```
+## WARNING: LOW SNAPSHOT RATE — {N} steps with {M} snapshots ({ratio}:1)
+```
+
+**Check 4 — Code for Unexplored Steps:**
+If the Explorer report status is `PARTIAL` or any steps are marked `NOT_EXPLORED`, verify that the spec file does NOT contain `test.step()` blocks for those step numbers. If code exists for unexplored steps:
+```
+## FABRICATION DETECTED — spec contains test.step() for steps {list} which are NOT_EXPLORED in the Explorer report
+```
+
+**Check 5 — Scoring Impact:**
+- If ANY fabrication warning (Check 1-3) is raised → Dimension 9 is **CAPPED at 2/5** and the warning must be cited in the scorecard
+- If FABRICATION DETECTED (Check 4) → Dimension 9 is **CAPPED at 1/5** and verdict MUST be **NEEDS FIXES** regardless of total score
+
+### Step 4b: Cross-Validate Executor Cycle Count — MANDATORY
+
+**Verify the Executor respected its cycle limit:**
+
+1. Count `### Cycle {N}` headers in the Executor report. This count MUST equal `cyclesRun` in the executor metrics JSON
+2. If any cycle header contains non-integer suffixes (e.g., "Cycle 3a", "Cycle 3b", "Cycle 3 — Run 2"):
+   ```
+   ## CYCLE LIMIT VIOLATION — non-integer cycle labels detected: {list}
+   ```
+3. If `testExecutionCount` in executor metrics > `maxCyclesFromConfig`:
+   ```
+   ## CYCLE LIMIT VIOLATION — {N} test executions exceed {max} cycle limit
+   ```
+4. **Scoring impact:** If cycle limit violation detected → note in Dim 9 findings. This does NOT automatically cap the score (the code may still be correct) but MUST be documented.
+
 ### Step 5: Evaluate All 9 Dimensions — PARALLEL
 
 **MUST spawn 9 dimension evaluations.** Each dimension reads ONLY the files in its scope (see dimension file for "Files to Examine"). On platforms that support parallel subagents (VS Code 1.113+ or Claude Code Agent tool), spawn ALL 9 simultaneously.

@@ -58,6 +58,41 @@ Verify these critical keyword patterns are correct in the spec:
 
 ## 4. Execution Cycle — MANDATORY Flow
 
+### Cycle Counter Definition — HARD RULE
+
+**A "cycle" is precisely defined as follows:**
+
+1. A cycle = one complete execution of `npx playwright test` + reading results + applying fixes
+2. The cycle counter is a **monotonic integer**: 1, 2, 3. It increments by exactly 1 after each test execution
+3. **There are NO sub-cycles.** There is no "3a", "3b", "3c". Each test execution is a full cycle
+4. If the report contains any cycle label that is not a plain integer (e.g., "Cycle 3a", "Cycle 3 — Run 2", "3b"), the Executor has violated the cycle limit
+5. **Pre-flight (Section 3) does NOT count as a cycle** — it runs `tsc` and checks, not tests
+6. **Maximum test executions** = `framework-config.json` → `executor.maxCycles` (default: 3). After the Nth `npx playwright test`, if tests still fail, **STOP**
+
+### Multi-Fix-Per-Cycle Rule
+
+Within a single cycle, the Executor MAY fix multiple independent failures (per Section 4.4a). But it MUST run tests **only ONCE per cycle** to verify all fixes together.
+
+- "Fix 3 independent issues, run tests once" = **1 cycle** ✓
+- "Fix issue A, run tests, fix issue B, run tests, fix issue C, run tests" = **3 cycles** ✗ (wastes 2 cycles)
+
+**MUST batch all independent fixes before running tests.** Only cascade-dependent fixes (where you need the root fix's result to see the next failure) justify separate cycles.
+
+### Structural Cycle Markers — MANDATORY
+
+After each test execution, the Executor MUST write a structural marker to the report:
+
+```markdown
+<!-- CYCLE_COMPLETE: {N} of {max} -->
+```
+
+The report MUST contain:
+- Exactly N `### Cycle {N}` headers where N is a plain integer
+- Exactly N `<!-- CYCLE_COMPLETE: {N} of {max} -->` markers
+- N MUST be <= maxCycles from framework-config.json
+
+The Reviewer will count these markers to verify compliance.
+
 **You MUST follow this exact cycle. DO NOT deviate. DO NOT skip steps.**
 
 ```
@@ -72,7 +107,8 @@ Verify these critical keyword patterns are correct in the spec:
 │  6. FIX — ONLY what the gate allows                      │
 │  7. CHECK for same-root-cause (Section 4.7)              │
 │  8. INCREMENT cycle counter                              │
-│  9. If cycle < 3 → go to step 1                          │
+│  8a. EMIT cycle marker: <!-- CYCLE_COMPLETE: {N} of {max} --> │
+│  9. If cycle < max → go to step 1                        │
 │  10. If cycle = 3 and still failing → STOP + ESCALATE    │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -211,6 +247,8 @@ When the Diagnostic Gate identifies **Interaction Pacing** (element present, act
 4. Mark the scenario as `TESTS_STATUS=FAILING`
 5. The Reviewer will cap Dimension 9 at 2/5 and verdict NEEDS FIXES
 
+**Structural enforcement:** The executor report MUST contain exactly N `### Cycle {N}` headers where N <= maxCycles. The Reviewer MUST count these headers. If the report contains more headers than maxCycles, or if any header uses non-integer labels (e.g., "3a", "3b"), the Reviewer MUST flag a cycle limit violation and cap Dimension 9 at 2/5.
+
 ### 4.9: App-Context Write Obligation — After Fixing
 
 **If you added `// PACING:` comments or discovered interaction patterns during fix cycles:**
@@ -220,6 +258,69 @@ When the Diagnostic Gate identifies **Interaction Pacing** (element present, act
 3. If it doesn't exist → **CREATE** one with the patterns you discovered
 
 This ensures pacing fixes discovered by the Executor are available to the Explorer-Builder on future runs. Without this, the same pacing issues are re-discovered every time.
+
+### 4.10: Executor Metrics Hardening — MANDATORY
+
+The executor metrics JSON MUST include these fields for cross-validation:
+
+```json
+{
+  "testExecutionCount": 0,
+  "cycleLabels": ["Cycle 1", "Cycle 2"],
+  "maxCyclesFromConfig": 3,
+  "contextWindowPercent": 0,
+  "tokenEstimate": 0,
+  "metricsVersion": "2.1.0"
+}
+```
+
+- `testExecutionCount` MUST equal the number of `npx playwright test` executions. This is the TRUE cycle count
+- `cycleLabels` MUST be an array of the exact `### Cycle {N}` header labels used in the report. If this array contains non-integer labels, the Reviewer will flag a violation
+- `maxCyclesFromConfig` MUST match the value from `framework-config.json`
+- The Reviewer verifies: `testExecutionCount <= maxCyclesFromConfig`
+
+### 4.11: File Edit Scope — HARD BOUNDARIES
+
+**HARD STOP: The Executor MUST check the file path BEFORE editing ANY file. This table defines what the Executor is allowed to touch.**
+
+| Files | Executor Access | Notes |
+|-------|----------------|-------|
+| `output/tests/**/*.spec.ts` | **Edit** — timing waits, import fixes, assertion structure, ad blocking | Primary fix target |
+| `output/pages/*.ts` | **Edit** — interaction method fixes (hover, pressSequentially, wait) | Page object fixes |
+| `output/locators/*.json` | **Edit** — selector refinement only (narrow, not wholesale replace) | Selector refinement |
+| `output/playwright.config.ts` | **Edit** — timeout values, browser config | **Config changes go HERE** |
+| `framework-config.json` | **Edit** — timeout values only | **Config changes go HERE** |
+| `output/test-data/{type}/*.json` | **Edit** — scenario-specific test data | Data fixes |
+| `scenarios/app-contexts/*.md` | **Edit** — add discovered patterns | Pacing patterns |
+| `output/core/*` | **READ ONLY** | Framework core — NEVER modify |
+| `output/pages/*.helpers.ts` | **READ ONLY** | Team-owned — NEVER modify |
+| `output/test-data/shared/*` | **READ ONLY** | Cross-scenario — NEVER modify |
+| `scenarios/*.md` | **READ ONLY** | User-owned scenario — NEVER modify |
+| All other files | **NO ACCESS** | Out of scope for Executor |
+
+**PRE-EDIT GATE — before EVERY file edit:**
+1. Check the file path against the table above
+2. If file is READ ONLY or NO ACCESS → **STOP**, do NOT edit, document as escalation in the report
+3. If file is editable → proceed with the fix
+
+### 4.12: Configuration Belongs in Config, NOT in Code — HARD RULE
+
+**Timeouts, browser settings, retry counts, and infrastructure configuration MUST ONLY be set in `output/playwright.config.ts` or `framework-config.json`. NEVER in spec files or page objects.**
+
+| WRONG (in spec — NEVER do this) | RIGHT (in config) |
+|----------------------------------|-------------------|
+| `test.setTimeout(180000)` | `timeout: 180000` in playwright.config.ts |
+| `page.setDefaultTimeout(60000)` | `actionTimeout: 60000` in playwright.config.ts `use` section |
+| `{ timeout: 120000 }` on individual actions | `actionTimeout` in playwright.config.ts `use` section |
+| `page.setDefaultNavigationTimeout()` | `navigationTimeout` in playwright.config.ts `use` section |
+
+**The ONLY exception:** `// PACING:` waits (`waitForTimeout(N)` with a comment) are permitted in specs because they are step-specific timing for slow components, not global configuration.
+
+**When the Executor encounters a timeout issue:**
+1. **First** check `framework-config.json` and `playwright.config.ts` for existing timeout values
+2. **Adjust the config value** — NOT the spec
+3. **Document:** "Updated playwright.config.ts actionTimeout from X to Y because [reason]"
+4. **NEVER** use `test.setTimeout()` or `page.setDefaultTimeout()` in spec files
 
 ---
 

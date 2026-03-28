@@ -141,6 +141,26 @@ The guardrails in Section 3 are **ABSOLUTE by default**. Only ONE thing override
 - Wait strategies (replacing hardcoded waits with proper Playwright waits)
 - Page Object methods (fixing element interaction mechanics)
 - Scroll adjustments, overlay dismissal (removing technical obstacles)
+- `playwright.config.ts` and `framework-config.json` timeout values — **NOT in spec files. NEVER use `test.setTimeout()` or `page.setDefaultTimeout()` in spec files**
+
+### Executor File Edit Scope — HARD BOUNDARIES
+
+| Files | Executor Access | Notes |
+|-------|----------------|-------|
+| `output/tests/**/*.spec.ts` | **Edit** — timing waits, import fixes, assertion structure, ad blocking | Primary fix target |
+| `output/pages/*.ts` | **Edit** — interaction method fixes (hover, pressSequentially, wait) | Page object fixes |
+| `output/locators/*.json` | **Edit** — selector refinement only (narrow, not wholesale replace) | Selector refinement |
+| `output/playwright.config.ts` | **Edit** — timeout values, browser config | **Config changes go HERE** |
+| `framework-config.json` | **Edit** — timeout values only | **Config changes go HERE** |
+| `output/test-data/{type}/*.json` | **Edit** — scenario-specific test data | Data fixes |
+| `scenarios/app-contexts/*.md` | **Edit** — add discovered patterns | Pacing patterns |
+| `output/core/*` | **READ ONLY** | Framework core — NEVER modify |
+| `output/pages/*.helpers.ts` | **READ ONLY** | Team-owned — NEVER modify |
+| `output/test-data/shared/*` | **READ ONLY** | Cross-scenario — NEVER modify |
+| `scenarios/*.md` | **READ ONLY** | User-owned scenario — NEVER modify |
+| All other files | **NO ACCESS** | Out of scope for Executor |
+
+**Configuration Discipline:** Timeouts, browser settings, retry counts, and infrastructure configuration MUST ONLY be set in `output/playwright.config.ts` or `framework-config.json`. NEVER in spec files or page objects. The ONLY exception is step-specific `// PACING:` waits in specs.
 
 **What NO agent MUST do:**
 - Change the ORDER of scenario steps

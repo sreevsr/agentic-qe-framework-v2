@@ -52,7 +52,8 @@
     "enrichment-agent",
     "explorer-builder",
     "executor",
-    "reviewer"
+    "reviewer",
+    "healer"
   ],
   "security": {
     "requiredEnvVars": ["BASE_URL", "TEST_USERNAME", "TEST_PASSWORD"],

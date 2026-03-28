@@ -289,6 +289,20 @@ import { loadTestData } from '../../core/test-data-loader';
 const testData = loadTestData('web/saucedemo-checkout', ['users', 'products']);
 ```
 
+### Test Data Usage Rule — MANDATORY
+
+**If a test-data JSON file is generated** (`output/test-data/{type}/{scenario}.json`), the spec file **MUST import and use it.** Dead test data files — generated but never imported — are a code quality violation.
+
+```typescript
+// CORRECT — import and use test data
+import testData from '../../test-data/web/scenario-name.json';
+// Then use: testData.firstName, testData.address, etc.
+```
+
+All hardcoded values in the spec that correspond to fields in the test data JSON MUST be replaced with `testData.fieldName` references. This ensures the spec is data-driven and the test data file serves its intended purpose.
+
+**Exception:** `process.env.*` values (credentials, URLs) do NOT come from test data — they come from `.env`.
+
 ### USE_HELPER
 ```typescript
 // If helper exists:
@@ -530,6 +544,23 @@ await test.step('Step 3 — API DELETE: Remove user', async () => {
 - The ONLY place selectors appear is in `output/locators/*.locators.json`
 
 If you find yourself writing a selector directly in a page object or spec file — **STOP. Move it to the locator JSON first.**
+
+### LocatorLoader-Only Base Rule — MANDATORY
+
+**Every `page.locator()` call in a page object MUST use `this.loc.get('{elementName}')` or `this.loc.getLocator('{elementName}')` as its base.** Direct CSS/XPath strings passed to `page.locator()` in page objects bypass LocatorLoader and violate the externalization principle.
+
+**Exception — row-scoped chaining:** When operating on a specific row within a table, list, or grid, the page object MAY chain `.locator()` and `.filter()` calls from a LocatorLoader-loaded base:
+
+```typescript
+// CORRECT — base from LocatorLoader, scoping inline
+async getProductPrice(productName: string): Promise<string> {
+  const table = this.page.locator(this.loc.get('cartTable'));
+  const row = table.locator('tbody tr').filter({ hasText: productName });
+  return (await row.locator(this.loc.get('cartProductPrice')).textContent()) ?? '';
+}
+```
+
+The base element (`cartTable`) and the target element (`cartProductPrice`) both come from LocatorLoader. Only the structural scoping (`.locator('tbody tr').filter()`) is inline.
 
 ---
 

@@ -148,8 +148,21 @@ After completing all steps, you MUST update the app-context with NEW patterns yo
 
 ### 3.1: When to Split — MANDATORY Evaluation
 
-**You MUST evaluate whether to split BEFORE starting exploration.** Split when:
-- Scenario has **40+ steps** (risk of context window exhaustion)
+**HARD STOP: You MUST split scenarios with 40+ steps into subagents. This is NOT optional. DO NOT proceed with single-agent exploration of 40+ step scenarios.**
+
+This is a **self-enforced** gate — it is part of the Explorer-Builder's own logic and does NOT depend on the Orchestrator. All agents are fully independent with defined inputs, outputs, and tools. After parsing the scenario (explorer-builder.md Section 3.1b), if `stepsTotal >= 40`:
+
+1. MUST identify natural breakpoints per Section 3.2 below
+2. MUST spawn subagents for each chunk
+3. MUST NOT start the single-agent core loop on 40+ steps
+4. If the platform does not support subagents (no Agent tool available), the Explorer MUST:
+   - Explore only the first 35 steps
+   - Mark remaining steps as `NOT_EXPLORED` in the report
+   - Set report status to `PARTIAL`
+   - Add `## SPLIT REQUIRED: {N} steps exceeds 40-step single-agent limit` to the report
+
+**Split when:**
+- Scenario has **40+ steps** (MANDATORY — hard gate, not recommendation)
 - Scenario visits **5+ distinct pages** (many page objects to build)
 - During exploration, context consumption exceeds **60% of available window**
 

@@ -2,23 +2,24 @@
   "$comment": "Agentic QE Framework v2 — User-configurable settings. Agents read this file instead of using hardcoded values.",
 
   "exploration": {
-    "maxAttemptsPerStep": 3,
+    "maxAttemptsPerStep": 5,
     "snapshotTimeoutMs": 5000,
-    "interactionTimeoutMs": 30000,
+    "interactionTimeoutMs": 60000,
     "$comment": "maxAttemptsPerStep: how many times Explorer-Builder retries a failing step before test.fixme"
   },
 
   "executor": {
-    "maxCycles": 3,
+    "maxCycles": 10,
     "preFlightEnabled": true,
     "$comment": "maxCycles: how many fix-and-rerun cycles before stopping. preFlightEnabled: run tsc + fidelity check"
   },
 
   "timeouts": {
+    "testTimeoutMs": 180000,
     "actionTimeoutMs": 30000,
     "navigationTimeoutMs": 60000,
-    "networkIdleTimeoutMs": 10000,
-    "$comment": "Override these for slower enterprise apps. Values in milliseconds."
+    "networkIdleTimeoutMs": 30000,
+    "$comment": "testTimeoutMs: per-test timeout (increase for long E2E scenarios). Override these for slower enterprise apps. Values in milliseconds."
   },
 
   "enrichedScenario": {
@@ -33,5 +34,13 @@
     "flagDisabledElements": true,
     "flagEmptyValues": true,
     "$comment": "Controls bug detection sensitivity. uncertainVerdictEnabled: allow UNCERTAIN verdict for ambiguous cases."
+  },
+
+  "observability": {
+    "trackTokens": true,
+    "trackContextWindow": true,
+    "trackDuration": true,
+    "metricsVersion": "2.1.0",
+    "$comment": "All agents MUST populate observability fields in their metrics JSON. metricsVersion tracks schema changes. If platform does not expose token counts, agents write 'Platform does not expose token count' instead of omitting the field."
   }
 }

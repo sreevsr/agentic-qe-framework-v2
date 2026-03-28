@@ -1,0 +1,86 @@
+{
+  "$schema": "contracts/manifest.schema.json",
+  "name": "healer",
+  "version": "2.1.0",
+  "protocolVersion": "1.0.0",
+  "description": "Code repair agent — fixes quality issues identified by the Reviewer when verdict is NEEDS FIXES",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["repair", "code-quality", "reviewer-fixes", "playwright"],
+  "coreInstructions": ["agents/core/healer.md"],
+  "documentationUrl": "agents/core/healer.md",
+  "input": {
+    "scenario": {
+      "type": "string",
+      "required": true,
+      "description": "Scenario name without extension"
+    },
+    "type": {
+      "type": "string",
+      "required": true,
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "description": "Scenario type"
+    },
+    "folder": {
+      "type": "string",
+      "required": false,
+      "description": "Optional subfolder for organized output"
+    },
+    "scorecardPath": {
+      "type": "string",
+      "required": true,
+      "description": "Path to the review scorecard markdown file"
+    },
+    "specFilePath": {
+      "type": "string",
+      "required": true,
+      "description": "Path to the spec file to fix"
+    },
+    "scenarioPath": {
+      "type": "string",
+      "required": true,
+      "description": "Path to the scenario .md file"
+    }
+  },
+  "output": {
+    "healerReport": {
+      "type": "file",
+      "format": "markdown",
+      "mimeType": "text/markdown",
+      "location": "output/reports/healer-report-{scenario}.md",
+      "description": "Healer report with fixes applied, eval metrics, scoring, and observability"
+    },
+    "healerMetrics": {
+      "type": "file",
+      "format": "json",
+      "mimeType": "application/json",
+      "location": "output/reports/metrics/healer-metrics-{scenario}.json",
+      "description": "Structured metrics for pipeline observability"
+    },
+    "modifiedFiles": {
+      "type": "array",
+      "description": "List of files modified by the healer"
+    },
+    "postFixTestStatus": {
+      "type": "string",
+      "enum": ["PASSING", "FAILING"],
+      "description": "Test status after healer fixes"
+    }
+  },
+  "security": {
+    "requiredEnvVars": [],
+    "optionalEnvVars": ["BASE_URL", "HEADLESS"],
+    "requiresMcp": false,
+    "note": "Healer does NOT open a browser — reads scorecard, edits code, runs tests via npx playwright test"
+  },
+  "dependencies": {
+    "playwright": ">=1.50.0"
+  },
+  "platforms": ["windows", "linux", "macos"],
+  "examples": [
+    "Fix quality issues from review scorecard for automationexercise-trial --type=web",
+    "Heal code issues for scenario epic-table --type=web --folder=epicview"
+  ]
+}

@@ -21,7 +21,7 @@ Your instructions come from:
 ## Architecture
 
 ```
-Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
+Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → [Healer]
 ```
 
 ## Agent Roster
@@ -33,6 +33,7 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
 | `@QE Executor` | `.github/agents/executor.agent.md` | Run tests, fix timing issues (max 3 cycles) |
 | `@QE Enricher` | `.github/agents/enrichment-agent.agent.md` | Convert natural language / Swagger to structured scenario .md |
 | `@QE Reviewer` | `.github/agents/reviewer.agent.md` | Audit code quality, produce scorecard (9 dimensions) |
+| `@QE Healer` | `.github/agents/healer.agent.md` | Fix code quality issues when Reviewer verdict is NEEDS FIXES |
 
 ## Key Framework Concepts
 

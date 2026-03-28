@@ -93,6 +93,36 @@ When you observe these, mark with `test.fixme('POTENTIAL BUG: ...')` and documen
 - UI state contradicts API response (hybrid — page shows "Success" but API returned 500)
 - Element visible but disabled/overlapped when scenario expects it to be clickable
 
+### 2a. Raw Selector Self-Audit Gate — MANDATORY
+
+**HARD STOP: The Explorer-Builder MUST audit its own generated code for raw selectors before finishing. This is a self-enforced quality gate.**
+
+1. **Spec file audit:** Search the generated spec for `page.locator(` calls. Count MUST be 0. All element interactions MUST go through page object methods backed by LocatorLoader.
+2. **Page object audit:** Search each generated page object for `this.page.locator(` calls that do NOT use `this.loc.get()` or `this.loc.getLocator()` as their base. Count MUST be 0.
+   - **Exception:** Row-scoped chaining from a LocatorLoader-loaded base IS permitted:
+     ```typescript
+     // ALLOWED — base comes from LocatorLoader, only filter is inline
+     const row = this.page.locator(this.loc.get('cartTable')).locator('tr').filter({hasText: name});
+     ```
+     ```typescript
+     // FORBIDDEN — entire selector is raw, bypasses LocatorLoader
+     const row = this.page.locator('#cart_info_table tbody tr').filter({hasText: name});
+     ```
+3. **Self-Audit report:** The Explorer report's Self-Audit section MUST include:
+   ```
+   Raw selector count (spec): {N} (target: 0)
+   Raw selector count (page objects): {N} (target: 0, excluding row-scoped from LocatorLoader base)
+   ```
+4. **Enforcement:** If raw selector count > 0 → the Explorer MUST fix them before finishing. Move raw selectors to locator JSON files and use LocatorLoader in the page object.
+
+### 2b. .env.example — Best Practice (Non-Blocking)
+
+The `.env.example` file is a reference for the automation engineer setting up `.env` with real secrets. It is NOT a runtime dependency — if `.env` has the correct values, tests run fine regardless of what `.env.example` contains.
+
+**Recommendation:** When the Explorer generates a spec that uses `process.env.VARIABLE`, it SHOULD add a corresponding placeholder line to `.env.example` for discoverability. This helps engineers setting up the project for the first time.
+
+**This is a nice-to-have, not a hard gate.** The Reviewer MAY note missing entries as a recommendation but MUST NOT dock dimension scores for it.
+
 ---
 
 ## 3. File Ownership — HARD BOUNDARIES

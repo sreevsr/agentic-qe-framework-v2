@@ -4,9 +4,14 @@ Generate the scorecard in this format:
 
 ```markdown
 # QE Review Scorecard
-**Date:** [Month DD, YYYY, HH:MM AM/PM UTC]
-**Framework:** [output/ directory]
-**Overall Score:** [total]/45
+**Scenario:** {scenario-name}
+**Type:** {web | api | hybrid | mobile | mobile-hybrid}
+**Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
+**Pipeline Stage:** Stage 3 — Reviewer (post-Executor)
+**Explorer Status:** {COMPLETE | PARTIAL (Step {N}/{total})}
+**Executor Status:** {PASSING | FAILING} ({N} cycles, {N} fixes applied)
+**Test Execution:** {N}/{N} tests passing ({N} test.fixme)
+**Overall Score:** {total}/{max}
 
 | # | Dimension | Weight | Score | Key Finding |
 |---|-----------|--------|-------|-------------|
@@ -27,6 +32,13 @@ VERIFY: [N]/[N] | VERIFY_SOFT: [N]/[N] | CAPTURE: [N]/[N] | SCREENSHOT: [N]/[N]
 REPORT: [N]/[N] | SAVE: [N]/[N] | CALCULATE: [N]/[N] | API steps: [N]/[N]
 Lifecycle hooks: beforeAll=[Y/N/NA] beforeEach=[Y/N/NA] afterEach=[Y/N/NA] afterAll=[Y/N/NA]
 Missing or incorrect items: [list each, or "None"]
+
+## Cross-Validation Summary
+- Explorer MCP ratio: {N} interactions / {N} steps = {ratio} (threshold: >= 1.5)
+- Explorer ledger entries: {N} / {N} claimed steps
+- Explorer snapshot ratio: {N} steps / {M} snapshots = {ratio}:1 (threshold: <= 8:1)
+- Executor cycle count: {N} report headers / {N} metrics cyclesRun / {max} max allowed
+- Fabrication signals: {None | list of warnings}
 
 ## Critical Issues (must fix)
 1. ...
@@ -61,6 +73,8 @@ Save the review scorecard:
 | Precheck script used | {Yes/No} |
 | Dimensions scored | {N} (N/A: {list}) |
 | Parallel subagents | {N} |
+
+**HARD RULE: The Observability table MUST have actual values for ALL rows. If token count is unavailable from the platform, write "Platform does not expose token count" — do NOT leave the row blank or omit it. Round number estimates (e.g., "~50,000") are acceptable only if preceded by the word "estimate".**
 
 ---
 
