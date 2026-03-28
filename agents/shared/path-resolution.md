@@ -46,6 +46,7 @@
 | Executor report | `output/reports/[{folder}/]executor-report-{scenario}.md` |
 | Review scorecard | `output/reports/[{folder}/]review-scorecard-{scenario}.md` |
 | Precheck report | `output/reports/[{folder}/]precheck-report-{scenario}.json` |
+| Enrichment report | `output/reports/[{folder}/]enrichment-report-{scenario}.md` |
 | Pipeline summary | `output/reports/[{folder}/]pipeline-summary-{scenario}.md` |
 | Failure analysis | `output/reports/failure-analysis.json` |
 | Defect tracking summary | `output/reports/defect-tracking-summary.json` |
@@ -97,6 +98,10 @@
 | `agents/shared/path-resolution.md` | This file — path single source of truth |
 | `agents/04-reviewer/dimensions/dim-*.md` | 9 quality dimension checklists |
 | `agents/04-reviewer/scorecard-template.md` | Scorecard output format |
+| `agents/report-templates/pipeline-summary.md` | Pipeline summary report standard |
+| `agents/report-templates/explorer-report.md` | Explorer-Builder report template |
+| `agents/report-templates/executor-report.md` | Executor report template |
+| `agents/report-templates/enrichment-report.md` | Enrichment Agent report template |
 | `skills/registry.md` | Skills index |
 
 ---

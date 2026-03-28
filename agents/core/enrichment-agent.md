@@ -368,7 +368,17 @@ If the parsed spec includes security schemes (Bearer token, OAuth, API key):
 
 ---
 
-## 7. Output Location
+## 7. Enrichment Report — MANDATORY for NL/Swagger Inputs
+
+**When enrichment is performed (natural language, partial, or Swagger input), MUST generate an enrichment report. Read the full template from `agents/report-templates/enrichment-report.md` and follow it EXACTLY.**
+
+Save to: `output/reports/enrichment-report-{scenario}.md`
+
+**NOT required for passthrough** (well-structured .md input passed directly to Explorer-Builder).
+
+---
+
+## 8. Output Location
 
 **MUST** save the enriched scenario to:
 
@@ -386,7 +396,7 @@ The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 
 ---
 
-## 8. What the Enrichment Agent MUST NOT Do
+## 9. What the Enrichment Agent MUST NOT Do
 
 - **MUST NOT** interact with the application (no browser, no API calls)
 - **MUST NOT** guess selectors or CSS paths
@@ -397,7 +407,7 @@ The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 
 ---
 
-## 9. Platform Compatibility
+## 10. Platform Compatibility
 
 - Enrichment Agent is platform-independent — no browser, no file system access beyond reading/writing scenario files
 - Output `.md` files MUST use LF line endings (enforced by `.gitattributes`)

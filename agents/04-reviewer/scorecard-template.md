@@ -50,6 +50,20 @@ Save the review scorecard:
 - With folder: `output/reports/{folder}/review-scorecard-{scenario}.md`
 - Without folder: `output/reports/review-scorecard-{scenario}.md`
 
+## Reviewer Observability
+
+| Metric | Value |
+|--------|-------|
+| Tokens used | {N} |
+| Context window | {N}% |
+| Duration | ~{N} minutes |
+| Files examined | {N} |
+| Precheck script used | {Yes/No} |
+| Dimensions scored | {N} (N/A: {list}) |
+| Parallel subagents | {N} |
+
+---
+
 ## Report Self-Validation
 
 Before saving, verify your scorecard contains ALL of these with actual data (no placeholders):

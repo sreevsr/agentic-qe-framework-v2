@@ -328,6 +328,8 @@ Same as web, but spec goes to `output/tests/hybrid/`.
 
 ## 7. Explorer Report — MANDATORY
 
+**MUST read the full report template from `agents/report-templates/explorer-report.md` and follow it EXACTLY.**
+
 **MUST** save to `output/reports/explorer-report-{scenario}.md`:
 
 ```markdown

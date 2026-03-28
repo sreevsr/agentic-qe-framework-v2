@@ -224,6 +224,8 @@ This ensures pacing fixes discovered by the Executor are available to the Explor
 
 ## 5. Executor Report — MANDATORY
 
+**MUST read the full report template from `agents/report-templates/executor-report.md` and follow it EXACTLY.**
+
 **MUST** save to `output/reports/executor-report-{scenario}.md`:
 
 ```markdown
