@@ -194,7 +194,7 @@ App-context (if exists): scenarios/app-contexts/{app-identifier}.md
 This is the FIRST chunk — it includes authentication/setup steps.
 After exploring all steps in your range:
 1. Save storageState: await page.context().storageState({ path: 'output/auth/storage-state.json' })
-2. Close the browser: call browser_close via MCP
+2. DO NOT close the browser — the next chunk needs it open on the current page
 3. Write all code files (locators, page objects, spec steps, test data)
 4. Report your chunk status: COMPLETE, PARTIAL, or FAILED
 DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
@@ -224,9 +224,11 @@ Existing files (READ these, ADD to them — do NOT recreate):
 - Spec file: output/tests/{type}/{scenario}.spec.ts — APPEND your test.step() blocks
 
 After exploring all steps in your range:
-1. Save storageState for the next chunk
-2. Close the browser: call browser_close via MCP
-3. Report your chunk status: COMPLETE, PARTIAL, or FAILED
+1. Save storageState for the next chunk (skip if this is the LAST chunk)
+2. If this is the LAST chunk: close the browser via browser_close MCP call
+   If this is NOT the last chunk: DO NOT close the browser — the next chunk needs it
+3. Write all code files (locators, page objects, spec steps)
+4. Report your chunk status: COMPLETE, PARTIAL, or FAILED
 DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
 ```
 

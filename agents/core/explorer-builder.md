@@ -123,9 +123,12 @@ When the Orchestrator invokes you, it provides:
 1. **Explore ONLY steps in your STEP_RANGE.** Do NOT look ahead. Do NOT go back.
 2. **If you are Chunk 1:** You handle authentication/setup. After your steps, save storageState: `await page.context().storageState({ path: 'output/auth/storage-state.json' })`
 3. **If you are Chunk 2+:** The browser is already in the state left by the previous chunk. Take a snapshot FIRST to see where you are. Read existing files and ADD to them — do NOT recreate.
-4. **After completing your steps:** Close the browser via `browser_close` MCP call. Write all code files for your steps. Report your status: COMPLETE, PARTIAL, or FAILED.
-5. **Do NOT generate the explorer report, enriched.md, or metrics.** The Orchestrator handles final assembly.
-6. **Do NOT explore steps outside your range.** If your range is steps 17-36, you MUST NOT explore step 37 even if it seems natural to continue.
+4. **After completing your steps:** Write all code files for your steps. Report your status: COMPLETE, PARTIAL, or FAILED.
+5. **Browser lifecycle — CRITICAL:**
+   - If you are the **LAST chunk** (e.g., Chunk 5 of 5, or Chunk 1 of 1): **Close the browser** via `browser_close` MCP call.
+   - If you are **NOT the last chunk**: **DO NOT close the browser.** The next chunk needs it open on the current page. `storageState` only preserves cookies/localStorage — it does NOT preserve which page you're on or the DOM state.
+6. **Do NOT generate the explorer report, enriched.md, or metrics.** The Orchestrator handles final assembly.
+7. **Do NOT explore steps outside your range.** If your range is steps 17-36, you MUST NOT explore step 37 even if it seems natural to continue.
 
 **If `CHUNK = 1 of 1` (DIRECT mode):** You are the only chunk. Explore all steps, close the browser, run Self-Audit (Section 5), generate enriched.md (Section 6b), explorer report (Section 7), and metrics (Section 8). This is the only case where you produce the full output.
 
