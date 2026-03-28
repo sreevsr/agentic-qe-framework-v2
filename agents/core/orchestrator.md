@@ -127,9 +127,29 @@ Save enrichment report to: output/reports/enrichment-report-{scenario}.md
 
 **HARD STOP — Verify before proceeding:** MUST check that `SCENARIO_PATH` exists and contains `## Steps` with numbered steps. If file missing or malformed → STOP pipeline, report INCOMPLETE.
 
-### STAGE 1: Explorer-Builder
+### STAGE 1: Explorer-Builder — Orchestrator-Driven Chunking
 
-Delegate to **QE Explorer** with:
+**The Orchestrator owns chunking. The Explorer-Builder is a single-chunk agent — it explores only the steps it is given. This prevents the Explorer-Builder from deciding not to spawn subagents.**
+
+#### Step 1a: Read Chunking Config
+
+Read `framework-config.json` → `chunking.maxStepsPerChunk` (default: 15) and `chunking.alwaysChunk` (default: true).
+
+#### Step 1b: Count Steps and Partition
+
+1. Read the scenario file and count total steps (numbered lines under `## Steps`)
+2. If total steps ≤ `maxStepsPerChunk` → **DIRECT mode** (one Explorer-Builder invocation)
+3. If total steps > `maxStepsPerChunk` → **CHUNKED mode** (multiple Explorer-Builder invocations)
+
+**Chunk partitioning rules:**
+- Chunk 1 MUST include all authentication/setup steps
+- Split at natural breakpoints: section headers, page transitions, phase changes
+- Each chunk has AT MOST `maxStepsPerChunk` steps
+- Record the chunk plan for the pipeline summary
+
+#### Step 1c: DIRECT Mode (≤ maxStepsPerChunk steps)
+
+Delegate to **ONE QE Explorer** subagent with all steps:
 ```
 Read agents/core/explorer-builder.md for your instructions.
 Read agents/core/code-generation-rules.md for code patterns.
@@ -139,6 +159,8 @@ SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
 FOLDER = {folder}    (only if provided)
 LANGUAGE = {language from output/.language}
+CHUNK = 1 of 1 (DIRECT mode — all steps)
+STEP_RANGE = 1 to {totalSteps}
 
 Scenario file: {SCENARIO_PATH}
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
@@ -149,10 +171,113 @@ Save explorer report to: {EXPLORER_REPORT}
 Save metrics to: output/reports/metrics/explorer-metrics-{scenario}.json
 ```
 
-**HARD STOP — Verify before proceeding:**
+#### Step 1d: CHUNKED Mode (> maxStepsPerChunk steps)
+
+**Spawn ONE subagent per chunk, SEQUENTIALLY. Wait for each to complete before spawning the next.**
+
+**Chunk 1 (auth/setup) — subagent prompt:**
+```
+Read agents/core/explorer-builder.md for your instructions.
+Read agents/core/code-generation-rules.md for code patterns.
+Read agents/core/quality-gates.md for guardrails.
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+FOLDER = {folder}    (only if provided)
+LANGUAGE = {language from output/.language}
+CHUNK = 1 of {totalChunks}
+STEP_RANGE = 1 to {chunk1EndStep}
+
+Scenario file: {SCENARIO_PATH}
+App-context (if exists): scenarios/app-contexts/{app-identifier}.md
+
+This is the FIRST chunk — it includes authentication/setup steps.
+After exploring all steps in your range:
+1. Save storageState: await page.context().storageState({ path: 'output/auth/storage-state.json' })
+2. Close the browser: call browser_close via MCP
+3. Write all code files (locators, page objects, spec steps, test data)
+4. Report your chunk status: COMPLETE, PARTIAL, or FAILED
+DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
+```
+
+**Chunks 2 to N — subagent prompt (for each remaining chunk):**
+```
+Read agents/core/explorer-builder.md for your instructions.
+Read agents/core/code-generation-rules.md for code patterns.
+Read agents/core/quality-gates.md for guardrails.
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+CHUNK = {chunkNumber} of {totalChunks}
+STEP_RANGE = {startStep} to {endStep}
+
+Scenario file: {SCENARIO_PATH}
+App-context (if exists): scenarios/app-contexts/{app-identifier}.md
+storageState: output/auth/storage-state.json
+
+The MCP browser is shared — take a snapshot FIRST to see the current page state.
+DO NOT replay steps before step {startStep}. DO NOT explore steps after step {endStep}.
+
+Existing files (READ these, ADD to them — do NOT recreate):
+- Page objects: {list of output/pages/*.ts files}
+- Locators: {list of output/locators/*.json files}
+- Spec file: output/tests/{type}/{scenario}.spec.ts — APPEND your test.step() blocks
+
+After exploring all steps in your range:
+1. Save storageState for the next chunk
+2. Close the browser: call browser_close via MCP
+3. Report your chunk status: COMPLETE, PARTIAL, or FAILED
+DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
+```
+
+#### Step 1e: Post-Chunk Verification (after each chunk subagent returns)
+
+After EACH chunk subagent completes, the Orchestrator MUST verify:
+1. Check that the spec file has `test.step()` blocks for the step range
+2. Check that locator JSONs and page object files exist for any new pages
+3. If the subagent returned FAILED or PARTIAL, log it and continue to next chunk
+
+#### Step 1f: Final Assembly (after ALL chunks complete)
+
+After all chunk subagents have completed:
+
+1. **Run post-explorer validation script:**
+   ```bash
+   node scripts/explorer-post-check.js --scenario={scenario} --type={type} [--folder={folder}]
+   ```
+   Read the output — it provides mechanical verification of step counts, locator counts, and keyword counts.
+
+2. **Generate enriched.md** — Delegate to ONE more Explorer-Builder subagent:
+   ```
+   Read agents/core/explorer-builder.md Section 6b for enriched.md rules.
+
+   SCENARIO_NAME = {scenario}
+   SCENARIO_TYPE = {type}
+   TASK = GENERATE_ENRICHED_MD_ONLY
+
+   Scenario file: {SCENARIO_PATH}
+   Spec file: {TEST_SPEC}
+   Explorer data: Read the spec file to see what was explored.
+
+   Generate ONLY the enriched.md file at: scenarios/{type}/{scenario}.enriched.md
+   DO NOT explore, DO NOT modify code files, DO NOT generate reports.
+   ```
+   **Skip this step if `{scenario}.enriched.md` already exists.**
+
+3. **Generate explorer report** — The Orchestrator writes the explorer report itself using data from:
+   - The post-check script output (step counts, locator counts, keyword counts)
+   - Each chunk subagent's returned status
+   - The spec file (for fidelity verification)
+
+   Save to: `{EXPLORER_REPORT}`
+
+4. **Generate explorer metrics** — Save to: `output/reports/metrics/explorer-metrics-{scenario}.json`
+
+**HARD STOP — Verify before proceeding to Stage 2:**
 1. **MUST** check that TEST_SPEC exists — if missing → STOP, report INCOMPLETE
 2. **MUST** check that EXPLORER_REPORT exists — if missing → STOP, report INCOMPLETE
-3. Read explorer report — extract: steps explored, steps blocked, pages discovered
+3. **MUST** check that `scenarios/{type}/{scenario}.enriched.md` exists (if first run) — if missing → log WARNING in pipeline summary
+4. Read explorer report — extract: steps explored, steps blocked, pages discovered
 
 ### STAGE 2: Executor
 

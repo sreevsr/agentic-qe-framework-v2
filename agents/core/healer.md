@@ -149,16 +149,17 @@ For each issue, in priority order:
 ```markdown
 # Healer Report: {scenario}
 
-## Summary
-- **Scenario:** {name}
-- **Type:** {web | api | hybrid}
-- **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-- **Scorecard Input:** {score}/{max} — verdict: NEEDS FIXES
-- **Issues from scorecard:** {N} ({N} critical, {N} recommendations)
-- **Issues fixed:** {N}
-- **Issues remaining:** {N}
-- **Fix cycles:** {N} of 2 max
-- **Final test status:** PASSING / FAILING
+**Scenario:** {name}
+**Type:** {web | api | hybrid | mobile | mobile-hybrid}
+**Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
+**Pipeline Stage:** Stage 4 — Healer (post-Reviewer)
+**Outcome:** PASSING / FAILING (after fixes)
+**Scorecard Input:** {score}/{max} — verdict: NEEDS FIXES
+**Issues Fixed:** {N}/{total} ({N} critical, {N} recommendations) — {N} remaining
+**Score Impact:** {before}/{max} → {after}/{max} (+{delta} points)
+**Fix Cycles:** {N} of 2 max — {N} test executions
+**Regression:** None / Yes (details)
+**Key Fixes:** {1-line summary, e.g., "Replaced 4 raw selectors with LocatorLoader, added 2 missing fallbacks"}
 
 ---
 
@@ -244,9 +245,8 @@ For each issue, in priority order:
 | Duration | ~{N} minutes |
 | Files examined | {N} |
 | Files modified | {N} |
-| Fix cycles run | {N} |
-| Token estimate | {N} or "Platform does not expose token count" |
-| Context window | {N}% |
+| Fix cycles run | {N} of 2 max |
+| Token usage | N/A — platform does not expose token counts |
 
 ---
 

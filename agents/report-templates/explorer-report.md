@@ -7,26 +7,26 @@
 
 ---
 
+## MANDATORY Header Fields — HARD STOP
+
+**The first 4 fields below (Scenario, Type, Date, Pipeline Stage) are the STANDARD REPORT HEADER. ALL agent reports MUST include these 4 fields with actual values. This is non-negotiable — reports without Date or Pipeline Stage are incomplete.**
+
 ## Template
 
 ```markdown
 # Explorer Report: {scenario}
 
-## Summary
-- **Scenario:** {name}
-- **Type:** {web | api | hybrid | mobile | mobile-hybrid}
-- **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-- **Duration:** ~{N} minutes
-- **Status:** COMPLETE / PARTIAL (reason: {auth failure / app crash / context exhaustion})
-- **Steps explored:** {N}/{total}
-- **Steps verified on first try:** {N}
-- **Steps needed retries:** {N}
-- **Steps blocked (test.fixme):** {N}
-- **Pages discovered:** {N}
-- **Page objects created:** {N} (reused: {N})
-- **Locator files created:** {N} (reused: {N})
-- **New app-context patterns:** {N}
-- **Scout report used:** {Yes / No / Not available}
+**Scenario:** {name}
+**Type:** {web | api | hybrid | mobile | mobile-hybrid}
+**Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
+**Pipeline Stage:** Stage 1 — Explorer-Builder
+**Outcome:** COMPLETE / PARTIAL (reason: {auth failure / app crash / context exhaustion})
+**Steps:** {N}/{total} explored ({N} verified first-try, {N} retried, {N} blocked)
+**Pages Discovered:** {N} pages → {N} page objects, {N} locator files ({totalElements} elements)
+**Fidelity:** {N} VERIFY, {N} CAPTURE, {N} SCREENSHOT, {N} REPORT, {N} CALCULATE — all matched to spec
+**App-Context:** {N} known patterns applied, {N} new patterns discovered
+**Enriched.md:** Created / Already exists / NOT CREATED (reason)
+**Chunks:** {N} of {total} ({mode}: DIRECT or CHUNKED — Chunk {N}, steps {start}-{end})
 
 ---
 

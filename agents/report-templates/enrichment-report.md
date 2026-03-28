@@ -7,19 +7,25 @@
 
 ---
 
+## MANDATORY Header Fields — HARD STOP
+
+**The first 4 fields below (Scenario, Type, Date, Pipeline Stage) are the STANDARD REPORT HEADER. ALL agent reports MUST include these 4 fields with actual values. This is non-negotiable — reports without Date or Pipeline Stage are incomplete.**
+
 ## Template
 
 ```markdown
 # Enrichment Report: {scenario-name}
 
-## Summary
-- **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-- **Input type:** {Natural language | Partial/mixed | Swagger/OpenAPI spec}
-- **Source:** {user message | file path to spec}
-- **Output:** scenarios/{type}/{scenario-name}.md
-- **Confidence:** {0.0-1.0}
-- **Questions asked:** {N} (rounds: {N} of 2 max)
-- **Assumptions made:** {N}
+**Scenario:** {scenario-name}
+**Type:** {web | api | hybrid | mobile | mobile-hybrid} (inferred or specified)
+**Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
+**Pipeline Stage:** Stage 0 — Enrichment Agent
+**Outcome:** ENRICHED / PASSTHROUGH / FAILED
+**Input:** {Natural language | Partial/mixed | Swagger/OpenAPI spec} — from {user message | file path}
+**Output:** scenarios/{type}/{scenario-name}.md ({N} steps generated)
+**Confidence:** {0.0-1.0}
+**Clarifications:** {N} questions asked ({N} rounds of 2 max), {N} assumptions made
+**Key Decisions:** {1-line summary, e.g., "Inferred checkout flow from Swagger endpoints, assumed card payment"}
 
 ---
 

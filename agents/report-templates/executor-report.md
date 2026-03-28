@@ -7,21 +7,25 @@
 
 ---
 
+## MANDATORY Header Fields — HARD STOP
+
+**The first 4 fields below (Scenario, Type, Date, Pipeline Stage) are the STANDARD REPORT HEADER. ALL agent reports MUST include these 4 fields with actual values. This is non-negotiable — reports without Date or Pipeline Stage are incomplete.**
+
 ## Template
 
 ```markdown
 # Executor Report: {scenario}
 
-## Summary
-- **Scenario:** {name}
-- **Type:** {web | api | hybrid | mobile | mobile-hybrid}
-- **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-- **Duration:** ~{N} minutes
-- **Pre-flight issues found:** {N} (fixed before Cycle 1)
-- **Total cycles:** {N} of 3 max
-- **Final status:** PASSING / FAILING
-- **Tests passed:** {N}/{total}
-- **Escalated issues:** {N}
+**Scenario:** {name}
+**Type:** {web | api | hybrid | mobile | mobile-hybrid}
+**Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
+**Pipeline Stage:** Stage 2 — Executor
+**Outcome:** PASSING / FAILING
+**Test Results:** {N}/{total} tests passing ({N} failed, {N} test.fixme)
+**Test Duration:** ~{N}s (wall clock for final passing run)
+**Fix Cycles:** {N} of {max} max ({N} pre-flight fixes, {N} runtime fixes)
+**Escalated Issues:** {N} ({N} potential bugs, {N} unfixable)
+**Key Fixes:** {1-line summary of most impactful fix, e.g., "Added navigation wait after form submit — resolved 2 timing failures"}
 
 ---
 
@@ -173,10 +177,10 @@
 ## Observability
 | Metric | Value |
 |--------|-------|
-| Tokens used | {N} |
-| Context window | {N}% |
 | Duration | ~{N} minutes |
-| Tokens per cycle | ~{N} average |
+| Fix cycles run | {N} of {max} |
+| Test executions | {N} |
+| Token usage | N/A — platform does not expose token counts |
 
 ## Eval Metrics
 | Metric | Value |

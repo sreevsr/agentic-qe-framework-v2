@@ -228,6 +228,59 @@ await cartPage.validateAllCartPrices();
 
 ---
 
+## File Download — Capture and Verify Downloaded Files
+
+**Scenario:** `Click "Download Invoice" button` followed by `VERIFY: Invoice file is downloaded successfully to OS' default Downloads folder`
+
+**Explorer-Builder action:** Use Playwright's download event API to capture the file. If the scenario specifies a download location (e.g., "OS' default Downloads folder"), use THAT location — do NOT substitute a project-local path.
+
+**Generated code:**
+```typescript
+import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Click download trigger and capture the download event
+await test.step('Step N — Click "Download Invoice" button', async () => {
+  const downloadPromise = page.waitForEvent('download');
+  await orderPage.clickDownloadInvoice();
+  const download = await downloadPromise;
+
+  // Save to the location specified in the scenario
+  // If scenario says "OS' default Downloads folder":
+  const downloadsDir = path.join(os.homedir(), 'Downloads');
+  const downloadPath = path.join(downloadsDir, download.suggestedFilename());
+  await download.saveAs(downloadPath);
+
+  // Store path for subsequent VERIFY steps
+  test.info().annotations.push({ type: 'downloadPath', description: downloadPath });
+});
+
+// VERIFY: File downloaded
+await test.step('Step N+1 — VERIFY: Invoice file is downloaded', async () => {
+  const ann = test.info().annotations.find(a => a.type === 'downloadPath');
+  const downloadPath = ann?.description ?? '';
+  expect(fs.existsSync(downloadPath)).toBe(true);
+});
+
+// VERIFY: File content check
+await test.step('Step N+2 — VERIFY: Invoice contains "John Doe"', async () => {
+  const ann = test.info().annotations.find(a => a.type === 'downloadPath');
+  const downloadPath = ann?.description ?? '';
+  const content = fs.readFileSync(downloadPath, 'utf-8');
+  expect(content).toContain('John Doe');
+});
+```
+
+**MANDATORY Rules:**
+- `acceptDownloads: true` MUST be set in `playwright.config.ts` (under `use:`)
+- Use `page.waitForEvent('download')` BEFORE the click that triggers the download
+- **If the scenario specifies a download location, use it literally.** "OS' default Downloads folder" → `path.join(os.homedir(), 'Downloads')`. "project downloads folder" → `path.join(process.cwd(), 'downloads')`. Do NOT substitute your own path.
+- If the scenario does NOT specify a location, default to `path.join(process.cwd(), 'downloads')` and create the directory if it doesn't exist
+- Store the download path via `test.info().annotations` so subsequent VERIFY steps can access it
+
+---
+
 ## Tags — CI/CD Filtering Labels
 
 **Scenario:** `**Tags:** smoke, cart, P0`

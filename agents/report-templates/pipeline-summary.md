@@ -19,8 +19,13 @@
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Folder:** {folder-name | N/A}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-**Duration:** ~{N} minutes
-**Pipeline:** [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
+**Pipeline Duration:** ~{N} minutes
+**Pipeline:** [Enrichment Agent] → Explorer-Builder → Executor → Reviewer [→ Healer]
+**Final Verdict:** APPROVED / APPROVED WITH CAVEATS / NEEDS FIXES / TESTS FAILING / INCOMPLETE
+**Test Results:** {N}/{total} passing ({N} failed, {N} test.fixme) — execution time ~{N}s
+**Quality Score:** {N}/{M} ({N}% — Reviewer verdict: {verdict})
+**Exploration:** {N}/{total} steps verified across {N} pages, {N} chunks
+**Executor Fixes:** {N} fixes in {N} cycles ({list top fix categories, e.g., "2 timing, 1 selector, 1 scroll"})
 
 ---
 
@@ -166,30 +171,32 @@ cd output && npx playwright test --grep @{tag} --project=chrome
 
 ---
 
-## 9. Token Usage & Agent Performance
+## 9. Agent Performance & Observability
 
-**Data source:** `output/reports/metrics/explorer-metrics-{scenario}.json`, `executor-metrics-{scenario}.json`
+**Data source:** `output/reports/metrics/explorer-metrics-{scenario}.json`, `executor-metrics-{scenario}.json`, `scripts/explorer-post-check.js` output
 
-### Token Consumption
-| Agent | Tokens Used | Context Window % | Duration |
-|-------|-------------|-----------------|----------|
-| Enrichment Agent | {N} | {N}% | ~{N}min |
-| Explorer-Builder | {N} | {N}% | ~{N}min |
-| Executor | {N} | {N}% | ~{N}min |
-| Reviewer | {N} | {N}% | ~{N}min |
-| **Total** | **{N}** | | **~{N}min** |
+### Stage Duration
+| Agent | Duration | Notes |
+|-------|----------|-------|
+| Enrichment Agent | ~{N}min / SKIPPED | {notes} |
+| Explorer-Builder | ~{N}min | {N} chunks, {N} subagents spawned |
+| Executor | ~{N}min | {N} cycles, {N} test executions |
+| Reviewer | ~{N}min | {N} dimensions scored |
+| **Total Pipeline** | **~{N}min** | |
+
+**Token usage:** N/A — platform does not expose token counts. Do NOT estimate or fabricate token numbers.
 
 ### Agent Eval Metrics
-| Metric | Value |
-|--------|-------|
-| First-run pass rate | {N}% (Executor Cycle 1 pass/total) |
-| Exploration accuracy | {N}% (steps verified first-try / total steps) |
-| Fix cycle efficiency | {N} cycles used of 3 max |
-| Self-improvement | {N} app-context patterns added |
-| Subagents spawned | {N} |
-| Quality score | {N}/{M} ({verdict}) |
-
-{If tokens > 500K: "**NOTE:** High token usage. Consider subagent splitting for future runs on this scenario."}
+| Metric | Value | Source |
+|--------|-------|--------|
+| First-run pass rate | {N}% (Executor Cycle 1 pass/total) | Executor report |
+| Exploration accuracy | {N}% (steps verified first-try / total steps) | Explorer report |
+| Fix cycle efficiency | {N} cycles used of {max} max | Executor report |
+| Self-improvement | {N} app-context patterns added | Explorer + Executor reports |
+| Subagents spawned | {N} | Orchestrator invocation count |
+| Quality score | {N}/{M} ({verdict}) | Reviewer scorecard |
+| Locator elements (verified) | {N} across {N} files | `explorer-post-check.js` |
+| Step count match | {scenario} vs {spec} — {MATCH/MISMATCH} | `explorer-post-check.js` |
 
 ---
 
@@ -215,7 +222,7 @@ cd output && npx playwright test --grep @{tag} --project=chrome
 | Critical Fixes | Explorer report (discoveries) + Executor report (fixes) | Pattern discoveries, code fixes |
 | App-Context Updates | Explorer report + Executor report | New patterns written |
 | Files Generated | Explorer report (Files Generated section) | All created/reused files |
-| Token Usage & Performance | `output/reports/metrics/*-metrics-*.json` | Tokens, context %, duration per agent |
+| Agent Performance | `output/reports/metrics/*-metrics-*.json` + `explorer-post-check.js` output | Duration, subagent count, verified counts (NO token estimates) |
 | Key Achievements | All reports + scenario .md | Scenario-specific highlights |
 
 ---

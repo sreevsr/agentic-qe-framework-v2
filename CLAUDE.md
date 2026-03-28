@@ -116,6 +116,7 @@ Without Playwright MCP configured, the Explorer-Builder CANNOT explore web/hybri
 
 | Script | Command | Purpose |
 |--------|---------|---------|
+| Explorer post-check | `node scripts/explorer-post-check.js --scenario=X --type=web` | Mechanical verification of explorer output (step counts, locator counts, file existence) |
 | Precheck | `node scripts/review-precheck.js --scenario=X --type=web` | Evidence collection before review |
 | Parse results | `node scripts/test-results-parser.js --results-dir=output/test-results` | Structured failure data |
 | Classify failures | `node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json` | CI/CD failure triage |
