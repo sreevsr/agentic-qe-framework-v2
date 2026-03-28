@@ -493,6 +493,48 @@ Every step in the enriched file MUST have exactly one provenance tag:
 - `<!-- EXPANDED from: "{original step text}" -->` — high-level step broken into specifics
 - `<!-- DISCOVERED -->` — new step not in original scenario at all
 
+### Content Rules — HARD STOP
+
+**The enriched.md is a SCENARIO file, not an implementation file. It describes WHAT to test, not HOW to implement it.**
+
+**MUST NOT include in steps:**
+- CSS selectors, XPath, or any locator strings (e.g., `#password`, `.signup-form input[name='email']`, `data-qa=submit`)
+- Playwright code or patterns (e.g., `waitForLoadState()`, `scrollIntoViewIfNeeded()`, `card.hover()`)
+- Page object names or method names (e.g., `LoginPage`, `productsPage.getPrice()`)
+- Locator file references (e.g., `login-page.locators.json`)
+- Wait strategies or timing details (e.g., "waitForLoadState('networkidle') after click")
+- Code snippets or implementation patterns
+
+**MUST NOT include these sections** (they belong in the explorer report or app-context, not the enriched scenario):
+- "Verified Selectors Summary" or any selector inventory
+- "Confirmed Interaction Patterns" with code
+- "Timing and Wait Requirements"
+- "Page Transitions Observed"
+
+**Steps SHOULD include:**
+- The user-facing action description (what a tester would read)
+- Provenance tags
+- Contextual notes that help a HUMAN understand the step (not implementation details)
+- `{{ENV.VARIABLE}}` references for dynamic values
+- `{{capturedVariable}}` references for captured values
+
+**Example — CORRECT:**
+```markdown
+20. Add "Blue Top" to cart <!-- ORIGINAL -->
+21. Click "Continue Shopping" to remain on products page <!-- ORIGINAL -->
+```
+
+**Example — WRONG (selector pollution):**
+```markdown
+20. Add "Blue Top" to cart <!-- ORIGINAL -->
+    - Pattern: `card.scrollIntoViewIfNeeded()` -> `card.hover()` -> `overlayBtn.waitFor(...)` -> `overlayBtn.click()`
+    - Overlay button: `.product-overlay .overlay-content .add-to-cart` scoped to card
+21. Click "Continue Shopping" to remain on products page <!-- ORIGINAL -->
+    - Selector: `role=button[name='Continue Shopping']` in `#cartModal`
+```
+
+**Why this rule exists:** In a prior run, the enriched.md was 370 lines with 170+ selector references, interaction pattern code, timing tables, and a full locator inventory. This duplicated the explorer report, app-context, and locator files — making the enriched.md useless as human-readable test documentation.
+
 ### Detail Level Header — MUST include at top of enriched file
 
 ```markdown

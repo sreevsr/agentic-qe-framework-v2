@@ -263,6 +263,13 @@ After all chunk subagents have completed:
 
    Generate ONLY the enriched.md file at: scenarios/{type}/{scenario}.enriched.md
    DO NOT explore, DO NOT modify code files, DO NOT generate reports.
+
+   CRITICAL: The enriched.md is a SCENARIO file for humans, NOT an implementation file.
+   Steps must describe WHAT to test in plain language. DO NOT include:
+   - CSS selectors, locator strings, or XPath
+   - Playwright code, wait strategies, or page object names
+   - Selector inventory tables or interaction pattern code
+   Read Section 6b Content Rules carefully — they list exactly what is prohibited.
    ```
    **Skip this step if `{scenario}.enriched.md` already exists.**
 
@@ -286,6 +293,7 @@ After all chunk subagents have completed:
 Delegate to **QE Executor** with:
 ```
 Read agents/core/executor.md for your instructions.
+Read agents/report-templates/executor-report.md for the MANDATORY report format — follow the executive summary header EXACTLY.
 
 SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
