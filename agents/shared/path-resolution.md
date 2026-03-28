@@ -85,6 +85,7 @@
 
 | File | Purpose |
 |------|---------|
+| `agents/core/orchestrator.md` | Orchestrator pipeline coordinator |
 | `agents/core/explorer-builder.md` | Explorer-Builder core instructions |
 | `agents/core/code-generation-rules.md` | Code patterns, locator JSON, spec structure |
 | `agents/core/quality-gates.md` | Fidelity, guardrails, popups, i18n |

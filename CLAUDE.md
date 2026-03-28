@@ -14,9 +14,10 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer
 
 | Agent | Copilot: `@` | Core Instructions | Job |
 |-------|-------------|------------------|-----|
+| **Orchestrator** | `@QE Orchestrator` | `agents/core/orchestrator.md` | **One-command pipeline** — coordinates all agents in sequence |
 | **Explorer-Builder** | `@QE Explorer` | `agents/core/explorer-builder.md` | Explore app in live browser, verify interactions, write test code |
 | **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
-| **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language to structured scenario .md |
+| **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language / Swagger to structured scenario .md |
 | **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
 
 ## MANDATORY Execution Rules

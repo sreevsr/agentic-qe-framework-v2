@@ -1,0 +1,71 @@
+{
+  "$schema": "contracts/manifest.schema.json",
+  "name": "orchestrator",
+  "version": "2.0.0",
+  "protocolVersion": "1.0.0",
+  "description": "Pipeline coordinator — invokes Enrichment, Explorer-Builder, Executor, and Reviewer in sequence. One-command test generation and validation.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["pipeline", "orchestration", "coordinator", "end-to-end"],
+  "coreInstructions": ["agents/core/orchestrator.md"],
+  "documentationUrl": "agents/core/orchestrator.md",
+  "input": {
+    "scenario": {
+      "type": "string",
+      "required": true,
+      "description": "Scenario name (without extension) or natural language description"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "default": "web",
+      "description": "Scenario type"
+    },
+    "folder": {
+      "type": "string",
+      "required": false,
+      "description": "Optional subfolder for organization"
+    },
+    "language": {
+      "type": "string",
+      "enum": ["typescript", "javascript", "python"],
+      "default": "typescript",
+      "description": "Target language — read from output/.language if not specified"
+    }
+  },
+  "output": {
+    "pipelineSummary": {
+      "type": "file",
+      "format": "markdown",
+      "location": "output/reports/[{folder}/]pipeline-summary-{scenario}.md",
+      "description": "Comprehensive pipeline summary with all stages, metrics, and verdict"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "APPROVED WITH CAVEATS", "NEEDS FIXES", "TESTS FAILING", "INCOMPLETE"],
+      "description": "Final pipeline verdict"
+    }
+  },
+  "delegatesTo": [
+    "enrichment-agent",
+    "explorer-builder",
+    "executor",
+    "reviewer"
+  ],
+  "security": {
+    "requiredEnvVars": ["BASE_URL", "TEST_USERNAME", "TEST_PASSWORD"],
+    "optionalEnvVars": ["SSO_EMAIL", "SSO_PASSWORD", "API_BASE_URL", "API_TOKEN"],
+    "requiresMcp": true,
+    "mcpServers": ["playwright"],
+    "note": "Orchestrator delegates to agents that need MCP — does not use MCP directly"
+  },
+  "platforms": ["windows", "linux", "macos"],
+  "examples": [
+    "@QE Orchestrator scenario=saucedemo-login type=web",
+    "@QE Orchestrator scenario=petstore-crud type=api folder=petstore",
+    "@QE Orchestrator \"Test that a user can log in, add items to cart, and checkout\"",
+    "@QE Orchestrator scenario=epic-table type=web --language=python"
+  ]
+}
