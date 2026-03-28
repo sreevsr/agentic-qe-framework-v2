@@ -1,0 +1,87 @@
+{
+  "language": "python",
+  "displayName": "Python",
+  "playwright_package": "playwright",
+  "test_framework": "pytest",
+  "file_extension": ".py",
+  "spec_file_pattern": "test_{scenario}.py",
+  "page_object_pattern": "{page_name}_page.py",
+  "locator_file_pattern": "{page-name}.locators.json",
+
+  "naming_conventions": {
+    "class": "PascalCase",
+    "method": "snake_case",
+    "variable": "snake_case",
+    "file": "snake_case",
+    "constant": "UPPER_SNAKE_CASE"
+  },
+
+  "async_model": "sync_by_default",
+  "assertion_style": {
+    "hard": "expect(locator).to_have_text(value)",
+    "soft": "expect(locator).to_have_text(value)  # soft assertions via pytest.mark",
+    "url": "expect(page).to_have_url(pattern)",
+    "visible": "expect(locator).to_be_visible()",
+    "count": "expect(locator).to_have_count(n)"
+  },
+
+  "env_access": "os.environ[\"{VARIABLE}\"]",
+  "env_access_with_default": "os.environ.get(\"{VARIABLE}\", \"{default}\")",
+
+  "fixture_pattern": "def test_{name}(page: Page):",
+  "fixture_hybrid": "def test_{name}(page: Page, request_context: APIRequestContext):",
+  "fixture_api": "def test_{name}(request_context: APIRequestContext):",
+  "beforeAll_fixture": "@pytest.fixture(scope='session')\ndef browser_context_args():",
+  "beforeEach_fixture": "@pytest.fixture(autouse=True)\ndef setup(page: Page):",
+
+  "imports": {
+    "test_framework": "import pytest\nfrom playwright.sync_api import Page, expect",
+    "api_imports": "from playwright.sync_api import APIRequestContext",
+    "page_object": "from pages.{class_name}_page import {ClassName}Page",
+    "test_data": "import json\nfrom pathlib import Path",
+    "shared_data": "from core.test_data_loader import load_test_data",
+    "save_state": "from core.shared_state import save_state",
+    "os": "import os"
+  },
+
+  "templates_dir": {
+    "core": "templates/core-python",
+    "config": "templates/config-python"
+  },
+
+  "install_commands": {
+    "dependencies": "pip install -r requirements.txt",
+    "playwright": "playwright install chromium",
+    "playwright_all": "playwright install"
+  },
+
+  "run_commands": {
+    "test": "pytest tests/{type}/{spec} -v",
+    "test_grep": "pytest tests/ -k \"{tag}\" -v",
+    "test_headed": "pytest tests/{type}/{spec} --headed -v",
+    "report": "pytest tests/ --html=report.html"
+  },
+
+  "config_files": ["conftest.py", "pytest.ini", "requirements.txt", ".env.example"],
+  "core_files": ["base_page.py", "locator_loader.py", "test_data_loader.py", "shared_state.py", "__init__.py"],
+
+  "step_wrapper": "# Step {n} — {label}\n{code}",
+  "capture_declaration": "{var_name} = None",
+  "capture_assignment": "{var_name} = {page_object}.{getter}()",
+
+  "notes": "Python Playwright uses sync API by default (no async/await). Methods are snake_case. pytest fixtures provide page injection. No test.step() equivalent — use comments for step markers. pytest-playwright plugin auto-creates page fixture.",
+
+  "page_object_template": {
+    "class_declaration": "class {ClassName}Page(BasePage):\n    def __init__(self, page):\n        super().__init__(page, '{locator_file}')",
+    "method_template": "def {method_name}(self, {params}):\n    {body}",
+    "base_import": "from core.base_page import BasePage"
+  },
+
+  "python_specific": {
+    "no_test_step": true,
+    "step_marker": "# Step {n} — {label}",
+    "soft_assertion_note": "Python Playwright does not have expect.soft(). Use pytest.mark.xfail(strict=False) for non-blocking assertions, or collect all assertion errors and report at end.",
+    "conftest_for_fixtures": true,
+    "dotenv_loading": "from dotenv import load_dotenv\nload_dotenv()"
+  }
+}

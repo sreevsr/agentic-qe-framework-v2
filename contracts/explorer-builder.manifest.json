@@ -44,9 +44,9 @@
     },
     "language": {
       "type": "string",
-      "enum": ["typescript"],
+      "enum": ["typescript", "javascript", "python"],
       "default": "typescript",
-      "description": "Target language (TypeScript only in v2.0)"
+      "description": "Target language — read from output/.language or specified explicitly"
     }
   },
   "output": {

@@ -1,0 +1,76 @@
+{
+  "language": "javascript",
+  "displayName": "JavaScript",
+  "playwright_package": "@playwright/test",
+  "test_framework": "playwright-test",
+  "file_extension": ".js",
+  "spec_file_pattern": "{scenario}.spec.js",
+  "page_object_pattern": "{PageName}Page.js",
+  "locator_file_pattern": "{page-name}.locators.json",
+
+  "naming_conventions": {
+    "class": "PascalCase",
+    "method": "camelCase",
+    "variable": "camelCase",
+    "file": "kebab-case",
+    "constant": "UPPER_SNAKE_CASE"
+  },
+
+  "async_model": "async_await",
+  "assertion_style": {
+    "hard": "expect(locator).toHaveText(value)",
+    "soft": "expect.soft(value).toBe(expected)",
+    "url": "await expect(page).toHaveURL(pattern)",
+    "visible": "await expect(locator).toBeVisible()",
+    "count": "await expect(locator).toHaveCount(n)"
+  },
+
+  "env_access": "process.env.{VARIABLE}",
+  "env_access_with_default": "process.env.{VARIABLE} || '{default}'",
+
+  "fixture_pattern": "test('{name}', async ({ page }) => { ... })",
+  "fixture_hybrid": "test('{name}', async ({ page, request }) => { ... })",
+  "fixture_api": "test('{name}', async ({ request }) => { ... })",
+  "beforeAll_fixture": "test.beforeAll(async ({ browser }) => { ... })",
+  "beforeEach_fixture": "test.beforeEach(async ({ page }) => { ... })",
+
+  "imports": {
+    "test_framework": "const { test, expect } = require('@playwright/test');",
+    "page_object": "const { {ClassName} } = require('../../pages/{ClassName}');",
+    "test_data": "const testData = require('../test-data/{type}/{scenario}.json');",
+    "shared_data": "const { loadTestData } = require('../../core/test-data-loader');",
+    "save_state": "const { saveState } = require('../core/shared-state');"
+  },
+
+  "templates_dir": {
+    "core": "templates/core",
+    "config": "templates/config-javascript"
+  },
+
+  "install_commands": {
+    "dependencies": "npm install",
+    "playwright": "npx playwright install --with-deps chromium",
+    "playwright_all": "npx playwright install"
+  },
+
+  "run_commands": {
+    "test": "npx playwright test {spec} --project=chrome",
+    "test_grep": "npx playwright test --grep {tag} --project=chrome",
+    "report": "npx playwright show-report"
+  },
+
+  "config_files": ["playwright.config.js", "package.json", ".env.example"],
+  "core_files": ["base-page.js", "locator-loader.js", "test-data-loader.js", "shared-state.js"],
+
+  "notes": "JavaScript is TypeScript without type annotations. Same Playwright API, same patterns, same @playwright/test runner. No tsconfig.json needed. Uses require() instead of import (CommonJS).",
+
+  "step_wrapper": "await test.step('{label}', async () => { {code} });",
+  "capture_declaration": "let {varName};",
+  "capture_assignment": "{varName} = await {pageObject}.{getter}();",
+
+  "page_object_template": {
+    "class_declaration": "class {ClassName} extends BasePage {\n  constructor(page) {\n    super(page, '{locator-file}');\n  }\n}\nmodule.exports = { {ClassName} };",
+    "method_template": "async {methodName}({params}) {\n  {body}\n}",
+    "base_import": "const { BasePage } = require('../core/base-page');"
+  }
+}

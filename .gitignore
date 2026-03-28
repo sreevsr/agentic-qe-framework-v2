@@ -38,6 +38,7 @@ output/**/review-scorecard-*.md
 output/**/precheck-report-*.json
 
 # Runtime artifacts
+output/.language
 output/test-data/shared-state.json
 output/test-data/shared-state.json.lock
 

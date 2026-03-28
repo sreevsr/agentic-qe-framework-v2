@@ -6,10 +6,12 @@
  * Uses only built-in Node.js modules — no npm install needed to run this script.
  *
  * Usage:
- *   node setup.js                  # Setup with Chrome only
- *   node setup.js --all-browsers   # Setup with all browsers (Chrome, Firefox, WebKit)
- *   node setup.js --validate-only  # Validate setup without installing (for CI)
- *   node setup.js --skip-install   # Create dirs and copy files, skip npm/browser install
+ *   node setup.js                       # Setup TypeScript (default) with Chrome
+ *   node setup.js --language=python     # Setup Python + pytest
+ *   node setup.js --language=javascript # Setup JavaScript (no TypeScript)
+ *   node setup.js --all-browsers        # Install all browsers
+ *   node setup.js --validate-only       # Validate without installing
+ *   node setup.js --skip-install        # Create dirs + copy files only
  */
 
 const fs = require('fs');
@@ -37,23 +39,102 @@ const npxCmd = isWin ? 'npx.cmd' : 'npx';
 // ---------------------------------------------------------------------------
 // Flags
 // ---------------------------------------------------------------------------
+// Parse --language=<lang> argument
+const langArg = process.argv.find(a => a.startsWith('--language='));
+const language = langArg ? langArg.split('=')[1] : 'typescript';
+
 const FLAGS = {
   allBrowsers: process.argv.includes('--all-browsers'),
   validateOnly: process.argv.includes('--validate-only'),
   skipInstall: process.argv.includes('--skip-install'),
+  language,
 };
 
+// Validate language
+const SUPPORTED_LANGUAGES = ['typescript', 'javascript', 'python'];
+if (!SUPPORTED_LANGUAGES.includes(language)) {
+  console.error(`${isWin ? '[FAIL]' : '\u274c'} Unsupported language: ${language}`);
+  console.error(`Supported: ${SUPPORTED_LANGUAGES.join(', ')}`);
+  process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
-// Paths
+// Paths (language-aware)
 // ---------------------------------------------------------------------------
 const ROOT = __dirname;
 const OUTPUT = path.join(ROOT, 'output');
 const TEMPLATES = path.join(ROOT, 'templates');
-const TEMPLATES_CONFIG = path.join(TEMPLATES, 'config');
-const TEMPLATES_CORE = path.join(TEMPLATES, 'core');
+
+// Language-specific template directories
+const LANGUAGE_CONFIG = {
+  typescript: {
+    configDir: path.join(TEMPLATES, 'config'),
+    coreDir: path.join(TEMPLATES, 'core'),
+    configFiles: [
+      { src: 'playwright.config.ts', dest: 'playwright.config.ts' },
+      { src: 'package.json',         dest: 'package.json' },
+      { src: 'tsconfig.json',        dest: 'tsconfig.json' },
+      { src: '.env.example',         dest: '.env.example' },
+    ],
+    coreFiles: [
+      { src: 'base-page.ts',        dest: path.join('core', 'base-page.ts') },
+      { src: 'locator-loader.ts',   dest: path.join('core', 'locator-loader.ts') },
+      { src: 'test-data-loader.ts', dest: path.join('core', 'test-data-loader.ts') },
+      { src: 'shared-state.ts',     dest: path.join('core', 'shared-state.ts') },
+    ],
+    installCmd: `${npmCmd} install`,
+    playwrightCmd: `${npxCmd} playwright install`,
+    playwrightChromeCmd: `${npxCmd} playwright install --with-deps chromium`,
+  },
+  javascript: {
+    configDir: path.join(TEMPLATES, 'config-javascript'),
+    coreDir: path.join(TEMPLATES, 'core'), // JS uses same core files — types stripped at usage
+    configFiles: [
+      { src: 'playwright.config.js', dest: 'playwright.config.js' },
+      { src: 'package.json',         dest: 'package.json' },
+      { src: '.env.example',         dest: '.env.example' },
+    ],
+    coreFiles: [
+      { src: 'base-page.ts',        dest: path.join('core', 'base-page.js') },
+      { src: 'locator-loader.ts',   dest: path.join('core', 'locator-loader.js') },
+      { src: 'test-data-loader.ts', dest: path.join('core', 'test-data-loader.js') },
+      { src: 'shared-state.ts',     dest: path.join('core', 'shared-state.js') },
+    ],
+    installCmd: `${npmCmd} install`,
+    playwrightCmd: `${npxCmd} playwright install`,
+    playwrightChromeCmd: `${npxCmd} playwright install --with-deps chromium`,
+    note: 'JavaScript uses TypeScript core files renamed to .js — the LLM generates JS code without types.',
+  },
+  python: {
+    configDir: path.join(TEMPLATES, 'config-python'),
+    coreDir: path.join(TEMPLATES, 'core-python'),
+    configFiles: [
+      { src: 'conftest.py',       dest: 'conftest.py' },
+      { src: 'pytest.ini',        dest: 'pytest.ini' },
+      { src: 'requirements.txt',  dest: 'requirements.txt' },
+      { src: '.env.example',      dest: '.env.example' },
+    ],
+    coreFiles: [
+      { src: 'base_page.py',        dest: path.join('core', 'base_page.py') },
+      { src: 'locator_loader.py',   dest: path.join('core', 'locator_loader.py') },
+      { src: 'test_data_loader.py', dest: path.join('core', 'test_data_loader.py') },
+      { src: 'shared_state.py',     dest: path.join('core', 'shared_state.py') },
+      { src: '__init__.py',          dest: path.join('core', '__init__.py') },
+    ],
+    installCmd: `${isWin ? 'pip' : 'pip3'} install -r requirements.txt`,
+    playwrightCmd: 'playwright install',
+    playwrightChromeCmd: 'playwright install chromium',
+  },
+};
+
+const langConfig = LANGUAGE_CONFIG[language];
+const TEMPLATES_CONFIG = langConfig.configDir;
+const TEMPLATES_CORE = langConfig.coreDir;
+const CONFIG_FILES = langConfig.configFiles;
+const CORE_FILES = langConfig.coreFiles;
 
 // ---------------------------------------------------------------------------
-// Output directory structure
+// Output directory structure (same for all languages)
 // ---------------------------------------------------------------------------
 const OUTPUT_DIRS = [
   '', 'core', 'pages', 'locators',
@@ -63,20 +144,6 @@ const OUTPUT_DIRS = [
   'screenshots', 'test-results',
   'reports', 'reports/metrics',
   'scout-reports', 'auth',
-];
-
-const CONFIG_FILES = [
-  { src: 'playwright.config.ts', dest: 'playwright.config.ts' },
-  { src: 'package.json',         dest: 'package.json' },
-  { src: 'tsconfig.json',        dest: 'tsconfig.json' },
-  { src: '.env.example',         dest: '.env.example' },
-];
-
-const CORE_FILES = [
-  { src: 'base-page.ts',        dest: path.join('core', 'base-page.ts') },
-  { src: 'locator-loader.ts',   dest: path.join('core', 'locator-loader.ts') },
-  { src: 'test-data-loader.ts', dest: path.join('core', 'test-data-loader.ts') },
-  { src: 'shared-state.ts',     dest: path.join('core', 'shared-state.ts') },
 ];
 
 // ---------------------------------------------------------------------------
@@ -110,6 +177,7 @@ async function main() {
   console.log(`${SYMBOLS.info} Platform: ${os.platform()} ${os.arch()}`);
   console.log(`${SYMBOLS.info} Node.js:  ${process.version}`);
   console.log(`${SYMBOLS.info} Root:     ${ROOT}`);
+  console.log(`${SYMBOLS.info} Language: ${language}`);
   if (FLAGS.validateOnly) console.log(`${SYMBOLS.info} Mode:     Validate only (no install)`);
   if (FLAGS.skipInstall) console.log(`${SYMBOLS.info} Mode:     Skip install (dirs + files only)`);
   if (FLAGS.allBrowsers) console.log(`${SYMBOLS.info} Browsers: All (Chrome, Firefox, WebKit)`);
@@ -219,31 +287,50 @@ async function main() {
     console.log(`  ${SYMBOLS.ok} Created test-data/shared-state.json`);
   }
 
-  if (!FLAGS.skipInstall) {
-    // Step 6: Install dependencies (skip if already installed and valid)
-    console.log(`\n${SYMBOLS.arrow} Installing dependencies in output/...`);
-    const nodeModules = path.join(OUTPUT, 'node_modules');
-    const playwrightPkg = path.join(nodeModules, '@playwright', 'test');
+  // Write language marker file (tells agents which language was chosen)
+  fs.writeFileSync(path.join(OUTPUT, '.language'), language);
+  console.log(`  ${SYMBOLS.ok} Language marker: ${language}`);
 
-    if (fs.existsSync(playwrightPkg)) {
-      console.log(`  ${SYMBOLS.skip} node_modules/ already installed (@playwright/test found)`);
-    } else {
-      if (fs.existsSync(nodeModules)) {
-        console.log(`  ${SYMBOLS.warn} node_modules/ appears incomplete — reinstalling...`);
-      }
-      if (!runCommand(`${npmCmd} install`, OUTPUT, 'npm install')) {
+  if (!FLAGS.skipInstall) {
+    // Step 6: Install dependencies (language-specific)
+    console.log(`\n${SYMBOLS.arrow} Installing ${language} dependencies in output/...`);
+
+    if (language === 'python') {
+      // Python: pip install
+      const reqFile = path.join(OUTPUT, 'requirements.txt');
+      if (!fs.existsSync(reqFile)) {
+        console.error(`  ${SYMBOLS.fail} requirements.txt not found`);
         process.exit(1);
+      }
+      if (!runCommand(langConfig.installCmd, OUTPUT, `pip install -r requirements.txt`)) {
+        process.exit(1);
+      }
+    } else {
+      // TypeScript/JavaScript: npm install
+      const nodeModules = path.join(OUTPUT, 'node_modules');
+      const playwrightPkg = path.join(nodeModules, '@playwright', 'test');
+      if (fs.existsSync(playwrightPkg)) {
+        console.log(`  ${SYMBOLS.skip} node_modules/ already installed`);
+      } else {
+        if (fs.existsSync(nodeModules)) {
+          console.log(`  ${SYMBOLS.warn} node_modules/ appears incomplete — reinstalling...`);
+        }
+        if (!runCommand(langConfig.installCmd, OUTPUT, 'npm install')) {
+          process.exit(1);
+        }
       }
     }
 
-    // Step 7: Install Playwright browsers
-    const browserArg = FLAGS.allBrowsers ? '' : '--with-deps chromium';
+    // Step 7: Install Playwright browsers (language-specific command)
+    const playwrightInstallCmd = FLAGS.allBrowsers
+      ? langConfig.playwrightCmd
+      : langConfig.playwrightChromeCmd;
     console.log(`\n${SYMBOLS.arrow} Installing Playwright browsers${FLAGS.allBrowsers ? ' (all)' : ' (Chrome only)'}...`);
-    if (!runCommand(`${npxCmd} playwright install ${browserArg}`.trim(), OUTPUT, 'Playwright browser install')) {
+    if (!runCommand(playwrightInstallCmd, OUTPUT, 'Playwright browser install')) {
       process.exit(1);
     }
   } else {
-    console.log(`\n${SYMBOLS.skip} Skipping npm install and browser install (--skip-install mode)`);
+    console.log(`\n${SYMBOLS.skip} Skipping dependency and browser install (--skip-install mode)`);
   }
 
   // Step 8: Validation
@@ -255,17 +342,22 @@ function runValidation() {
 
   const skipInstallChecks = FLAGS.validateOnly || FLAGS.skipInstall;
 
+  // Build validation checks based on language
+  const coreFileChecks = CORE_FILES.map(f => ({
+    label: `output/${f.dest}`, ok: fs.existsSync(path.join(OUTPUT, f.dest))
+  }));
+  const configFileChecks = CONFIG_FILES.filter(f => f.dest !== '.env.example').map(f => ({
+    label: `output/${f.dest}`, ok: fs.existsSync(path.join(OUTPUT, f.dest))
+  }));
+
   const checks = [
     // Output project structure
     { label: 'output/ exists',                    ok: fs.existsSync(OUTPUT) },
-    { label: 'output/playwright.config.ts',        ok: fs.existsSync(path.join(OUTPUT, 'playwright.config.ts')) },
-    { label: 'output/package.json',                ok: fs.existsSync(path.join(OUTPUT, 'package.json')) },
+    ...configFileChecks,
     { label: 'output/.env exists',                 ok: fs.existsSync(path.join(OUTPUT, '.env')) },
-    // Core framework files (check each individually)
-    { label: 'output/core/base-page.ts',           ok: fs.existsSync(path.join(OUTPUT, 'core', 'base-page.ts')) },
-    { label: 'output/core/locator-loader.ts',      ok: fs.existsSync(path.join(OUTPUT, 'core', 'locator-loader.ts')) },
-    { label: 'output/core/shared-state.ts',        ok: fs.existsSync(path.join(OUTPUT, 'core', 'shared-state.ts')) },
-    { label: 'output/core/test-data-loader.ts',    ok: fs.existsSync(path.join(OUTPUT, 'core', 'test-data-loader.ts')) },
+    { label: `output/.language = ${language}`,     ok: fs.existsSync(path.join(OUTPUT, '.language')) },
+    // Core framework files (language-specific)
+    ...coreFileChecks,
     // Test directories
     { label: 'output/tests/web/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'web')) },
     { label: 'output/tests/api/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'api')) },
@@ -296,11 +388,12 @@ function runValidation() {
   console.log(`\n${passed}/${checks.length} checks passed.`);
 
   if (failed === 0) {
-    console.log(`\n${SYMBOLS.ok} Setup complete!\n`);
+    console.log(`\n${SYMBOLS.ok} Setup complete! (language: ${language})\n`);
     console.log('Next steps:');
     console.log('  1. Edit output/.env with your application credentials');
     console.log('  2. Place scenarios in scenarios/web/, scenarios/api/, or scenarios/hybrid/');
-    console.log('  3. Run the Explorer-Builder agent: @QE Explorer (Copilot) or via Claude Code');
+    console.log(`  3. Run the Explorer-Builder agent: @QE Explorer (Copilot) or via Claude Code`);
+    console.log(`     The agent will generate ${language} code based on the language profile.`);
     console.log('');
   } else {
     console.log(`\n${SYMBOLS.warn} ${failed} check(s) failed. Review the items above.\n`);

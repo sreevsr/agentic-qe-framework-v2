@@ -50,6 +50,7 @@ You NEVER guess selectors. You NEVER assume wait strategies. You open the real a
 9. **API Behavior** — `mock` or `live` (controls CRUD persistence guardrails)
 10. **Multiple scenarios** — does the file have `### Scenario:` blocks?
 11. **Tags** — for test filtering
+12. **Language** — check `output/.language` file for the target language (typescript, javascript, python). If file doesn't exist, default to TypeScript. **MUST read `templates/languages/{language}.profile.json`** for language-specific code patterns, naming conventions, assertion syntax, and file extensions
 
 ### Step 3.2: Determine Type and Fixture
 

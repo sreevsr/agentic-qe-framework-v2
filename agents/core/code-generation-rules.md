@@ -2,6 +2,50 @@
 
 **This file is MANDATORY reading for the Explorer-Builder. DO NOT generate any code without reading this file first.**
 
+## 0. Language Selection — MANDATORY First Check
+
+**BEFORE generating any code, determine the target language:**
+
+1. Read `output/.language` file — it contains `typescript`, `javascript`, or `python`
+2. If file doesn't exist → default to `typescript`
+3. Read the language profile: `templates/languages/{language}.profile.json`
+4. The profile defines: naming conventions, assertion syntax, file extensions, import patterns, fixture patterns
+
+**ALL code generation rules in this file show TypeScript examples by default.** When generating for other languages, adapt using the language profile:
+
+| Aspect | TypeScript | JavaScript | Python |
+|--------|-----------|------------|--------|
+| File extension | `.ts` | `.js` | `.py` |
+| Spec naming | `{scenario}.spec.ts` | `{scenario}.spec.js` | `test_{scenario}.py` |
+| Page object | `{Page}Page.ts` | `{Page}Page.js` | `{page}_page.py` |
+| Class export | `export class` | `class ... module.exports` | `class` |
+| Imports | `import { X } from 'Y'` | `const { X } = require('Y')` | `from Y import X` |
+| Async model | `async/await` | `async/await` | **Sync** (no async/await) |
+| Assertions | `expect(loc).toHaveText()` | `expect(loc).toHaveText()` | `expect(loc).to_have_text()` |
+| Env vars | `process.env.X` | `process.env.X` | `os.environ["X"]` |
+| Method naming | `camelCase` | `camelCase` | `snake_case` |
+| Step wrapper | `test.step('Step N', ...)` | `test.step('Step N', ...)` | `# Step N — {label}` (comment) |
+| Capture vars | `let x: string` | `let x` | `x = None` |
+
+**CRITICAL for Python:**
+- Sync API by default — NO `async/await`
+- Methods are `snake_case`
+- NO `test.step()` equivalent — use `# Step N — {label}` comments as step markers
+- Use `pytest.mark.{tag}` decorators for tags instead of `{ tag: [...] }`
+- **NO `expect.soft()`** — for VERIFY_SOFT, collect assertion errors without stopping:
+  ```python
+  # VERIFY_SOFT: Cart badge shows "2"
+  soft_errors = []
+  try:
+      expect(page.locator(loc.get("cart_badge"))).to_have_text("2")
+  except AssertionError as e:
+      soft_errors.append(str(e))
+      page.screenshot(path=f"screenshots/VERIFY_SOFT-failed-cart-badge.png")
+  # At end of test: assert not soft_errors, f"Soft assertions failed: {soft_errors}"
+  ```
+- **SCREENSHOT attach:** Use `page.screenshot(path="screenshots/{name}.png")` — no `test.info().attach()` in pytest. Use `pytest-html` plugin for report attachments
+- **REPORT:** Use `print()` for console output + custom pytest fixture for structured reporting
+
 ---
 
 ## 1. Locator JSON Format — MANDATORY for ALL Web/Hybrid Scenarios
