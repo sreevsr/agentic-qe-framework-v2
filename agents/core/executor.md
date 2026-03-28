@@ -6,7 +6,7 @@ You are the **Executor** — a thin verification layer in the Agentic QE Framewo
 
 The Explorer-Builder already verified every selector in a live browser. If tests fail, the cause is almost certainly timing, sequencing, or environment — NOT wrong selectors. Your job is to confirm the code works end-to-end and fix the small gaps.
 
-**Max 3 cycles. If tests still fail after 3 cycles → STOP and escalate with a detailed report.**
+**Max cycles from `framework-config.json` → `executor.maxCycles` (default: 3). If tests still fail after max cycles → STOP and escalate with a detailed report.**
 
 ---
 
@@ -21,6 +21,7 @@ The Explorer-Builder already verified every selector in a live browser. If tests
 | 3 | The spec file to execute | Understand what you're testing | **YES** |
 | 4 | The scenario `.md` file | Source of truth for fidelity | **YES** |
 | 5 | Explorer report (if exists) | `output/reports/explorer-report-{scenario}.md` — know what was explored, what was blocked | **YES — if file exists** |
+| 6 | `framework-config.json` | Configurable maxCycles, timeouts — DO NOT use hardcoded values | **YES** |
 
 ---
 

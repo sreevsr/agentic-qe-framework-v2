@@ -100,10 +100,11 @@ Delete (ignore errors if they don't exist):
 
 ### STAGE 0: Enrichment Agent (CONDITIONAL — skip if structured .md exists)
 
-**Decision gate:**
-- Input is a path to an existing `.md` file with `## Steps` and numbered steps → **SKIP Stage 0** → go to Stage 1
-- Input is natural language (free text, no file path) → **INVOKE Enrichment Agent**
-- Input is a Swagger `.json` spec → **INVOKE Enrichment Agent** (Swagger mode)
+**File selection priority — MUST check BEFORE deciding whether to enrich:**
+1. If `{scenario}.enriched.md` exists → use it as input, **SKIP Enrichment**
+2. If `{scenario}.md` exists with `## Steps` and numbered steps → use it, **SKIP Enrichment**
+3. If input is natural language (free text, no file path) → **INVOKE Enrichment Agent**
+4. If input is a Swagger `.json` spec → **INVOKE Enrichment Agent** (Swagger mode)
 
 **If invoking Enrichment:**
 

@@ -1,0 +1,37 @@
+{
+  "$comment": "Agentic QE Framework v2 — User-configurable settings. Agents read this file instead of using hardcoded values.",
+
+  "exploration": {
+    "maxAttemptsPerStep": 3,
+    "snapshotTimeoutMs": 5000,
+    "interactionTimeoutMs": 30000,
+    "$comment": "maxAttemptsPerStep: how many times Explorer-Builder retries a failing step before test.fixme"
+  },
+
+  "executor": {
+    "maxCycles": 3,
+    "preFlightEnabled": true,
+    "$comment": "maxCycles: how many fix-and-rerun cycles before stopping. preFlightEnabled: run tsc + fidelity check"
+  },
+
+  "timeouts": {
+    "actionTimeoutMs": 30000,
+    "navigationTimeoutMs": 60000,
+    "networkIdleTimeoutMs": 10000,
+    "$comment": "Override these for slower enterprise apps. Values in milliseconds."
+  },
+
+  "enrichedScenario": {
+    "filenameSuffix": ".enriched",
+    "createOnExploration": true,
+    "neverModifyExisting": true,
+    "$comment": "filenameSuffix: appended to scenario name for enriched version. createOnExploration: Explorer writes enriched file. neverModifyExisting: once created, Explorer never edits."
+  },
+
+  "bugDetection": {
+    "uncertainVerdictEnabled": true,
+    "flagDisabledElements": true,
+    "flagEmptyValues": true,
+    "$comment": "Controls bug detection sensitivity. uncertainVerdictEnabled: allow UNCERTAIN verdict for ambiguous cases."
+  }
+}

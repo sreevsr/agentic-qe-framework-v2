@@ -90,9 +90,11 @@
 | `agents/core/code-generation-rules.md` | Code patterns, locator JSON, spec structure |
 | `agents/core/quality-gates.md` | Fidelity, guardrails, popups, i18n |
 | `agents/core/scenario-handling.md` | Multi-scenario, app-context, subagents |
+| `agents/core/bug-detection-rules.md` | Bug vs test issue classification (3Q + tables) |
 | `agents/core/executor.md` | Executor core instructions |
 | `agents/core/enrichment-agent.md` | Enrichment Agent core instructions |
 | `agents/core/reviewer.md` | Reviewer core instructions |
+| `framework-config.json` | Configurable retries, timeouts, bug detection settings |
 | `agents/shared/keyword-reference.md` | Keyword → code patterns |
 | `agents/shared/guardrails.md` | Enterprise ownership boundaries |
 | `agents/shared/type-registry.md` | Type definitions and per-agent lookup |

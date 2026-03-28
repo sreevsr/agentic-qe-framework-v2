@@ -26,6 +26,8 @@ You NEVER guess selectors. You NEVER assume wait strategies. You open the real a
 | 8 | App-context file (if exists) | `scenarios/app-contexts/{app-name}.md` — learned patterns | **YES — if file exists** |
 | 9 | `agents/core/scenario-handling.md` | Multi-scenario, subagent splitting, app-context rules | **YES — if scenario has 20+ steps, multiple scenarios, or lifecycle hooks** |
 | 10 | Scout report (if exists) | `output/scout-reports/{scenario}-page-inventory-latest.md` | **YES — if file exists** |
+| 11 | `agents/core/bug-detection-rules.md` | Bug vs test issue classification — MUST apply after EVERY interaction | **YES — ALWAYS** |
+| 12 | `framework-config.json` | Configurable retries, timeouts — DO NOT use hardcoded values | **YES — ALWAYS** |
 
 **Scout report integration:** If a Scout report exists for this scenario or application, read it BEFORE starting the core loop. Scout provides a pre-explored DOM inventory with verified selectors, component library detection, and interaction patterns. Use Scout's selectors as FIRST-CHOICE primaries — they override the standard priority chain. Scout is a Phase 5 feature; if no Scout report exists, the Explorer-Builder discovers everything live (which is the default v2 flow).
 
@@ -35,9 +37,17 @@ You NEVER guess selectors. You NEVER assume wait strategies. You open the real a
 
 ## 3. Input Processing
 
-### Step 3.1: Parse the Scenario
+### Step 3.1: Select the Input File — MANDATORY
 
-**MANDATORY — Read the scenario `.md` file and extract ALL of the following.** DO NOT start exploring until you have identified each item:
+**File selection priority — MUST check in this order:**
+1. If `{scenario}.enriched.md` exists → **USE IT as input** (this is the user-reviewed, verified version)
+2. Else use `{scenario}.md` as input
+
+**MUST NOT** use the original `.md` when an `.enriched.md` exists — the enriched version is the authoritative specification.
+
+### Step 3.1b: Parse the Scenario
+
+**MANDATORY — Read the selected scenario file and extract ALL of the following.** DO NOT start exploring until you have identified each item:
 
 1. **Type** — `web`, `api`, or `hybrid` (from Metadata section). This determines EVERYTHING — fixture, skills, whether you open a browser.
 2. **Application URL** — as `{{ENV.BASE_URL}}` reference
@@ -204,9 +214,13 @@ The `type` field (`input`|`button`|`link`|`select`|`checkbox`) is metadata that 
 2. Observe the result — did the expected thing happen?
 3. If the app responds with an unexpected popup, cookie banner, or overlay — handle it per `agents/core/quality-gates.md` Section 5
 
-### 4.5: Verify — Did It Work?
+### 4.5: Apply Bug Detection Gate — MANDATORY
 
-**If YES (interaction succeeded):**
+**HARD STOP: After EVERY interaction, MUST apply the 3-Question Decision Gate from `agents/core/bug-detection-rules.md`. DO NOT skip this. The gate determines whether to ADAPT (fix test) or FLAG (report potential bug).**
+
+Read `framework-config.json` for `exploration.maxAttemptsPerStep` (default: 3).
+
+**If verdict is ADAPT:**
 - Record: the selector that worked, the method that worked, any observed wait patterns
 - Proceed to Step 4.6 (Write Code)
 
@@ -324,6 +338,77 @@ After exploration is complete, you MUST have produced ALL of the following files
 ### Hybrid Scenarios:
 
 Same as web, but spec goes to `output/tests/hybrid/`.
+
+### ALL Scenarios — Enriched Scenario Feedback:
+
+| File | Location | MANDATORY? |
+|------|----------|-----------|
+| Enriched scenario | `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | **YES — if high-level steps were expanded** |
+
+---
+
+## 6b. Enriched Scenario — MANDATORY Feedback Loop
+
+### Creation Rules — HARD STOP
+
+| Condition | Action |
+|-----------|--------|
+| `{scenario}.enriched.md` does NOT exist | **MUST create it** after exploration with discovered details |
+| `{scenario}.enriched.md` ALREADY exists | **MUST NOT modify it** — user owns it. Read it as input only |
+
+Save to: `scenarios/{type}/[{folder}/]{scenario}.enriched.md`
+
+**HARD RULES:**
+- **MUST NOT overwrite the original scenario .md** — user's input is ALWAYS preserved
+- **MUST NOT modify an existing enriched file** — once created, it belongs to the user
+- **MUST create enriched file on FIRST exploration** regardless of whether input came from user or Enrichment Agent
+- On re-runs where enriched.md exists: read it as input, DO NOT create a new one
+
+### Marking Tags — MANDATORY
+
+Every step in the enriched file MUST have exactly one provenance tag:
+- `<!-- ORIGINAL -->` — step from user's scenario, unchanged
+- `<!-- EXPANDED from: "{original step text}" -->` — high-level step broken into specifics
+- `<!-- DISCOVERED -->` — new step not in original scenario at all
+
+### Detail Level Header — MUST include at top of enriched file
+
+```markdown
+## Detail Level: EXPLORER-VERIFIED
+Steps verified during live exploration on {date}.
+ORIGINAL/EXPANDED/DISCOVERED tags show provenance.
+User may edit this file. Explorer-Builder will NOT modify it on future runs.
+```
+
+**Example:**
+```markdown
+## Steps
+1. Navigate to {{ENV.BASE_URL}}
+2. Login with {{ENV.TEST_USERNAME}}
+3. Click "Products" in navigation
+4. Search for "Widget Pro" in search bar   <!-- DISCOVERED -->
+5. Click on "Widget Pro" from search results   <!-- DISCOVERED -->
+6. Select size "Large" from size dropdown   <!-- DISCOVERED -->
+7. Click "Add to Cart"
+8. VERIFY: Cart badge shows "1"
+<!-- ORIGINAL: "Fill payment details" expanded to steps 12-16 -->
+12. Fill card number with {{ENV.TEST_CARD}}   <!-- DISCOVERED -->
+13. Fill expiry date with "12/28"   <!-- DISCOVERED -->
+14. Fill CVV with "123"   <!-- DISCOVERED -->
+15. Fill billing zip with "90210"   <!-- DISCOVERED -->
+16. Click "Place Order"   <!-- DISCOVERED -->
+17. VERIFY: Order confirmation displayed
+```
+
+**When NOT to create an enriched copy:**
+- If the original scenario was already detailed (all steps match exploration — no expansion needed)
+- If the scenario is API-only (no browser exploration to discover new steps)
+
+**Why this matters:**
+1. Future re-runs of the SAME scenario use the enriched version (more accurate, fewer retries)
+2. Users see what the Explorer-Builder actually did (transparency)
+3. `scenario-diff.js` works correctly because the scenario matches the spec
+4. The enriched scenario becomes the living documentation of the test
 
 ---
 

@@ -17,9 +17,10 @@ If the input is already a structured scenario `.md` file with clear steps → **
 | # | File | Why | MANDATORY? |
 |---|------|-----|-----------|
 | 1 | `agents/shared/keyword-reference.md` | Know what keywords are available (VERIFY, CAPTURE, etc.) | **YES** |
-| 2 | `agents/shared/type-registry.md` | Know what scenario types exist (web, api, hybrid) | **YES** |
-| 3 | `scenarios/_template.md` | The target output format | **YES** |
-| 4 | App-context (if exists) | `scenarios/app-contexts/{app}.md` — know the app's patterns | **YES — if file exists** |
+| 2 | `agents/shared/type-registry.md` | Know what scenario types exist (web, api, hybrid, mobile) | **YES** |
+| 3 | `scenarios/_template.md` | The general output format | **YES** |
+| 4 | Type-specific template | Read AFTER determining type: `scenarios/web/_template.md`, `scenarios/api/_template.md`, `scenarios/hybrid/_template.md`, or `scenarios/mobile/_template.md` | **YES — MUST read the template for the specific type being generated** |
+| 5 | App-context (if exists) | `scenarios/app-contexts/{app}.md` — know the app's patterns | **YES — if file exists** |
 
 ---
 
@@ -160,7 +161,50 @@ When the user describes a mobile test scenario:
 8. Swipe up to scroll to the Reports section
 ```
 
-### 4.7: Scenario Size Guidance
+### 4.7: Single vs Multi-Scenario Decision — MANDATORY
+
+When the user's input could map to multiple test scenarios, **MUST decide the output format:**
+
+| Condition | Decision | Output |
+|-----------|----------|--------|
+| Steps form ONE continuous flow (each depends on previous) | **Single scenario** | One `.md` file with sequential steps |
+| Steps are INDEPENDENT flows on the SAME feature (shared setup, run in any order) | **Multi-scenario .md** | One file with `### Scenario:` blocks + Common Setup/Teardown |
+| Steps are INDEPENDENT flows on DIFFERENT features | **Separate scenario files** | Multiple `.md` files |
+| Flow A produces data that Flow B needs | **Separate files with dependency** | File A uses SAVE, File B uses `Depends On:` in metadata |
+
+**Decision priority:**
+1. **Default to single scenario** unless there are clear independence signals
+2. If the user says "test X and Y" where X and Y share no state → separate files
+3. If the user says "test X and Y" where X and Y share login/setup → multi-scenario .md
+4. **If ambiguous → ASK:** "Should 'login' and 'checkout' be one end-to-end flow, or two independent tests?"
+
+**For separate files:** Name each file descriptively and note dependencies:
+```
+scenarios/web/user-create.md          (Produces: userId via SAVE)
+scenarios/web/user-verify-profile.md  (Depends On: user-create)
+```
+
+### 4.7b: Detail Level Honesty — MANDATORY
+
+**Be honest about what you know and what you don't:**
+
+| Detail level | What Enrichment Agent produces | What Explorer-Builder does |
+|-------------|-------------------------------|---------------------------|
+| **User gives one-liner** ("test checkout") | HIGH-LEVEL steps with common patterns — marked as assumptions | Discovers actual navigation, fields, interactions LIVE |
+| **User gives medium detail** ("login, add Widget Pro, pay by invoice") | MEDIUM steps with specific items — fewer assumptions | Fills remaining gaps (exact selectors, wait patterns) |
+| **User gives full detail** (every click, fill, verify) | PASSTHROUGH — no enrichment needed | Verifies and writes code |
+
+**MUST add a `## Detail Level` note in every enriched scenario:**
+```markdown
+## Detail Level: HIGH-LEVEL (Explorer-Builder will discover specifics)
+Steps below are based on common patterns. The Explorer-Builder will explore the
+actual application and may expand, reorder, or add steps based on what it discovers.
+An enriched version will be saved at {scenario}.enriched.md after exploration.
+```
+
+This sets the right expectation — the enriched scenario is a STARTING POINT, not the final specification. The Explorer-Builder produces the `.enriched.md` with actual discovered steps.
+
+### 4.8: Scenario Size Guidance
 
 If the natural language description would produce a scenario with **40+ steps:**
 - **MUST** inform the user: "This scenario is long (~N steps). The Explorer-Builder may need subagent splitting. Consider breaking it into 2-3 smaller scenarios."
