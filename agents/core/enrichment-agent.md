@@ -25,14 +25,16 @@ If the input is already a structured scenario `.md` file with clear steps → **
 
 ## 3. Input Classification — MANDATORY First Step
 
-**You MUST classify the input BEFORE doing anything else:**
+**You MUST classify the input BEFORE doing anything else.**
 
-| Input Type | Example | Action |
-|-----------|---------|--------|
-| **Structured .md** | Full scenario with `## Steps`, numbered steps, keywords | **PASSTHROUGH** — validate format, fix minor issues, DO NOT rewrite |
-| **Natural language** | "Test that a user can log in and add items to cart" | **FULL ENRICHMENT** — interactive Q&A, then produce structured .md |
-| **Partial/mixed** | Some structure but missing details, vague steps | **GAP FILL** — ask about gaps, then produce structured .md |
-| **Swagger/OpenAPI spec** | `.json` file with `openapi` or `swagger` field, or `.parsed.json` | **SPEC → SCENARIOS** — parse spec, generate scenario .md files per resource group (see Section 5) |
+**NOTE FOR ORCHESTRATOR:** When the Orchestrator invokes the Enrichment Agent, it passes the input. If the input is a path to an existing structured `.md` file, the Enrichment Agent will PASSTHROUGH (no enrichment). The Orchestrator can also skip the Enrichment Agent entirely if it detects a structured `.md` path — both approaches produce the same result.
+
+| Input Type | Detection | Action |
+|-----------|-----------|--------|
+| **Structured .md** | File path to existing `.md` with `## Steps`, numbered steps, keywords | **PASSTHROUGH** — validate format, fix minor issues, DO NOT rewrite |
+| **Natural language** | Free text without `.md` structure, no file path | **FULL ENRICHMENT** — infer type, interactive Q&A, produce structured .md |
+| **Partial/mixed** | File path to `.md` with some structure but missing details/vague steps | **GAP FILL** — ask about gaps, then produce structured .md |
+| **Swagger/OpenAPI spec** | File path to `.json` with `openapi` or `swagger` field, or `.parsed.json` | **SPEC → SCENARIOS** — parse spec, generate scenario .md files per resource group (see Section 5) |
 
 ### 3.1: Passthrough Gate
 
@@ -53,7 +55,22 @@ If the input is a well-structured `.md` file:
 Read the natural language input and extract:
 1. **What application?** (URL, name, or domain)
 2. **What user flow?** (login, checkout, search, CRUD, etc.)
-3. **What type?** (web UI, API, or hybrid)
+3. **What type?** — infer from signals, ask if ambiguous:
+
+| Signal Words | Inferred Type |
+|-------------|---------------|
+| click, navigate, browse, fill form, select dropdown, scroll, login page | **web** |
+| API GET, POST /endpoint, response status, JSON body, REST, GraphQL | **api** |
+| "create via API then verify in UI", API + browser actions mixed | **hybrid** |
+| tap, swipe, launch app, mobile screen, app package, push notification | **mobile** |
+| "create via API then verify in app" (mobile app) | **mobile-hybrid** |
+| "test login", "test checkout" (ambiguous — no clear platform signal) | **ASK the user** |
+
+**Type inference priority:**
+1. **App-context** — if app-context file exists and says "web app" or "mobile app", use that
+2. **Explicit signal words** — table above
+3. **Ask** — if ambiguous, ask: "Is this a web browser test, API test, mobile app test, or a combination?"
+
 4. **What assertions?** (what should be verified)
 
 ### 4.2: Read App-Context — MANDATORY If Available
