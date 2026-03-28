@@ -167,8 +167,9 @@ If total steps ≤ `maxStepsPerChunk`:
 1. The entire scenario is ONE chunk
 2. Parent enters the Core Loop (Section 4) directly for all steps
 3. No subagents are spawned
-4. Proceed to Self-Audit (Section 5) after Core Loop completes
-5. This is equivalent to the pre-chunking behavior — **zero overhead for short scenarios**
+4. **CLOSE THE BROWSER** — Call `browser_close` via MCP after Core Loop completes. The browser is NOT needed for Self-Audit, enriched.md, report, or metrics generation. All observed data is already in your context.
+5. Proceed to Self-Audit (Section 5) after Core Loop completes
+6. This is equivalent to the pre-chunking behavior — **zero overhead for short scenarios**
 
 ### 3.7d: CHUNKED Mode (> maxStepsPerChunk steps) — Four Phases
 
@@ -231,12 +232,13 @@ After each subagent completes, parent MUST verify:
 **Phase 4 — Merge + Finalize (parent responsibility):**
 
 After ALL subagent chunks complete:
-1. **Verify spec completeness:** Count `test.step()` blocks in the spec vs scenario step count
-2. **Check for merge issues:** If multiple subagents added methods to the same page object, verify no duplicate method names
-3. **Run Self-Audit (Section 5)** on the MERGED output
-4. **Generate enriched.md** (Section 6b) from the combined exploration results
-5. **Generate explorer report** (Section 7) with chunk plan, all ledger entries, and per-chunk status
-6. **Generate metrics** (Section 8) with aggregated observability from all chunks
+1. **CLOSE THE BROWSER — MANDATORY:** Call `browser_close` via MCP to terminate the Chromium process. The browser is NOT needed for any remaining steps (code writing, reports, enriched.md). Keeping it open wastes 500MB-1GB+ of RAM and risks machine freeze during context-heavy output generation. **If `browser_close` fails, log the error and continue — do NOT retry or block on it.**
+2. **Verify spec completeness:** Count `test.step()` blocks in the spec vs scenario step count
+3. **Check for merge issues:** If multiple subagents added methods to the same page object, verify no duplicate method names
+4. **Run Self-Audit (Section 5)** on the MERGED output
+5. **Generate enriched.md** (Section 6b) from the combined exploration results — **this MUST happen BEFORE the explorer report**
+6. **Generate explorer report** (Section 7) with chunk plan, all ledger entries, and per-chunk status
+7. **Generate metrics** (Section 8) with aggregated observability from all chunks
 
 ### 3.7e: Subagent Failure Handling
 
@@ -249,14 +251,31 @@ After ALL subagent chunks complete:
 
 **CRITICAL: The parent MUST NEVER fill in missing steps from its own context.** If a subagent fails to explore steps 20-30, the parent marks those as NOT_EXPLORED. The parent does NOT attempt to explore them itself — its context is consumed by coordination. The report reflects the gap honestly. This is the anti-fabrication principle.
 
-### 3.7f: Subagent Spawning is MANDATORY — No Fallback
+### 3.7f: Subagent Spawning is MANDATORY — No Fallback, No Excuses
 
-**HARD STOP: In CHUNKED mode, subagent spawning is NOT optional. There is NO fallback to "parent executes all chunks."**
+**HARD STOP: In CHUNKED mode, subagent spawning is NOT optional. There is NO fallback to "parent executes all chunks." There is NO excuse that justifies the parent running chunks 2+.**
 
 - The Agent tool is available in Claude Code. The `step-explorer` subagent is available in VS Code Copilot. These are the platforms this framework runs on — subagent capability EXISTS.
 - If you encounter a technical error spawning a subagent (e.g., Agent tool returns an error), retry ONCE. If it fails again, mark the chunk as FAILED and continue to the next chunk. Do NOT silently switch to "parent executes all chunks."
 - **There is no "no-subagent fallback" mode.** If subagents cannot be spawned after retries, the report status is PARTIAL with the failed chunks documented. The parent does NOT attempt to run those chunks itself.
-- Any report that shows `Mode: CHUNKED (no-subagent fallback)` or `Executor: Parent (fallback)` for chunks beyond Chunk 1 is a violation of this rule.
+
+**Prohibited excuse patterns — these are NOT valid reasons to skip subagent spawning:**
+
+| Excuse | Why It's Invalid |
+|--------|-----------------|
+| `"single-agent context"` | Not a real constraint. The Agent tool spawns independent subagents with their own context. |
+| `"parent-direct due to context sharing"` | Subagents get their own context window. That's the entire point of chunking. |
+| `"executed as parent-direct for efficiency"` | Running 77 steps in one context is the OPPOSITE of efficient — it causes context exhaustion. |
+| `"subagent overhead avoided"` | The overhead of spawning subagents is trivial compared to the risk of context exhaustion. |
+| `"no subagent tool available"` | The Agent tool IS available. If it genuinely errors, mark chunks as FAILED — don't run them yourself. |
+
+**Report validation rule — ANY of these patterns in the explorer report indicate a violation:**
+- `Mode: CHUNKED (no-subagent fallback)` → VIOLATION
+- `Mode: CHUNKED (executed as parent-direct*)` → VIOLATION
+- `Executor: Parent (direct)` or `Executor: Parent (fallback)` for any chunk beyond Chunk 1 → VIOLATION
+- All chunks showing the same executor when total chunks > 1 → VIOLATION
+
+**Why this rule exists:** In a prior incident, the Explorer-Builder ran all 77 steps as `Parent (direct)` across 5 chunks with the excuse `"single-agent context"`. This consumed the entire context window, prevented `.enriched.md` generation, caused a role boundary violation (the agent started doing the Executor's job), and ultimately froze the machine.
 
 ---
 
@@ -533,22 +552,26 @@ Add the self-audit results to the Fidelity Summary section of the explorer repor
    ```
 4. If count > 0 → fix the raw selectors NOW before finishing.
 
-### 5.6: Output File Completeness — MANDATORY
+### 5.6: Output File Completeness — MANDATORY (Ordered)
 
-**HARD STOP: Before finishing, verify ALL mandatory output files exist:**
+**HARD STOP: Before finishing, produce ALL mandatory output files IN THIS ORDER. The order matters — earlier files are higher priority. If context is running low, the first files MUST exist even if later files are truncated.**
 
-| File | Mandatory? |
-|------|-----------|
-| `output/locators/*.json` (one per page discovered) | YES |
-| `output/pages/*.ts` (one per page discovered) | YES |
-| `output/tests/{type}/[{folder}/]{scenario}.spec.ts` | YES |
-| `output/test-data/{type}/{scenario}.json` | YES — must also be imported in spec |
-| `output/reports/explorer-report-{scenario}.md` | YES |
-| `output/reports/metrics/explorer-metrics-{scenario}.json` | YES |
-| `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | YES |
-| `scenarios/app-contexts/{app}.md` | YES (create or update) |
+**Generation order (MANDATORY — do NOT reorder):**
 
-If ANY mandatory file is missing → **DO NOT finish. Create it NOW.** The enriched.md file is especially critical — it must be generated during exploration, not as an afterthought.
+| Priority | File | Mandatory? |
+|----------|------|-----------|
+| 1 | `output/locators/*.json` (one per page discovered) | YES |
+| 2 | `output/pages/*.ts` (one per page discovered) | YES |
+| 3 | `output/tests/{type}/[{folder}/]{scenario}.spec.ts` | YES |
+| 4 | `output/test-data/{type}/{scenario}.json` | YES — must also be imported in spec |
+| 5 | `scenarios/{type}/[{folder}/]{scenario}.enriched.md` | **YES — generate BEFORE the explorer report** |
+| 6 | `scenarios/app-contexts/{app}.md` | YES (create or update) |
+| 7 | `output/reports/explorer-report-{scenario}.md` | YES |
+| 8 | `output/reports/metrics/explorer-metrics-{scenario}.json` | YES |
+
+**Why enriched.md (priority 5) comes before the explorer report (priority 7):** The enriched.md is consumed by future pipeline runs — it's a durable artifact. The explorer report is consumed by the current pipeline run's Reviewer. If context is exhausted, a missing enriched.md breaks future runs permanently, while a missing explorer report only affects the current run's review stage.
+
+If ANY mandatory file is missing → **DO NOT finish. Create it NOW.**
 
 **Test data usage rule:** If a test-data JSON file is generated, the spec MUST import and use it. Dead test data files (generated but never imported) are a code quality violation. All hardcoded values in the spec that exist in the test data JSON MUST be replaced with `testData.fieldName` references.
 
@@ -848,7 +871,29 @@ If you detect context is running low (60%+ consumed) AND unexplored steps remain
 
 ---
 
-## 10. Platform Compatibility
+## 10. Role Boundary — HARD STOP
+
+**You are the Explorer-Builder. Your job ENDS after producing the output files listed in Section 6. You MUST NOT perform work belonging to other agents.**
+
+**PROHIBITED actions — if you catch yourself doing ANY of these, STOP IMMEDIATELY:**
+
+| Action | Belongs To | Why It's Prohibited |
+|--------|-----------|-------------------|
+| Running `npx playwright test` or any test execution command | **Executor** | You explore and write code. You do NOT run tests. |
+| Running `npx tsc --noEmit` or type-checking | **Executor** (pre-flight) | Type-checking is the Executor's pre-flight responsibility. |
+| Editing the spec file to fix test failures | **Executor** | You write code from exploration. Fixing runtime failures is the Executor's job. |
+| Producing an executor report | **Executor** | You produce an explorer report. Only the Executor produces executor reports. |
+| Running `node scripts/review-precheck.js` | **Reviewer** | The precheck script is the Reviewer's evidence collection step. |
+| Producing a review scorecard | **Reviewer** | Quality auditing is the Reviewer's job. |
+| Producing a pipeline summary | **Orchestrator** | Pipeline coordination and summary is the Orchestrator's job. |
+
+**Why this rule exists:** In a prior incident, the Explorer-Builder consumed its full context exploring 77 steps, then continued past its boundary — running test execution commands 15+ times, editing the spec, and producing an executor report. This caused machine freeze (resource exhaustion from subprocess spawning on top of an already-overloaded context with a live browser). The `.enriched.md` file was never created because the agent spent its remaining capacity on work that wasn't its job.
+
+**If you have finished exploration and produced all Section 6 output files, you are DONE. Return control to the Orchestrator. Do NOT continue to the next pipeline stage.**
+
+---
+
+## 11. Platform Compatibility
 
 - **MUST** use `path.join()` for all file paths — NEVER hardcode `/` or `\`
 - All generated code MUST run on Windows, Linux, and macOS
