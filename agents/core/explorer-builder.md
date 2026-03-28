@@ -249,13 +249,14 @@ After ALL subagent chunks complete:
 
 **CRITICAL: The parent MUST NEVER fill in missing steps from its own context.** If a subagent fails to explore steps 20-30, the parent marks those as NOT_EXPLORED. The parent does NOT attempt to explore them itself — its context is consumed by coordination. The report reflects the gap honestly. This is the anti-fabrication principle.
 
-### 3.7f: No-Subagent Fallback
+### 3.7f: Subagent Spawning is MANDATORY — No Fallback
 
-If the platform does not support subagent spawning (no Agent tool available):
-1. Parent runs Core Loop directly for ALL chunks **sequentially**
-2. Between chunks, parent saves a checkpoint: current step number, files created, storageState
-3. If context pressure causes exploration to stop, parent follows Section 9 error handling (partial report with NOT_EXPLORED steps)
-4. This is the **degraded mode** — it may still face the fabrication problem for very long scenarios, but the explicit chunk boundaries provide natural save points
+**HARD STOP: In CHUNKED mode, subagent spawning is NOT optional. There is NO fallback to "parent executes all chunks."**
+
+- The Agent tool is available in Claude Code. The `step-explorer` subagent is available in VS Code Copilot. These are the platforms this framework runs on — subagent capability EXISTS.
+- If you encounter a technical error spawning a subagent (e.g., Agent tool returns an error), retry ONCE. If it fails again, mark the chunk as FAILED and continue to the next chunk. Do NOT silently switch to "parent executes all chunks."
+- **There is no "no-subagent fallback" mode.** If subagents cannot be spawned after retries, the report status is PARTIAL with the failed chunks documented. The parent does NOT attempt to run those chunks itself.
+- Any report that shows `Mode: CHUNKED (no-subagent fallback)` or `Executor: Parent (fallback)` for chunks beyond Chunk 1 is a violation of this rule.
 
 ---
 
@@ -843,7 +844,7 @@ If you detect context is running low (60%+ consumed) AND unexplored steps remain
 5. **MUST** save metrics with `"reportStatus": "PARTIAL"` and `"stepsNotExplored": {count}`
 6. **MUST NOT generate code for unexplored steps.** Any `test.step()` block in the spec for a step that has no corresponding ledger entry is **fabrication**. This is the hardest rule in the framework.
 
-**Prevention:** Chunked execution (Section 3.7) is the PRIMARY prevention mechanism. With maxStepsPerChunk=15 and subagent spawning, no single context window handles more than 15 steps of Core Loop execution. Context exhaustion should only occur in DIRECT mode (short scenarios) or the no-subagent fallback.
+**Prevention:** Chunked execution (Section 3.7) is the PRIMARY prevention mechanism. With maxStepsPerChunk=15 and mandatory subagent spawning, no single context window handles more than 15 steps of Core Loop execution. Context exhaustion should only occur in DIRECT mode (short scenarios ≤ 15 steps).
 
 ---
 
