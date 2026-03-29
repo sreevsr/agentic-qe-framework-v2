@@ -577,20 +577,26 @@ Before creating ANY new file, you MUST check if it already exists:
 
 ---
 
-## 13. Browser Interaction via MCP
+## 13. Locator JSON Input — How the Builder Uses Scout Data
 
-The Builder uses the Playwright MCP server. Exact tool names depend on the server implementation, but operations map to:
+**The Builder does NOT use MCP or open a browser.** All element selectors come from Scout-produced locator JSON files in `output/locators/`.
 
-| Operation | What It Does | When to Use |
-|-----------|-------------|-------------|
-| Navigate | Open URL | Navigation steps |
-| Snapshot | Get page state (DOM/accessibility tree) | Before identifying elements |
-| Click | Click element by selector | Interaction steps |
-| Fill | Type text into input | Input steps |
-| Screenshot | Capture visual state | On failure or SCREENSHOT keyword |
-| Evaluate | Run JavaScript in page | Custom waits, data extraction |
+When generating page object methods, the Builder reads locator keys from the JSON:
 
-**Token efficiency:** Prefer accessibility tree snapshot over full DOM. Only request full DOM when accessibility tree lacks needed information (SVG elements, custom attributes).
+```json
+// output/locators/login-page.locators.json
+{
+  "signupEmailInput": {
+    "primary": ".signup-form input[name='email']",
+    "fallbacks": ["#signup-email", "[data-testid='signup-email']"],
+    "type": "input"
+  }
+}
+```
+
+The Builder generates code that uses `this.loc.get('signupEmailInput')` — NEVER the raw selector string. If a locator key referenced in the enriched.md does not exist in the JSON file, generate `test.fixme('MISSING ELEMENT: ...')`.
+
+**If `interactionNotes` is present in the locator entry**, use that pattern in the generated page object method. For example, if the notes say "Click to open popup, then click li.k-item", generate the multi-step interaction rather than a simple click.
 
 ---
 
