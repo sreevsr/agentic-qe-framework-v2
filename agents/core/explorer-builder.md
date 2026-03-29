@@ -132,6 +132,15 @@ When the Orchestrator invokes you, it provides:
 
 **If `CHUNK = 1 of 1` (DIRECT mode):** You are the only chunk. Explore all steps, close the browser, run Self-Audit (Section 5), generate enriched.md (Section 6b), explorer report (Section 7), and metrics (Section 8). This is the only case where you produce the full output.
 
+### Platform-Specific Behavior
+
+| Platform | Chunking | Context per chunk | Key risk |
+|----------|----------|-------------------|----------|
+| Claude Code | Orchestrator spawns N subagents, each with fresh context | ~200K tokens | Low — observations stay fresh |
+| VS Code Copilot | Single agent, no subagent spawning, DIRECT mode always | Shared, limited | **HIGH — observations from early steps are compressed out before code generation** |
+
+**On Copilot (or any single-context platform):** The per-step file write rule in Section 4.6 is your ONLY defense against context loss. You MUST write code to disk after EACH step — not in batches, not at the end. MCP snapshots from step 1 WILL be gone by the time you reach step 20. If the code for step 1 isn't already on disk, you will generate it from imagination and it will be wrong.
+
 ---
 
 ## 3.8. Interaction Ledger Protocol — MANDATORY Anti-Fabrication Enforcement
@@ -327,17 +336,34 @@ Read `framework-config.json` for `exploration.maxAttemptsPerStep` (default: 3).
 5. **MUST NOT** take an alternative flow not in the scenario
 6. **MUST NOT** change the scenario to match what the app does
 
-### 4.6: Write Code — IMMEDIATELY After Verification
+### 4.6: Write Code — IMMEDIATELY After Verification (Per-Step File Writes)
 
-**MANDATORY: Write code for each step IMMEDIATELY after verifying it works. DO NOT accumulate steps and write code later. DO NOT wait until all steps are explored.**
+**HARD STOP: Write code to DISK for each step IMMEDIATELY after verifying it works. This is the most critical rule in the entire Explorer-Builder. Violating this rule makes the generated code worthless.**
 
-Write three things per verified step:
+**WHY this rule exists — context compression destroys observations:**
 
-**A. Locator JSON entry** → `output/locators/{page-name}.locators.json`
-**B. Page object method** → `output/pages/{PageName}Page.ts`
-**C. Spec test.step() block** → `output/tests/{type}/[{folder}/]{scenario}.spec.ts`
+MCP snapshots (DOM trees, accessibility data) are LARGE — each snapshot can be thousands of tokens. If you explore 20 steps and accumulate all snapshots in context before writing code, the observations from early steps WILL be compressed or evicted from your context window. When you then try to generate code for step 1, the selector you verified is GONE from context. You end up guessing — generating code from imagination instead of from observation. This produces code where every step fails.
 
-**For the exact format and rules for each, read `agents/core/code-generation-rules.md` — MANDATORY.**
+**File writes are durable. Context is not.** Once you write a selector to `locators.json` on disk, it survives context compression. If you keep it only in your context, it will be lost.
+
+**The rule — ZERO exceptions:**
+
+```
+FOR EACH STEP in your range:
+  1. Explore the step in the live browser (MCP interaction)
+  2. Verify it worked (snapshot, check result)
+  3. Write to disk NOW — all three files:
+     A. Locator JSON entry → output/locators/{page-name}.locators.json
+     B. Page object method → output/pages/{PageName}Page.ts
+     C. Spec test.step() block → output/tests/{type}/[{folder}/]{scenario}.spec.ts
+  4. ONLY THEN move to the next step
+```
+
+**DO NOT batch.** Do not explore steps 1-10 and then write code for steps 1-10. Do not explore all steps and then generate all code. Do not "collect observations first and write code later." Every one of these patterns leads to context loss and fabricated code.
+
+**DO NOT treat this as optional.** The per-step write pattern is what makes v2 produce correct code. Without it, v2 degenerates to guessing selectors from scenario text — exactly like v1.
+
+**For the exact format and rules for each file, read `agents/core/code-generation-rules.md` — MANDATORY.**
 
 **Before creating a new page object or locator file:** Check if one already exists (see `agents/core/code-generation-rules.md` Section 9). If `LoginPage.ts` exists, **ADD methods** — DO NOT create `LoginPage2.ts`. If `login-page.locators.json` exists, **ADD entries** — DO NOT overwrite.
 

@@ -446,12 +446,47 @@ Where:
 - Each subagent gets its own context window — it does NOT see your history
 - **MUST pass minimum necessary context** to each subagent (file paths, scenario name, type, folder, language)
 - **MUST include instruction file read commands** in every subagent prompt — subagents don't inherit your reads
-- If a subagent returns partial output (context exhaustion, timeout), add fallback warning:
-  > **Stage {N} was completed by the orchestrator due to subagent context exhaustion. Results may be less thorough.**
+
+### Subagent Failure — HARD STOP: DO NOT Fabricate
+
+**If a subagent returns partial output (context exhaustion, timeout), the Orchestrator MUST NOT complete the stage itself. The Orchestrator MUST NOT generate code, locators, page objects, or spec files.**
+
+| Subagent Result | Orchestrator Action |
+|----------------|---------------------|
+| COMPLETE | Proceed to next stage |
+| PARTIAL — some steps explored, code written for those steps | Log warning, proceed with what exists. Report shows PARTIAL. |
+| FAILED — no output | Log error, report INCOMPLETE. **DO NOT generate code yourself.** |
+| Context exhaustion mid-exploration | Same as PARTIAL — use what the subagent wrote to disk. **DO NOT "complete" the remaining steps.** |
+
+**Why this rule exists:** In a prior incident, the Orchestrator "completed Stage 1 directly" after a subagent context exhaustion — generating code from the scenario text without browser verification. Every step failed during Executor. The Orchestrator is NOT an Explorer — it cannot generate correct selectors because it has no browser access.
+
+**The correct response to subagent failure is INCOMPLETE, not fabrication.**
 
 ---
 
-## 10. Platform Compatibility
+## 10. Platform Awareness
+
+The framework runs on multiple platforms with different capabilities:
+
+| Platform | Subagent Spawning | Chunking Strategy | Recommended Max Steps |
+|----------|------------------|-------------------|-----------------------|
+| **Claude Code** | Agent tool — fresh context per subagent | Orchestrator spawns N Explorer-Builder instances (Section 6, Step 1d) | Unlimited (chunked) |
+| **VS Code Copilot** | No independent subagent spawning — same context | **DIRECT mode always** — single Explorer-Builder for full scenario | ~30 steps (Opus 4.6), ~15 steps (Sonnet 4.6) |
+
+**On VS Code Copilot:**
+1. Skip chunking entirely — delegate the full scenario to ONE Explorer-Builder invocation in DIRECT mode (`CHUNK = 1 of 1`)
+2. The Explorer-Builder's per-step file write rule (Section 4.6) is the primary defense against context loss
+3. Do NOT attempt to spawn subagent chunks — Copilot runs them in the same context, providing no benefit
+4. If the Explorer returns PARTIAL, report INCOMPLETE — do NOT attempt to generate code yourself
+
+**On Claude Code:**
+1. Use Orchestrator-driven chunking as defined in Section 6, Step 1d
+2. Each subagent gets a fresh context window via the Agent tool
+3. Per-step file writes are still important but less critical since context per chunk is large
+
+---
+
+## 11. Platform Compatibility
 
 - **MUST** use `path.join()` for all file paths
 - Provide both bash and PowerShell cleanup commands
