@@ -157,7 +157,8 @@ function injectScoutToolbar() {
       </div>
       <div id="scout-toolbar-body">
         <div id="scout-name-input-wrapper">
-          <input id="scout-name-input" type="text" placeholder="Page name (e.g., login-page, filter-panel)" />
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">Auto-named from URL. Override only if needed (e.g., filter-panel, user-modal):</div>
+          <input id="scout-name-input" type="text" placeholder="Leave empty for auto-name" />
           <button id="scout-name-confirm">Confirm & Scan</button>
         </div>
         <div id="scout-toolbar-buttons">
@@ -229,15 +230,34 @@ function injectScoutToolbar() {
   // ── Page name prompt flow ──
   let pendingAction = null;
 
+  function derivePageName() {
+    try {
+      const url = new URL(window.location.href);
+      let pathName = url.pathname.replace(/^\/+|\/+$/g, ''); // trim slashes
+      if (!pathName || pathName === '') pathName = 'home';
+      // Convert path to kebab-case page name: /user/photos → user-photos-page
+      return pathName.replace(/\//g, '-').replace(/[^a-zA-Z0-9-]/g, '') + '-page';
+    } catch {
+      return 'page-' + (window.__scoutStats.pages + 1);
+    }
+  }
+
   function promptForName(action) {
     pendingAction = action;
     nameWrapper.style.display = 'block';
-    nameInput.value = '';
-    nameInput.focus();
+    nameInput.value = derivePageName();
+    nameInput.select();
   }
 
   function confirmName() {
-    const name = nameInput.value.trim() || 'page-' + (window.__scoutStats.pages + 1);
+    let raw = nameInput.value.trim() || derivePageName();
+    // Sanitize: lowercase, replace spaces/special chars with hyphens, remove duplicates
+    const name = raw.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      || 'page-' + (window.__scoutStats.pages + 1);
     nameWrapper.style.display = 'none';
     window.__scoutPageName = name;
 
