@@ -24,7 +24,7 @@ Ensure your `.env` file has `BASE_URL` and any credentials needed to access the 
 
 ```bash
 cd output
-npx playwright test tools/scout.spec.ts --headed
+npx playwright test --config=tools/scout.config.ts
 ```
 
 The `--headed` flag is required — you need to see and interact with the browser.
