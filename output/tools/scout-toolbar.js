@@ -274,18 +274,20 @@ function injectScoutToolbar() {
     if (e.key === 'Enter') confirmName();
   });
 
-  // ── Scan button ──
+  // ── Scan button — auto-name from URL, no prompt ──
   btnScan.addEventListener('click', (e) => {
     e.stopPropagation();
-    promptForName('scan');
+    window.__scoutPageName = derivePageName();
+    window.__scoutAction = 'SCAN';
   });
 
   // ── Timed scan (5 second countdown) ──
-  function startTimedScan(name) {
+  // Flow: click Timed → countdown starts → scan fires → THEN ask for name
+  function startTimedCountdown() {
     let countdown = 5;
     btnTimed.classList.add('counting');
     btnTimed.textContent = countdown + 's';
-    showMessage('Position your mouse on the target element...');
+    showMessage('Move mouse to target element... scanning in 5s');
 
     const interval = setInterval(() => {
       countdown--;
@@ -295,16 +297,17 @@ function injectScoutToolbar() {
         btnTimed.classList.remove('counting');
         btnTimed.textContent = 'Timed 5s';
         msgEl.style.display = 'none';
-        window.__scoutPageName = name;
-        window.__scoutAction = 'SCAN';
+        // Scan fires first, then ask for name
+        window.__scoutTimedScanReady = true;
+        window.__scoutAction = 'TIMED_SCAN';
       }
     }, 1000);
   }
 
   btnTimed.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (btnTimed.classList.contains('counting')) return; // Already counting
-    promptForName('timed');
+    if (btnTimed.classList.contains('counting')) return;
+    startTimedCountdown();
   });
 
   // ── Done button ──

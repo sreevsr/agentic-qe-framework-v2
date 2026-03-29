@@ -708,7 +708,7 @@ function generateAppContext(scans: any[], appName: string, startUrl: string): st
 // TOOLBAR COMMUNICATION — Poll window.__scoutAction via page.evaluate
 // ============================================================================
 
-async function waitForToolbarAction(page: Page): Promise<{ type: 'scan' | 'done'; name: string }> {
+async function waitForToolbarAction(page: Page): Promise<{ type: 'scan' | 'timed_scan' | 'done'; name: string }> {
   return new Promise((resolve) => {
     const interval = setInterval(async () => {
       try {
@@ -728,11 +728,62 @@ async function waitForToolbarAction(page: Page): Promise<{ type: 'scan' | 'done'
             resolve({ type: 'done', name: 'done' });
           } else if (result.action === 'SCAN') {
             resolve({ type: 'scan', name: result.name || `page-${Date.now()}` });
+          } else if (result.action === 'TIMED_SCAN') {
+            resolve({ type: 'timed_scan', name: '' }); // Name will be asked after scan
           }
         }
       } catch {
         // Page might be navigating, retry on next poll
       }
+    }, CFG.pollInterval);
+  });
+}
+
+/**
+ * After a timed scan, ask the user for the page name via the toolbar.
+ * Shows the name input, waits for confirm, returns the name.
+ */
+async function waitForTimedScanName(page: Page): Promise<string> {
+  // Show the name input on the toolbar
+  await page.evaluate(() => {
+    const nameWrapper = document.getElementById('scout-name-input-wrapper');
+    const nameInput = document.getElementById('scout-name-input') as HTMLInputElement;
+    if (nameWrapper && nameInput) {
+      nameWrapper.style.display = 'block';
+      // Derive name from URL
+      try {
+        const url = new URL(window.location.href);
+        let pathName = url.pathname.replace(/^\/+|\/+$/g, '');
+        if (!pathName) pathName = 'home';
+        nameInput.value = pathName.replace(/\//g, '-').replace(/[^a-zA-Z0-9-]/g, '') + '-page';
+      } catch {
+        nameInput.value = 'page';
+      }
+      nameInput.select();
+      nameInput.focus();
+    }
+    (window as any).__scoutShowMessage('Scan captured! Enter a name for this page.', 0);
+  });
+
+  // Wait for the user to confirm the name
+  return new Promise((resolve) => {
+    const interval = setInterval(async () => {
+      try {
+        const name = await page.evaluate(() => {
+          const action = (window as any).__scoutAction;
+          const pageName = (window as any).__scoutPageName || '';
+          if (action === 'SCAN' && pageName) {
+            // confirmName() sets __scoutAction to SCAN and __scoutPageName
+            (window as any).__scoutAction = null;
+            return pageName;
+          }
+          return null;
+        });
+        if (name) {
+          clearInterval(interval);
+          resolve(name);
+        }
+      } catch { /* retry */ }
     }, CFG.pollInterval);
   });
 }
@@ -815,9 +866,17 @@ test.describe('Scout v2', () => {
         break;
       }
 
-      if (action.type === 'scan') {
-        const scanName = action.name;
-        console.log(`Scanning: "${scanName}" — ${page.url()}`);
+      if (action.type === 'scan' || action.type === 'timed_scan') {
+        // For timed scan: scan first, ask name after
+        // For regular scan: name was already provided via prompt
+        let scanName = action.name;
+        const isTimed = action.type === 'timed_scan';
+
+        if (isTimed) {
+          console.log(`Timed scan triggered — ${page.url()}`);
+        } else {
+          console.log(`Scanning: "${scanName}" — ${page.url()}`);
+        }
 
         try {
           const scan = await scanPage(page, scanName);
@@ -854,6 +913,14 @@ test.describe('Scout v2', () => {
           const warnings = scan.elements.filter((e: any) => e.hitAreaWarning);
           if (warnings.length > 0) {
             console.log(`  WARNING: ${warnings.length} hit-area mismatch(es)`);
+          }
+
+          // For timed scans, ask for the page name NOW (scan already captured)
+          if (isTimed) {
+            console.log(`  Scan captured. Waiting for page name...`);
+            scanName = await waitForTimedScanName(page);
+            scan.pageName = scanName;
+            console.log(`  Named: "${scanName}"`);
           }
 
           // Write locator JSON immediately (incremental — each scan produces a file)
