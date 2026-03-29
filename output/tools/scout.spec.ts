@@ -771,8 +771,11 @@ test.describe('Scout v2', () => {
     console.log('  Controls: Scan | Timed 5s | Done (floating toolbar)');
     console.log('=========================================================\n');
 
+    // Block Google ads that can interfere with navigation and element interactions
+    await page.route(/google(ads|tagservices|syndication|_vignette)|adservice|pagead|doubleclick/, route => route.abort());
+
     // Navigate to app
-    await page.goto(CFG.startUrl, { waitUntil: 'networkidle', timeout: CFG.pageLoadTimeout });
+    await page.goto(CFG.startUrl, { waitUntil: 'domcontentloaded', timeout: CFG.pageLoadTimeout });
     console.log(`Browser open at: ${CFG.startUrl}`);
 
     // Inject floating toolbar
