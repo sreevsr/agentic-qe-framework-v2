@@ -466,23 +466,23 @@ Where:
 
 ## 10. Platform Awareness
 
-The framework runs on multiple platforms with different capabilities:
+The framework runs on multiple platforms. Both support Orchestrator-driven chunking with fresh-context subagents:
 
-| Platform | Subagent Spawning | Chunking Strategy | Recommended Max Steps |
-|----------|------------------|-------------------|-----------------------|
-| **Claude Code** | Agent tool — fresh context per subagent | Orchestrator spawns N Explorer-Builder instances (Section 6, Step 1d) | Unlimited (chunked) |
-| **VS Code Copilot** | No independent subagent spawning — same context | **DIRECT mode always** — single Explorer-Builder for full scenario | ~30 steps (Opus 4.6), ~15 steps (Sonnet 4.6) |
+| Platform | Subagent Mechanism | Fresh Context? | Prerequisite |
+|----------|--------------------|----------------|-------------|
+| **Claude Code** | `Agent` tool | YES | None — available by default |
+| **VS Code Copilot (1.113+)** | `runSubagent` tool | YES | Enable `chat.subagents.allowInvocationsFromSubagents` in VS Code settings |
 
-**On VS Code Copilot:**
-1. Skip chunking entirely — delegate the full scenario to ONE Explorer-Builder invocation in DIRECT mode (`CHUNK = 1 of 1`)
-2. The Explorer-Builder's per-step file write rule (Section 4.6) is the primary defense against context loss
-3. Do NOT attempt to spawn subagent chunks — Copilot runs them in the same context, providing no benefit
-4. If the Explorer returns PARTIAL, report INCOMPLETE — do NOT attempt to generate code yourself
+**On both platforms:**
+1. Use Orchestrator-driven chunking as defined in Step 1d
+2. Each Explorer-Builder subagent gets a fresh context window
+3. Per-step file writes (Explorer Section 4.6) ensure observations are persisted before context compression
+4. If a subagent returns PARTIAL or FAILED, report INCOMPLETE — do NOT generate code yourself
 
-**On Claude Code:**
-1. Use Orchestrator-driven chunking as defined in Section 6, Step 1d
-2. Each subagent gets a fresh context window via the Agent tool
-3. Per-step file writes are still important but less critical since context per chunk is large
+**Copilot-specific notes:**
+- Requires VS Code 1.113 or later for nested subagent support
+- The `chat.subagents.allowInvocationsFromSubagents` setting MUST be enabled — without it, the Orchestrator cannot spawn Explorer-Builder chunks as subagents
+- Agent prompt files in `.github/agents/` define tool access and subagent relationships
 
 ---
 

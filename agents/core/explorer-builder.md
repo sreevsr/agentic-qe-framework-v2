@@ -134,12 +134,12 @@ When the Orchestrator invokes you, it provides:
 
 ### Platform-Specific Behavior
 
-| Platform | Chunking | Context per chunk | Key risk |
-|----------|----------|-------------------|----------|
-| Claude Code | Orchestrator spawns N subagents, each with fresh context | ~200K tokens | Low — observations stay fresh |
-| VS Code Copilot | Single agent, no subagent spawning, DIRECT mode always | Shared, limited | **HIGH — observations from early steps are compressed out before code generation** |
+| Platform | Subagent Mechanism | Chunking | Fresh Context? |
+|----------|--------------------|----------|----------------|
+| Claude Code | `Agent` tool | Orchestrator spawns N Explorer-Builder instances | YES — each subagent gets fresh context |
+| VS Code Copilot (1.113+) | `runSubagent` tool | Orchestrator spawns N Explorer-Builder instances | YES — requires `chat.subagents.allowInvocationsFromSubagents` enabled in VS Code settings |
 
-**On Copilot (or any single-context platform):** The per-step file write rule in Section 4.6 is your ONLY defense against context loss. You MUST write code to disk after EACH step — not in batches, not at the end. MCP snapshots from step 1 WILL be gone by the time you reach step 20. If the code for step 1 isn't already on disk, you will generate it from imagination and it will be wrong.
+**On both platforms:** The per-step file write rule in Section 4.6 applies. Write code to disk after EACH step — not in batches, not at the end. Even with fresh context per chunk (~15 steps), writing per-step ensures observations are persisted before they can be compressed.
 
 ---
 
