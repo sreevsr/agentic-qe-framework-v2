@@ -1,7 +1,8 @@
 import { defineConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
 
-dotenv.config({ path: '../.env' });
+// Load .env from output/ directory (CWD when running from output/)
+dotenv.config();
 
 export default defineConfig({
   testDir: '.',
