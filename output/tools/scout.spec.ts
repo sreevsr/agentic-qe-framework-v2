@@ -37,9 +37,27 @@ import * as path from 'path';
 // CONFIGURATION
 // ============================================================================
 
+// Derive app name from BASE_URL: https://automationexercise.com/ → automationexercise
+function deriveAppName(url: string): string {
+  try {
+    const hostname = new URL(url).hostname; // e.g., automationexercise.com or devunify.ars.com
+    // Take first part of hostname, strip common suffixes
+    return hostname
+      .replace(/^www\./, '')
+      .split('.')[0]  // automationexercise, devunify
+      .replace(/[^a-zA-Z0-9-]/g, '')
+      .toLowerCase()
+      || 'app';
+  } catch {
+    return 'app';
+  }
+}
+
+const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
 const CFG = {
-  startUrl: process.env.BASE_URL || 'http://localhost:3000',
-  appName: process.env.SCOUT_APP_NAME || 'app',
+  startUrl: baseUrl,
+  appName: process.env.SCOUT_APP_NAME || deriveAppName(baseUrl),
   locatorsDir: path.join('.', 'locators'),
   scoutReportsDir: path.join('.', 'scout-reports'),
   toolbarScript: path.join('.', 'tools', 'scout-toolbar.js'),
@@ -336,9 +354,10 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
       seen.add(el);
 
       const htmlEl = el as HTMLElement;
-      const style = htmlEl.style;
-      const isHidden = style.display === 'none' || style.visibility === 'hidden' ||
-                       htmlEl.hidden || htmlEl.getAttribute('aria-hidden') === 'true';
+      const computed = window.getComputedStyle(htmlEl);
+      const isHidden = computed.display === 'none' || computed.visibility === 'hidden' ||
+                       htmlEl.hidden || htmlEl.getAttribute('aria-hidden') === 'true' ||
+                       computed.opacity === '0';
       const hasZeroSize = htmlEl.offsetWidth < 5 && htmlEl.offsetHeight < 5;
 
       results.push({
@@ -368,9 +387,18 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
   const filtered: RawElement[] = [];
   for (const el of rawElements) {
     if (el.isHidden || el.hasZeroSize) continue;
-    const key = `${el.tag}|${el.classes.join(',')}|${el.role}|${el.text.substring(0, 20)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    // Dedup key includes id/name/testid to avoid collapsing distinct inputs with same classes
+    const uniqueParts = [
+      el.tag,
+      el.id || '',
+      el.dataTestId || '',
+      el.ariaLabel || '',
+      el.classes.join(','),
+      el.role || '',
+      el.text.substring(0, 20),
+    ].join('|');
+    if (seen.has(uniqueParts)) continue;
+    seen.add(uniqueParts);
     filtered.push(el);
   }
 
@@ -964,41 +992,67 @@ test.describe('Scout v2', () => {
 
     // Generate all outputs
     if (allScans.length > 0) {
-      // 1. Page inventory JSON
+      // 1. Page inventory JSON — deduplicate pages with same name
+      const pageMap = new Map<string, { name: string; url: string; elements: number; libraries: string[]; locatorFile: string }>();
+      for (const s of allScans) {
+        const existing = pageMap.get(s.pageName);
+        if (existing) {
+          // Same page scanned twice — take the higher element count (merged locator file has both)
+          existing.elements = Math.max(existing.elements, s.elements.length);
+          existing.libraries = [...new Set([...existing.libraries, ...s.libraries])];
+        } else {
+          pageMap.set(s.pageName, {
+            name: s.pageName,
+            url: s.url,
+            elements: s.elements.length,
+            libraries: s.libraries,
+            locatorFile: `${s.pageName}.locators.json`,
+          });
+        }
+      }
+      const dedupedPages = Array.from(pageMap.values());
+      const dedupedTotalElements = dedupedPages.reduce((sum, p) => sum + p.elements, 0);
+
       const inventory = {
         app: CFG.appName,
         scannedAt: new Date().toISOString(),
-        pages: allScans.map(s => ({
-          name: s.pageName,
-          url: s.url,
-          elements: s.elements.length,
-          libraries: s.libraries,
-          locatorFile: `${s.pageName}.locators.json`,
-        })),
-        totalPages: allScans.length,
-        totalElements,
+        pages: dedupedPages,
+        totalPages: dedupedPages.length,
+        totalElements: dedupedTotalElements,
       };
 
       const inventoryPath = path.join(CFG.scoutReportsDir, `${CFG.appName}-page-inventory.json`);
       fs.writeFileSync(inventoryPath, JSON.stringify(inventory, null, 2), 'utf-8');
 
       // 2. Feasibility data JSON (raw metrics for LLM-generated report)
-      const feasibilityData = generateFeasibilityData(allScans, CFG.appName);
+      // Deduplicate scans: for pages scanned multiple times, keep the one with more elements
+      const scanMap = new Map<string, any>();
+      for (const s of allScans) {
+        const existing = scanMap.get(s.pageName);
+        if (!existing || s.elements.length > existing.elements.length) {
+          scanMap.set(s.pageName, s);
+        }
+      }
+      const dedupedScans = Array.from(scanMap.values());
+      const feasibilityData = generateFeasibilityData(dedupedScans, CFG.appName);
       const feasibilityPath = path.join(CFG.scoutReportsDir, `${CFG.appName}-feasibility-data.json`);
       fs.writeFileSync(feasibilityPath, JSON.stringify(feasibilityData, null, 2), 'utf-8');
 
-      // 3. App-context file (for Builder and Executor agents)
-      const appContextDir = path.join('..', 'scenarios', 'app-contexts');
+      // 3. App-context file from Scout discoveries
+      // Always written as {appName}-scout.md (separate from the main {appName}.md)
+      // User reviews and merges into the main app-context manually
+      const appContextDir = path.resolve(process.cwd(), '..', 'scenarios', 'app-contexts');
       fs.mkdirSync(appContextDir, { recursive: true });
-      const appContextPath = path.join(appContextDir, `${CFG.appName}.md`);
+      const scoutContextPath = path.join(appContextDir, `${CFG.appName}-scout.md`);
 
-      if (fs.existsSync(appContextPath)) {
-        // Don't overwrite existing app-context — it may have learned patterns from prior runs
-        console.log(`  App-context already exists: ${appContextPath} (preserved)`);
+      const appContext = generateAppContext(dedupedScans, CFG.appName, CFG.startUrl);
+      fs.writeFileSync(scoutContextPath, appContext, 'utf-8');
+
+      const mainContextPath = path.join(appContextDir, `${CFG.appName}.md`);
+      if (fs.existsSync(mainContextPath)) {
+        console.log(`  Scout app-context: ${scoutContextPath} (review and merge into ${CFG.appName}.md)`);
       } else {
-        const appContext = generateAppContext(allScans, CFG.appName, CFG.startUrl);
-        fs.writeFileSync(appContextPath, appContext, 'utf-8');
-        console.log(`  App-context created: ${appContextPath}`);
+        console.log(`  Scout app-context: ${scoutContextPath} (rename to ${CFG.appName}.md to use in pipeline)`);
       }
 
       console.log('=========================================================');
@@ -1010,7 +1064,7 @@ test.describe('Scout v2', () => {
       console.log(`    Locator files:     ${CFG.locatorsDir}/`);
       console.log(`    Page inventory:    ${inventoryPath}`);
       console.log(`    Feasibility data:  ${feasibilityPath}`);
-      console.log(`    App-context:       ${appContextPath}`);
+      console.log(`    App-context:       ${scoutContextPath}`);
       console.log('');
       console.log('  Next steps:');
       console.log('    1. Review locator JSONs in output/locators/');

@@ -235,8 +235,17 @@ function injectScoutToolbar() {
       const url = new URL(window.location.href);
       let pathName = url.pathname.replace(/^\/+|\/+$/g, ''); // trim slashes
       if (!pathName || pathName === '') pathName = 'home';
-      // Convert path to kebab-case page name: /user/photos → user-photos-page
-      return pathName.replace(/\//g, '-').replace(/[^a-zA-Z0-9-]/g, '') + '-page';
+      // Strip dynamic segments: /payment_done/2300 → payment_done, /product_details/1 → product-details
+      pathName = pathName
+        .split('/')
+        .filter(seg => !/^\d+$/.test(seg)) // remove pure numeric segments
+        .join('-');
+      // Convert underscores to hyphens, clean up
+      return pathName
+        .replace(/_/g, '-')
+        .replace(/[^a-zA-Z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        + '-page';
     } catch {
       return 'page-' + (window.__scoutStats.pages + 1);
     }
