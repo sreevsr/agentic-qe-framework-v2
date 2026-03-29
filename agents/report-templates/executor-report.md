@@ -131,7 +131,7 @@
 ### Unfixable Issues
 | Test Step | Root Cause | Cycles Attempted | Marker |
 |-----------|-----------|-----------------|--------|
-| Step 8 | Element not in DOM — needs Explorer-Builder re-exploration | 2 | test.fixme('UNFIXABLE: ...') |
+| Step 8 | Element not in DOM — needs Scout/Builder re-exploration | 2 | test.fixme('UNFIXABLE: ...') |
 [Or "None."]
 
 ### Helper Method Issues

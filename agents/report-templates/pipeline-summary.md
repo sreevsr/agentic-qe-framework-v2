@@ -20,7 +20,7 @@
 **Folder:** {folder-name | N/A}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Duration:** ~{N} minutes
-**Pipeline:** [Enrichment Agent] → Explorer-Builder → Executor → Reviewer [→ Healer]
+**Pipeline:** [Enrichment Agent] → Explorer/Builder → Executor → Reviewer [→ Healer]
 **Final Verdict:** APPROVED / APPROVED WITH CAVEATS / NEEDS FIXES / TESTS FAILING / INCOMPLETE
 **Test Results:** {N}/{total} passing ({N} failed, {N} test.fixme) — execution time ~{N}s
 **Quality Score:** {N}/{M} ({N}% — Reviewer verdict: {verdict})
@@ -34,7 +34,7 @@
 | Stage | Agent | Status | Duration | Notes |
 |-------|-------|--------|----------|-------|
 | 0 | Enrichment Agent | SKIPPED / COMPLETED | ~{N}min | {Passthrough / Enriched from NL / Swagger spec} |
-| 1 | Explorer-Builder | COMPLETED / PARTIAL | ~{N}min | {N} steps explored, {N} pages, {N} first-try, {N} blocked |
+| 1 | Explorer/Builder | COMPLETED / PARTIAL | ~{N}min | {N} steps explored, {N} pages, {N} first-try, {N} blocked |
 | 2 | Executor | COMPLETED / FAILING | ~{N}min | {N} cycles, {N} pre-flight fixes, {N} runtime fixes |
 | 3 | Reviewer | COMPLETED | ~{N}min | Score: {N}/{M}, Verdict: {APPROVED / NEEDS FIXES / TESTS FAILING} |
 
@@ -81,10 +81,10 @@
 ### Reports
 | File | Agent |
 |------|-------|
-| output/reports/explorer-report-{scenario}.md | Explorer-Builder |
+| output/reports/explorer-report-{scenario}.md | Explorer/Builder |
 | output/reports/executor-report-{scenario}.md | Executor |
 | output/reports/review-scorecard-{scenario}.md | Reviewer |
-| output/reports/metrics/explorer-metrics-{scenario}.json | Explorer-Builder |
+| output/reports/metrics/explorer-metrics-{scenario}.json | Explorer/Builder |
 | output/reports/metrics/executor-metrics-{scenario}.json | Executor |
 
 ---
@@ -131,7 +131,7 @@ Lifecycle hooks: beforeAll={Y/N/NA} beforeEach={Y/N/NA} afterEach={Y/N/NA} after
 
 ## 6. Critical Fixes Applied
 
-### Explorer-Builder Discoveries
+### Explorer/Builder Discoveries
 1. {Component/pattern discovered — e.g., "PCF grid filter icons are SVG, not IMG"}
 2. {Interaction fix — e.g., "Filter input requires pressSequentially instead of fill"}
 
@@ -179,7 +179,7 @@ cd output && npx playwright test --grep @{tag} --project=chrome
 | Agent | Duration | Notes |
 |-------|----------|-------|
 | Enrichment Agent | ~{N}min / SKIPPED | {notes} |
-| Explorer-Builder | ~{N}min | {N} chunks, {N} subagents spawned |
+| Explorer/Builder | ~{N}min | {N} chunks, {N} subagents spawned |
 | Executor | ~{N}min | {N} cycles, {N} test executions |
 | Reviewer | ~{N}min | {N} dimensions scored |
 | **Total Pipeline** | **~{N}min** | |

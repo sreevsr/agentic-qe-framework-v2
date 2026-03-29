@@ -78,9 +78,9 @@
 
 | # | Assumption | Why | Impact if Wrong |
 |---|-----------|-----|-----------------|
-| 1 | Login uses Microsoft SSO | App-context says SSO | Explorer-Builder will discover actual login flow |
-| 2 | Pagination uses standard next/prev buttons | Common pattern | Explorer-Builder will verify live |
-| 3 | Grid filters apply on Enter key | No info from user | Explorer-Builder may need to try Apply button |
+| 1 | Login uses Microsoft SSO | App-context says SSO | Explorer will discover actual login flow |
+| 2 | Pagination uses standard next/prev buttons | Common pattern | Explorer will verify live |
+| 3 | Grid filters apply on Enter key | No info from user | Explorer may need to try Apply button |
 [List EVERY assumption. Or "None — all details provided by user or app-context."]
 
 ---
@@ -120,8 +120,8 @@
 | Minimal assumptions needed | {0-1} | {explanation} |
 | **Overall confidence** | **{0.0-1.0}** | |
 
-{If confidence < 0.7: "User should review the generated scenario before running Explorer-Builder. Assumptions are listed above."}
-{If confidence >= 0.7: "Scenario is ready for Explorer-Builder."}
+{If confidence < 0.7: "User should review the generated scenario before running Explorer. Assumptions are listed above."}
+{If confidence >= 0.7: "Scenario is ready for Explorer."}
 
 ---
 
@@ -150,9 +150,9 @@
 
 ---
 
-## Notes for Explorer-Builder
+## Notes for Explorer
 
-{Any additional context that the Explorer-Builder should know:
+{Any additional context that the Explorer should know:
 - Known app quirks from app-context
 - Uncertain steps that may need live verification
 - Suggested pacing for slow components

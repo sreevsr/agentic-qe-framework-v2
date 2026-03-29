@@ -1,6 +1,6 @@
 # Explorer Report Template
 
-**Owner:** Explorer-Builder Agent
+**Owner:** Explorer Agent
 **Purpose:** Documents the exploration results — what was discovered, what was verified, what was blocked. This report is the manifest used by the Executor and Reviewer.
 
 **MANDATORY: Every section MUST be present with actual data. Use "None." or "No [X] detected." for empty sections — NEVER omit a section.**
@@ -19,7 +19,7 @@
 **Scenario:** {name}
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
-**Pipeline Stage:** Stage 1 — Explorer-Builder
+**Pipeline Stage:** Stage 1 — Explorer
 **Outcome:** COMPLETE / PARTIAL (reason: {auth failure / app crash / context exhaustion})
 **Steps:** {N}/{total} explored ({N} verified first-try, {N} retried, {N} blocked)
 **Pages Discovered:** {N} pages → {N} page objects, {N} locator files ({totalElements} elements)
