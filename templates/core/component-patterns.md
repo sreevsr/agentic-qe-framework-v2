@@ -4,7 +4,7 @@
 
 The selectors below are version-specific and WILL go stale as UI frameworks update. They exist solely to help humans understand HOW different component libraries structure their DOM — not as copy-paste patterns.
 
-**In v2, the Explorer-Builder discovers component patterns LIVE from the real app.** It does NOT need this reference. If you find yourself copying selectors from here into code, STOP — let the Explorer-Builder discover the current selectors instead.
+**In v2, the Explorer/Builder discovers component patterns LIVE from the real app.** It does NOT need this reference. If you find yourself copying selectors from here into code, STOP — let the Explorer/Builder discover the current selectors instead.
 
 **When this file is useful:**
 - Learning how Kendo/Fluent/MUI dropdowns work (conceptual understanding, not exact selectors)
@@ -13,7 +13,7 @@ The selectors below are version-specific and WILL go stale as UI frameworks upda
 
 **When this file is NOT useful:**
 - As a source of truth for selectors (they go stale)
-- As input for the Explorer-Builder (it uses app-context, not this file)
+- As input for the Explorer/Builder (it uses app-context, not this file)
 - As a substitute for live exploration
 
 ---

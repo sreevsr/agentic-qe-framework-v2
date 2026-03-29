@@ -40,7 +40,7 @@
 | username | {{ENV.TEST_USERNAME}} | From environment |
 | password | {{ENV.TEST_PASSWORD}} | From environment |
 
-## Notes for Explorer-Builder
+## Notes for Explorer
 - Mobile tests use Appium MCP for device interaction
 - Keyboard MUST be dismissed after typing (may block next element)
 - Permission dialogs (camera, location, notifications) may appear on first launch

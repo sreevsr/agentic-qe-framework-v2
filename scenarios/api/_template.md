@@ -42,7 +42,7 @@
 |-------|-------|-------|
 | apiToken | {{ENV.API_TOKEN}} | From environment |
 
-## Notes for Explorer-Builder
+## Notes for Explorer
 - API tests use Playwright's request fixture — NO browser needed
 - CAPTURE stores runtime values (IDs, tokens) for use in subsequent steps
 - If API Behavior is 'mock', persistence assertions may be adapted

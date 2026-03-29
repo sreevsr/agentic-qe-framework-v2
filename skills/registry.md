@@ -1,6 +1,6 @@
 # Skills Registry
 
-**MANDATORY: The Explorer-Builder MUST read this file before starting exploration. This is the authoritative index of ALL available skills. DO NOT guess capabilities — check this registry. DO NOT use a skill not listed here.**
+**MANDATORY: The Explorer/Builder MUST read this file before starting exploration. This is the authoritative index of ALL available skills. DO NOT guess capabilities — check this registry. DO NOT use a skill not listed here.**
 
 ## Three-Level Progressive Disclosure
 
@@ -151,6 +151,6 @@
 
 ## Code Patterns
 \`\`\`typescript
-// Example code the Explorer-Builder MUST generate
+// Example code the Explorer/Builder MUST generate
 \`\`\`
 ```

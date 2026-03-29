@@ -59,7 +59,7 @@
 | username | {{ENV.TEST_USERNAME}} | For UI login |
 | apiToken | {{ENV.API_TOKEN}} | For API steps |
 
-## Notes for Explorer-Builder
+## Notes for Explorer
 - Hybrid tests ALWAYS use BOTH { page, request } fixtures
 - The hybrid tag is REQUIRED for CI/CD filtering
 - API steps use request fixture (no browser), UI steps use browser

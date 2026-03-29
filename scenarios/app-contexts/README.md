@@ -4,8 +4,8 @@ Learned application patterns that persist across scenario runs. This is the self
 
 ## How It Works
 
-1. **First scenario for an app:** Explorer-Builder discovers patterns live, writes them to a new app-context file
-2. **Subsequent scenarios:** Explorer-Builder reads the app-context FIRST, tries known patterns before blind exploration
+1. **First scenario for an app:** Explorer discovers patterns live, writes them to a new app-context file
+2. **Subsequent scenarios:** Explorer reads the app-context FIRST, tries known patterns before blind exploration
 3. **Self-improving:** Each run may add new patterns — next run starts with more knowledge
 
 ## File Naming Convention
@@ -37,7 +37,7 @@ Learned application patterns that persist across scenario runs. This is the self
 - Test data or credentials (those go in .env and test-data/)
 - Scenario-specific logic (that belongs in the scenario .md)
 
-## Format: Reading (Explorer-Builder reads this)
+## Format: Reading (Explorer reads this)
 
 ```markdown
 # App Context: [App Name]
@@ -73,7 +73,7 @@ Learned application patterns that persist across scenario runs. This is the self
 - WebView: App has embedded WebView at [screen] — needs context switch
 ```
 
-## Format: Writing (Explorer-Builder adds these after exploration)
+## Format: Writing (Explorer adds these after exploration)
 
 ```markdown
 ## Learned Pattern: [Component/Behavior Name]

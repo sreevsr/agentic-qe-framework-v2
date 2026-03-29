@@ -334,7 +334,7 @@ process.env.BASE_URL
 
 **Scenario header:** `## API Behavior: mock` or `## API Behavior: live`
 
-- `mock` — API is non-persistent. Explorer-Builder or Executor may adapt tests for non-persistence (use existing IDs, accept mock responses).
+- `mock` — API is non-persistent. Explorer or Executor may adapt tests for non-persistence (use existing IDs, accept mock responses).
 - `live` or missing — API is real. All persistence/assertion guardrails apply with ZERO exceptions.
 - NEVER infer API behavior from the URL or API name. ONLY the explicit `## API Behavior` header controls this. This is NON-NEGOTIABLE.
 
@@ -400,7 +400,7 @@ test.describe('Feature Name', () => {
 
 ## Mobile Action Keywords — Mobile Scenario Mapping
 
-For mobile scenarios (type: `mobile` or `mobile-hybrid`), testers use mobile-specific verbs. The Explorer-Builder MUST translate these to the appropriate Appium/WDIO code:
+For mobile scenarios (type: `mobile` or `mobile-hybrid`), testers use mobile-specific verbs. The Explorer MUST translate these to the appropriate Appium/WDIO code:
 
 | Scenario writes | Maps to | Generated code (WDIO + Appium) |
 |----------------|---------|-------------------------------|

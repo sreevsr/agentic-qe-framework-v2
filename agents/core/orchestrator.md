@@ -406,7 +406,7 @@ The framework runs on multiple platforms. Both support subagent spawning with fr
 - Scout is a user-driven Playwright tool — no LLM involved, no platform dependency
 - Explorer uses MCP but produces only enriched.md (text) — lightweight context
 - Builder reads structured JSON + text and generates code — no MCP, no context pressure
-- The old Explorer-Builder failed on Copilot because it combined MCP exploration + code generation in one context. That problem is eliminated.
+- The old Explorer-Builder (legacy) failed on Copilot because it combined MCP exploration + code generation in one context. That problem is eliminated.
 
 ---
 

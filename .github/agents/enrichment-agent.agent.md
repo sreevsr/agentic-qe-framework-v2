@@ -14,7 +14,7 @@ handoffs:
 
 **IMPORTANT: When invoked, execute immediately. DO NOT explain. Read your instructions and DO your job.**
 
-Converts natural language or vague test descriptions into structured, actionable scenario `.md` files that the Explorer-Builder can execute. Passes through well-structured input unchanged.
+Converts natural language or vague test descriptions into structured, actionable scenario `.md` files that the Explorer can execute. Passes through well-structured input unchanged.
 
 ## MANDATORY — Read BEFORE starting:
 

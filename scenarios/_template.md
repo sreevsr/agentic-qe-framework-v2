@@ -96,13 +96,13 @@
 | password | {{ENV.TEST_PASSWORD}} | From environment |
 
 ## DATASETS
-<!-- Optional: Data-driven parameterized tests. Explorer-Builder explores first row only. -->
+<!-- Optional: Data-driven parameterized tests. Explorer explores first row only. -->
 <!-- | username        | password      | expectedResult | -->
 <!-- |-----------------|---------------|----------------| -->
 <!-- | standard_user   | secret_sauce  | success        | -->
 <!-- | locked_out_user | secret_sauce  | error          | -->
 
-## Notes for Explorer-Builder
+## Notes for Explorer
 - [Popups, iframes, slow-loading pages, dynamic elements]
 - [Known UI quirks — custom dropdowns, SVG icons, async grids]
 - [For API scenarios: no browser exploration needed]

@@ -29,8 +29,8 @@
 |-------|-------|-------|
 | username | {{ENV.TEST_USERNAME}} | From environment |
 
-## Notes for Explorer-Builder
-- The Explorer-Builder opens a live browser to verify each step
+## Notes for Explorer
+- The Explorer opens a live browser to verify each step
 - Selectors are discovered automatically — no need to specify CSS/XPath
 - Use VERIFY for assertions that MUST pass, VERIFY_SOFT for non-blocking checks
 - If the app has popups, iframes, or slow-loading components, note them here

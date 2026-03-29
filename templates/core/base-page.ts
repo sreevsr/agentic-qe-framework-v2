@@ -10,7 +10,7 @@ import { LocatorLoader } from './locator-loader';
  * - Screenshot and navigation utilities
  *
  * NOTE: UI framework-specific helpers (Fluent UI, MUI, Kendo, Ant Design, etc.)
- * are NOT in this file. In v2, the Explorer-Builder discovers component interaction
+ * are NOT in this file. In v2, the Explorer/Builder discovers component interaction
  * patterns live and writes them directly to page objects. For recurring patterns,
  * teams create *.helpers.ts files. For reference patterns, see
  * templates/core/component-patterns.md.

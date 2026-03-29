@@ -35,7 +35,7 @@ Thin verification layer. Runs generated tests, fixes minor timing/sequencing iss
 ## Quick Reference
 
 - **Method:** Run `npx playwright test` → parse results → fix timing → re-run (max 3 cycles)
-- **Key rule:** Selectors already verified by Explorer-Builder — failures are likely timing/sequencing
+- **Key rule:** Selectors already verified by Scout/Builder — failures are likely timing/sequencing
 - **HARD STOP:** After 3 cycles, if still failing → STOP and escalate with detailed report
 
 ## Platform Compatibility

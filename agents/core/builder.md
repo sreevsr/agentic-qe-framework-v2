@@ -283,6 +283,6 @@ The Builder has **ZERO context pressure from MCP snapshots.** Its entire input i
 - One locator JSON per page section (~30-80 lines each, loaded one at a time)
 - Code generation rules (~500 lines, read once)
 
-Total context for a 77-step scenario: ~2000 lines of structured text. Compare to the old Explorer-Builder which held 77 steps of MCP DOM snapshots (~50K-100K tokens) PLUS code generation rules PLUS the code being written.
+Total context for a 77-step scenario: ~2000 lines of structured text. Compare to the old Explorer-Builder (legacy) which held 77 steps of MCP DOM snapshots (~50K-100K tokens) PLUS code generation rules PLUS the code being written.
 
 This is why the Builder produces correct code on ANY platform — Claude Code, Copilot, even smaller models. No MCP, no context pressure, no fabrication risk.

@@ -1,6 +1,6 @@
 ---
 name: QE Orchestrator
-description: "One-command pipeline: [Enrichment] → Explorer-Builder → Executor → Reviewer. Coordinates all agents."
+description: "One-command pipeline: [Enrichment] → Explorer → Builder → Executor → Reviewer. Coordinates all agents."
 tools: ['agent', 'edit/editFiles', 'vscode/runCommand', 'search', 'read']
 agents: ['QE Explorer', 'QE Builder', 'QE Executor', 'QE Enricher', 'QE Reviewer']
 model: ['claude-opus-4-6', 'o4-mini']

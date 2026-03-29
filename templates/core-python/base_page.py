@@ -6,7 +6,7 @@ Every generated page object extends this class. Provides:
 - Common interaction methods with Playwright auto-waiting
 - Screenshot and navigation utilities
 
-UI framework-specific helpers are NOT here. The Explorer-Builder discovers
+UI framework-specific helpers are NOT here. The Explorer/Builder discovers
 component patterns live. For reference patterns, see component-patterns.md.
 """
 

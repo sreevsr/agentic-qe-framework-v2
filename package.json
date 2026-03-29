@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe-framework-v2",
   "version": "2.0.0",
-  "description": "Agentic QE Framework v2 — AI-powered test automation with Explorer-Builder architecture",
+  "description": "Agentic QE Framework v2 — AI-powered test automation with Explorer/Builder architecture",
   "private": true,
   "scripts": {
     "setup": "node setup.js",

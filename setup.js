@@ -392,7 +392,7 @@ function runValidation() {
     console.log('Next steps:');
     console.log('  1. Edit output/.env with your application credentials');
     console.log('  2. Place scenarios in scenarios/web/, scenarios/api/, or scenarios/hybrid/');
-    console.log(`  3. Run the Explorer-Builder agent: @QE Explorer (Copilot) or via Claude Code`);
+    console.log(`  3. Run the Explorer/Builder agent: @QE Explorer (Copilot) or via Claude Code`);
     console.log(`     The agent will generate ${language} code based on the language profile.`);
     console.log('');
   } else {

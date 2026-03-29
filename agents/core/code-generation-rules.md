@@ -2,7 +2,7 @@
 
 **This file is MANDATORY reading for the Builder agent. DO NOT generate any code without reading this file first.**
 
-**Note:** In the previous architecture, the Explorer-Builder combined exploration and code generation. In the current architecture, the Builder is a separate agent that reads Scout locator JSONs + Explorer enriched.md and generates code. The Builder has NO browser access — all selectors come from Scout's locator JSON files.
+**Note:** In the previous architecture, the Explorer-Builder (legacy) combined exploration and code generation. In the current architecture, the Builder is a separate agent that reads Scout locator JSONs + Explorer enriched.md and generates code. The Builder has NO browser access — all selectors come from Scout's locator JSON files.
 
 ## 0. Language Selection — MANDATORY First Check
 
@@ -579,7 +579,7 @@ Before creating ANY new file, you MUST check if it already exists:
 
 ## 13. Browser Interaction via MCP
 
-The Explorer-Builder uses the Playwright MCP server. Exact tool names depend on the server implementation, but operations map to:
+The Builder uses the Playwright MCP server. Exact tool names depend on the server implementation, but operations map to:
 
 | Operation | What It Does | When to Use |
 |-----------|-------------|-------------|
