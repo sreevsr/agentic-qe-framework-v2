@@ -1,6 +1,8 @@
-# Code Generation Rules — Explorer-Builder Reference
+# Code Generation Rules — Builder Reference
 
-**This file is MANDATORY reading for the Explorer-Builder. DO NOT generate any code without reading this file first.**
+**This file is MANDATORY reading for the Builder agent. DO NOT generate any code without reading this file first.**
+
+**Note:** In the previous architecture, the Explorer-Builder combined exploration and code generation. In the current architecture, the Builder is a separate agent that reads Scout locator JSONs + Explorer enriched.md and generates code. The Builder has NO browser access — all selectors come from Scout's locator JSON files.
 
 ## 0. Language Selection — MANDATORY First Check
 

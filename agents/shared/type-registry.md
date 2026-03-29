@@ -16,9 +16,9 @@
 |----------|-------|
 | **Description** | Browser-based UI test scenarios |
 | **Scenario input** | `scenarios/web/{scenario}.md` or `scenarios/web/{folder}/{scenario}.md` |
-| **Requires browser exploration?** | Yes — Explorer-Builder explores scenario in a live browser via Playwright MCP |
-| **Explorer-Builder source** | Scenario `.md` file |
-| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
+| **Requires browser exploration?** | Yes — Explorer/Builder explores scenario in a live browser via Playwright MCP |
+| **Explorer/Builder source** | Scenario `.md` file |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
 | **Test fixture** | `{ page }` |
 | **Test spec path** | `output/tests/web/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/web/{scenario}.json` |
@@ -31,7 +31,7 @@
 | **Executor debugging context** | Scout report + DOM fallback chain |
 | **Reviewer: Dimension 4** | Locator Quality — audits primary + 2 fallbacks, no raw selectors |
 | **API Behavior escape hatch** | N/A |
-| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+| **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
 
 ### api
 
@@ -40,8 +40,8 @@
 | **Description** | REST API test scenarios using Playwright request fixture |
 | **Scenario input** | `scenarios/api/{scenario}.md` or `scenarios/api/{folder}/{scenario}.md` |
 | **Requires browser exploration?** | No — API scenarios use `request` fixture only, no browser needed |
-| **Explorer-Builder source** | Scenario `.md` file (no browser, writes code directly from scenario) |
-| **Explorer-Builder inputs** | Scenario `.md` + app-context (API patterns, if exists) |
+| **Explorer/Builder source** | Scenario `.md` file (no browser, writes code directly from scenario) |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (API patterns, if exists) |
 | **Test fixture** | `{ request }` |
 | **Test spec path** | `output/tests/api/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/api/{scenario}.json` |
@@ -54,7 +54,7 @@
 | **Executor debugging context** | Parsed results (status codes, response bodies) + scenario `.md` |
 | **Reviewer: Dimension 4** | N/A — Locator Quality is web-only |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence guardrails |
-| **Pipeline** | Explorer-Builder → Executor → Reviewer (no browser exploration) |
+| **Pipeline** | Explorer/Builder → Executor → Reviewer (no browser exploration) |
 
 ### hybrid
 
@@ -62,9 +62,9 @@
 |----------|-------|
 | **Description** | Combined browser UI + REST API test scenarios in a single test |
 | **Scenario input** | `scenarios/hybrid/{scenario}.md` or `scenarios/hybrid/{folder}/{scenario}.md` |
-| **Requires browser exploration?** | Yes — Explorer-Builder explores UI steps in browser, API steps via request fixture |
-| **Explorer-Builder source** | Scenario `.md` file |
-| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
+| **Requires browser exploration?** | Yes — Explorer/Builder explores UI steps in browser, API steps via request fixture |
+| **Explorer/Builder source** | Scenario `.md` file |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
 | **Test fixture** | `{ page, request }` — both fixtures always required |
 | **Test spec path** | `output/tests/hybrid/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/hybrid/{scenario}.json` |
@@ -77,7 +77,7 @@
 | **Executor debugging context** | Scout report + DOM fallback chain (UI steps); API diagnostics (API steps) |
 | **Reviewer: Dimension 4** | Locator Quality — audits UI selectors only; API assertions excluded |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence for API steps |
-| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+| **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
 
 ### mobile
 
@@ -85,9 +85,9 @@
 |----------|-------|
 | **Description** | Native mobile app test scenarios using Appium MCP |
 | **Scenario input** | `scenarios/mobile/{scenario}.md` or `scenarios/mobile/{folder}/{scenario}.md` |
-| **Requires browser exploration?** | Yes — Explorer-Builder uses Appium MCP for native app interaction |
-| **Explorer-Builder source** | Scenario `.md` file |
-| **Explorer-Builder inputs** | Scenario `.md` + app-context (if exists) |
+| **Requires browser exploration?** | Yes — Explorer/Builder uses Appium MCP for native app interaction |
+| **Explorer/Builder source** | Scenario `.md` file |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) |
 | **Test fixture** | WDIO driver (not Playwright fixtures) |
 | **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/mobile/{scenario}.json` |
@@ -100,7 +100,7 @@
 | **Executor debugging context** | Explorer report + parsed results + page source XML |
 | **Reviewer: Dimension 4** | Locator Strategy Quality — audits accessibility_id preference, no index-based xpath |
 | **API Behavior escape hatch** | N/A |
-| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+| **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
 
 ### mobile-hybrid
 
@@ -114,7 +114,7 @@
 | **Creates locator JSONs?** | Yes (native steps only) |
 | **Creates page objects?** | Yes — Screen Objects (native steps only) |
 | **API Behavior escape hatch** | Yes — same as hybrid type |
-| **Pipeline** | [Enrichment Agent] → Explorer-Builder → Executor → Reviewer |
+| **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
 
 ---
 
@@ -122,7 +122,7 @@
 
 **MANDATORY: Use these tables when ANY agent needs to decide behavior based on type. DO NOT make assumptions — look up the answer here.**
 
-### Explorer-Builder
+### Explorer/Builder
 
 | Decision | web | api | hybrid |
 |----------|-----|-----|--------|
@@ -142,7 +142,7 @@
 | Decision | web | api | hybrid |
 |----------|-----|-----|--------|
 | Source file for diagnosis | Explorer report + error-context.md | Explorer report + parsed results | Explorer report + error-context.md |
-| Selector issues | Escalate — Explorer-Builder already verified selectors | N/A | Escalate (UI steps) |
+| Selector issues | Escalate — Explorer/Builder already verified selectors | N/A | Escalate (UI steps) |
 | API errors | N/A (unless mixed) | Diagnose per-host, check auth, check payload | Diagnose per-host (API steps) |
 | Hybrid state mismatch | N/A | N/A | Flag when UI state contradicts API response |
 | CRUD persistence guardrail | N/A | Flag as POTENTIAL BUG (unless `API Behavior: mock`) | Flag as POTENTIAL BUG (unless `API Behavior: mock`) |
@@ -192,7 +192,7 @@ To add a new type (e.g., `mobile`):
 3. **Update scenario templates** — add `scenarios/{type}/_template.md` for the new type
 4. **Update `keyword-reference.md`** — add any new keywords or modify existing keyword behavior
 5. **Update `guardrails.md`** — add any type-specific guardrails or bug signals
-6. **Update the Explorer-Builder** (`agents/core/explorer-builder.md` + `agents/core/code-generation-rules.md`) — add source file patterns, fixture rules
+6. **Update the Explorer/Builder** (`agents/core/explorer-builder.md` + `agents/core/code-generation-rules.md`) — add source file patterns, fixture rules
 7. **Update the Executor** (`agents/core/executor.md`) — add diagnosis categories for the new type
 8. **Update the Copilot/Claude agent wrappers** (`.github/agents/` + `agents/claude/`) — add new agent wrapper if needed
 9. **Update the Reviewer** (`agents/04-reviewer/dimensions.md`) — clarify which dimensions apply

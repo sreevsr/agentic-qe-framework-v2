@@ -17,11 +17,11 @@ Helper files (`output/pages/*.helpers.ts`) are team-maintained companion files t
 
 | Agent | Rule |
 |-------|------|
-| **Explorer-Builder** | NEVER create, modify, or delete `*.helpers.ts` files. Read them for discovery only. If helpers exist, import the helpers class aliased to the base name: `import { CartPageWithHelpers as CartPage } from '../pages/CartPage.helpers'` |
+| **Explorer/Builder** | NEVER create, modify, or delete `*.helpers.ts` files. Read them for discovery only. If helpers exist, import the helpers class aliased to the base name: `import { CartPageWithHelpers as CartPage } from '../pages/CartPage.helpers'` |
 | **Executor** | NEVER modify `*.helpers.ts` files. If a helper method causes a test failure, mark with `test.fixme('HELPER ISSUE: {PageName}.{methodName} — [description]')` and document in the executor report under "Helper Method Issues". Do NOT rewrite, delete, or work around the helper |
 | **Reviewer** | Verify specs import the helpers class (not the base class) when helpers exist. Verify helpers follow naming convention and have proper JSDoc with `@helpers` and `@scenario-triggers` tags |
 
-**PRE-CHECK GATE (Explorer-Builder and Executor):**
+**PRE-CHECK GATE (Explorer/Builder and Executor):**
 Before editing ANY file, check its filename first:
 - If the file ends with `.helpers.ts` → **STOP. Do NOT edit it.** Mark with `test.fixme('HELPER ISSUE: ...')` and document in the report. Move on to the next failure.
 
@@ -35,11 +35,11 @@ Shared test data (`output/test-data/shared/`) contains cross-scenario reference 
 
 | Agent | Rule |
 |-------|------|
-| **Explorer-Builder** | Create shared data files ONLY if the data is genuinely reusable. If a shared file already exists, do NOT overwrite it — another scenario already created it. Shared data files go in `output/test-data/shared/` — flat structure, no nesting |
+| **Explorer/Builder** | Create shared data files ONLY if the data is genuinely reusable. If a shared file already exists, do NOT overwrite it — another scenario already created it. Shared data files go in `output/test-data/shared/` — flat structure, no nesting |
 | **Executor** | NEVER modify files in `test-data/shared/`. If a shared value causes a failure, create a scenario-level override in `test-data/{type}/{scenario}.json` instead |
 | **Reviewer** | Verify scenario JSONs do not duplicate values already in shared files |
 
-**PRE-CHECK GATE (Explorer-Builder and Executor):**
+**PRE-CHECK GATE (Explorer/Builder and Executor):**
 - If the file is in `test-data/shared/` → **STOP.** Create a scenario-level override instead.
 
 ---
@@ -56,7 +56,7 @@ The pipeline fixes TEST CODE (how we test). It must NEVER alter EXPECTED BEHAVIO
 - Remove response body field assertions
 - Change CALCULATE expected results
 
-**When to Flag as POTENTIAL BUG (Explorer-Builder and Executor):**
+**When to Flag as POTENTIAL BUG (Explorer/Builder and Executor):**
 
 API signals (applies to `api` and `hybrid` types):
 - POST returns 2xx but subsequent GET returns 404 or empty body
@@ -125,7 +125,7 @@ The guardrails in Section 3 are **ABSOLUTE by default**. Only ONE thing override
 
 **The scenario file declares `## API Behavior: mock` in its header.**
 
-- `mock` → API is non-persistent. Explorer-Builder or Executor MAY adapt tests for non-persistence (use existing IDs, accept mock responses). Document as "Mock API Adaptation" in report.
+- `mock` → API is non-persistent. Explorer/Builder or Executor MAY adapt tests for non-persistence (use existing IDs, accept mock responses). Document as "Mock API Adaptation" in report.
 - `live` or missing → ALL guardrails apply with ZERO exceptions. No rationalization.
 - NEVER infer API behavior from URL, API name, or LLM knowledge. Only the explicit `## API Behavior` header controls this.
 
@@ -136,7 +136,7 @@ The guardrails in Section 3 are **ABSOLUTE by default**. Only ONE thing override
 **The test scenario is the specification. NO agent MUST alter, reorder, skip, or replace scenario steps to make a test pass.** This is a QA integrity principle — the purpose of the test is to verify the application behaves as the scenario describes, not to find any path that produces a green result.
 
 **What the Executor CAN fix:**
-- Locator path refinement (e.g., selector points to container instead of text node — narrow it). But NOT missing elements — if element is not in DOM at all, escalate to Explorer-Builder
+- Locator path refinement (e.g., selector points to container instead of text node — narrow it). But NOT missing elements — if element is not in DOM at all, escalate to Explorer/Builder
 - Import paths, TypeScript errors, missing dependencies (technical plumbing)
 - Wait strategies (replacing hardcoded waits with proper Playwright waits)
 - Page Object methods (fixing element interaction mechanics)
@@ -184,7 +184,7 @@ App-context files (`scenarios/app-contexts/*.md`) store learned patterns. They g
 
 **Who can write app-context files:**
 - **Humans** — YES. Testers, developers, and QE leads can manually create or edit app-context files with known application patterns. This is encouraged for new app onboarding.
-- **Explorer-Builder** — YES. Writes newly discovered patterns after exploration.
+- **Explorer/Builder** — YES. Writes newly discovered patterns after exploration.
 - **Executor** — YES. Writes pacing patterns discovered during fix cycles.
 - **Enrichment Agent** — Read only (uses app-context to ask smarter questions).
 - **Reviewer** — Read only.

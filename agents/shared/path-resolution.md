@@ -86,7 +86,7 @@
 | File | Purpose |
 |------|---------|
 | `agents/core/orchestrator.md` | Orchestrator pipeline coordinator |
-| `agents/core/explorer-builder.md` | Explorer-Builder core instructions |
+| `agents/core/explorer-builder.md` | Explorer/Builder core instructions |
 | `agents/core/code-generation-rules.md` | Code patterns, locator JSON, spec structure |
 | `agents/core/quality-gates.md` | Fidelity, guardrails, popups, i18n |
 | `agents/core/scenario-handling.md` | Multi-scenario, app-context, subagents |
@@ -102,7 +102,7 @@
 | `agents/04-reviewer/dimensions/dim-*.md` | 9 quality dimension checklists |
 | `agents/04-reviewer/scorecard-template.md` | Scorecard output format |
 | `agents/report-templates/pipeline-summary.md` | Pipeline summary report standard |
-| `agents/report-templates/explorer-report.md` | Explorer-Builder report template |
+| `agents/report-templates/explorer-report.md` | Explorer/Builder report template |
 | `agents/report-templates/executor-report.md` | Executor report template |
 | `agents/report-templates/enrichment-report.md` | Enrichment Agent report template |
 | `skills/registry.md` | Skills index |

@@ -1,12 +1,12 @@
-# Bug Detection Rules — Explorer-Builder Reference
+# Bug Detection Rules — Explorer Reference
 
-**MANDATORY: The Explorer-Builder MUST read this file as part of pre-flight. MUST apply these rules after EVERY interaction during exploration. DO NOT skip this. DO NOT guess — follow the questions and tables.**
+**MANDATORY: The Explorer MUST read this file as part of pre-flight. MUST apply these rules after EVERY interaction during exploration. DO NOT skip this. DO NOT guess — follow the questions and tables.**
 
 ---
 
 ## The Core Principle
 
-**The Explorer-Builder fixes HOW it interacts with the application. It NEVER changes WHAT the application should do.**
+**The Explorer fixes HOW it interacts with the application. It NEVER changes WHAT the application should do.**
 
 - **HOW** = selectors, timing, interaction method, wait strategies → test infrastructure → **ADAPT**
 - **WHAT** = expected outcomes, values, behavior, business logic → application concern → **FLAG AS BUG**
@@ -82,7 +82,7 @@ Look at what ACTUALLY happened. Compare against what SHOULD have happened per th
 
 ## Discovered Steps — Expected Outcomes — HARD RULE
 
-**When the Explorer-Builder DISCOVERS new steps not in the original scenario, it MUST assume the SUCCESS path for expected outcomes.**
+**When the Explorer DISCOVERS new steps not in the original scenario, it MUST assume the SUCCESS path for expected outcomes.**
 
 | Explorer Discovers | Default Expected Outcome | If Actual Differs |
 |-------------------|-------------------------|-------------------|
@@ -92,7 +92,7 @@ Look at what ACTUALLY happened. Compare against what SHOULD have happened per th
 | Confirmation dialog appears | Dialog shows success | FLAG if shows error |
 | New screen after action | Screen contains expected data | FLAG if wrong data or empty |
 
-**HARD STOP: The Explorer-Builder MUST NEVER assume failure is the expected outcome.** If checkout fails with "Payment declined":
+**HARD STOP: The Explorer MUST NEVER assume failure is the expected outcome.** If checkout fails with "Payment declined":
 
 **CORRECT:**
 ```

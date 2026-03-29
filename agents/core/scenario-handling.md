@@ -148,7 +148,7 @@ After completing all steps, you MUST update the app-context with NEW patterns yo
 
 ### 3.1: Chunking is the Default Execution Mode
 
-**Chunking is the Explorer-Builder's default execution mode.** There is no step threshold to "trigger" chunking — the Explorer-Builder ALWAYS creates a chunk plan (see `explorer-builder.md` Section 3.7). For short scenarios (≤ `maxStepsPerChunk` from `framework-config.json`, default 15), the plan is trivially one chunk executed directly by the parent. For longer scenarios, the plan has multiple chunks with subagent delegation.
+**Chunking is the Explorer's default execution mode.** There is no step threshold to "trigger" chunking — the Explorer ALWAYS creates a chunk plan (see `explorer-builder.md` Section 3.7). For short scenarios (≤ `maxStepsPerChunk` from `framework-config.json`, default 15), the plan is trivially one chunk executed directly by the parent. For longer scenarios, the plan has multiple chunks with subagent delegation.
 
 **This replaces the previous conditional rule ("split at 40+ steps").** That rule failed because the LLM ignored it under context pressure. Chunking as a default architectural mode is not a rule the LLM can decide to skip — it IS the execution flow.
 

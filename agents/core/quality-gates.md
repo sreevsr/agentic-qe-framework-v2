@@ -1,6 +1,6 @@
-# Quality Gates — Explorer-Builder Guardrails and Validation
+# Quality Gates — Explorer/Builder Guardrails and Validation
 
-**This file is MANDATORY reading for the Explorer-Builder. Every rule here is NON-NEGOTIABLE. There are NO exceptions unless explicitly stated.**
+**This file is MANDATORY reading for the Explorer/Builder. Every rule here is NON-NEGOTIABLE. There are NO exceptions unless explicitly stated.**
 
 ---
 
@@ -95,7 +95,7 @@ When you observe these, mark with `test.fixme('POTENTIAL BUG: ...')` and documen
 
 ### 2a. Raw Selector Self-Audit Gate — MANDATORY
 
-**HARD STOP: The Explorer-Builder MUST audit its own generated code for raw selectors before finishing. This is a self-enforced quality gate.**
+**HARD STOP: The Explorer/Builder MUST audit its own generated code for raw selectors before finishing. This is a self-enforced quality gate.**
 
 1. **Spec file audit:** Search the generated spec for `page.locator(` calls. Count MUST be 0. All element interactions MUST go through page object methods backed by LocatorLoader.
 2. **Page object audit:** Search each generated page object for `this.page.locator(` calls that do NOT use `this.loc.get()` or `this.loc.getLocator()` as their base. Count MUST be 0.
@@ -133,11 +133,11 @@ The `.env.example` file is a reference for the automation engineer setting up `.
 | `output/pages/*.helpers.ts` | Team | **Read ONLY** | Modifying helpers = overwriting team work |
 | `output/test-data/shared/` | Team | **Read ONLY** | Modifying shared data = breaking other scenarios |
 | `output/core/*` | Framework (setup.js) | **Read ONLY** | Modifying core = framework corruption |
-| `output/pages/*.ts` | You (Explorer-Builder) | **Create/Modify** | |
-| `output/locators/*.json` | You (Explorer-Builder) | **Create/Modify** | |
-| `output/tests/**/*.spec.ts` | You (Explorer-Builder) | **Create/Modify** | |
-| `output/test-data/{type}/*.json` | You (Explorer-Builder) | **Create/Modify** | |
-| `scenarios/app-contexts/*.md` | You (Explorer-Builder) | **Read/Write** | |
+| `output/pages/*.ts` | You (Explorer/Builder) | **Create/Modify** | |
+| `output/locators/*.json` | You (Explorer/Builder) | **Create/Modify** | |
+| `output/tests/**/*.spec.ts` | You (Explorer/Builder) | **Create/Modify** | |
+| `output/test-data/{type}/*.json` | You (Explorer/Builder) | **Create/Modify** | |
+| `scenarios/app-contexts/*.md` | You (Explorer/Builder) | **Read/Write** | |
 
 **PRE-EDIT GATE: Before editing ANY file, check its path:**
 - Ends with `.helpers.ts` → **STOP. DO NOT EDIT.** Use `test.fixme('HELPER ISSUE: ...')` instead
@@ -193,7 +193,7 @@ Common permission grants and Chrome args are pre-configured in `templates/config
 - `acceptDownloads: true` — allows file downloads without dialog
 - Chrome arg `--disable-features=PrivateNetworkAccessPermissionPrompt` — suppresses network permission prompt
 
-If the Explorer-Builder encounters additional permission dialogs NOT covered by the default config, **MUST note the needed permission/setting in the explorer report** so the user can update `output/playwright.config.ts`.
+If the Explorer/Builder encounters additional permission dialogs NOT covered by the default config, **MUST note the needed permission/setting in the explorer report** so the user can update `output/playwright.config.ts`.
 
 ---
 

@@ -3,11 +3,12 @@
 **MANDATORY: This is the authoritative reference for ALL scenario keywords. Every agent MUST follow these patterns EXACTLY. DO NOT deviate from the code patterns shown here.**
 
 Each agent interprets keywords for its role:
-- **Explorer-Builder:** Explores the keyword action in the live browser AND writes the corresponding TypeScript code
-- **Executor:** Validates keyword implementations work at runtime and fixes timing issues
-- **Reviewer:** Audits keyword implementations against quality standards
+- **Explorer:** Verifies the keyword action works in the live browser. Records the result in enriched.md.
+- **Builder:** Translates the keyword into TypeScript code using verified locators from Scout.
+- **Executor:** Validates keyword implementations work at runtime and fixes timing issues.
+- **Reviewer:** Audits keyword implementations against quality standards.
 
-**For mobile scenarios:** The same keywords apply. "Click" maps to "Tap", "Scroll" maps to "Swipe", etc. The Explorer-Builder translates mobile-specific language to the appropriate Playwright/Appium code.
+**For mobile scenarios:** The same keywords apply. "Click" maps to "Tap", "Scroll" maps to "Swipe", etc. The Builder translates mobile-specific language to the appropriate Playwright/Appium code.
 
 ---
 
@@ -15,7 +16,7 @@ Each agent interprets keywords for its role:
 
 **Scenario:** `VERIFY: Cart badge shows "2"`
 
-**Explorer-Builder action:** Check the stated condition on the current page and log pass/fail.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Check the stated condition on the current page and log pass/fail.
 
 **Generated code:**
 ```typescript
@@ -36,7 +37,7 @@ await expect(page).toHaveURL(/\/dashboard/);
 
 **Scenario:** `VERIFY_SOFT: Cart badge shows "2"`
 
-**Explorer-Builder action:** Same as VERIFY — check the stated condition on the current page and log pass/fail.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Same as VERIFY — check the stated condition on the current page and log pass/fail.
 
 **Generated code (with auto-screenshot on failure):**
 ```typescript
@@ -80,7 +81,7 @@ The block scope `{ }` prevents variable name collisions when multiple VERIFY_SOF
 
 **Scenario:** `CAPTURE: Read subtotal as {{subtotal}}`
 
-**Explorer-Builder action:** Read the specified value from the page and record it with the `{{variableName}}`.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Read the specified value from the page and record it with the `{{variableName}}`.
 
 **Generated code:**
 ```typescript
@@ -101,7 +102,7 @@ await test.step('Step 5 — CAPTURE: Read subtotal', async () => {
 
 **Scenario:** `CALCULATE: {{expectedTotal}} = {{subtotal}} + {{tax}}`
 
-**Explorer-Builder action:** Perform the math on captured values and record the result.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Perform the math on captured values and record the result.
 
 **Generated code:**
 ```typescript
@@ -115,7 +116,7 @@ const expectedTotal = (parseFloat(subtotal.replace('$', '')) + parseFloat(tax.re
 
 **Scenario:** `SCREENSHOT: checkout-overview`
 
-**Explorer-Builder action:** Take a visual screenshot and note the filename.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Take a visual screenshot and note the filename.
 
 **Generated code:**
 ```typescript
@@ -130,7 +131,7 @@ await test.info().attach('checkout-overview', { body: screenshot, contentType: '
 
 **Scenario:** `REPORT: Print subtotal, tax, total`
 
-**Explorer-Builder action:** Note that this value should appear in test output — record it.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Note that this value should appear in test output — record it.
 
 **Generated code:**
 ```typescript
@@ -150,7 +151,7 @@ await test.step(`Step 8 — REPORT: Subtotal=${subtotal}, Tax=${tax}, Total=${to
 
 **Scenario:** `SAVE: {{orderNumber}} to shared-state.json as "lastOrderNumber"`
 
-**Explorer-Builder action:** Note that this value needs to be persisted — record the key name.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Note that this value needs to be persisted — record the key name.
 
 **Generated code:**
 ```typescript
@@ -172,7 +173,7 @@ saveState('lastOrderNumber', orderNumber);
 | locked_out_user | secret_sauce | error |
 ```
 
-**Explorer-Builder action:** Execute only the FIRST data row. Note all rows for code generation.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Execute only the FIRST data row. Note all rows for code generation.
 
 **Generated code:**
 ```typescript
@@ -232,7 +233,7 @@ await cartPage.validateAllCartPrices();
 
 **Scenario:** `Click "Download Invoice" button` followed by `VERIFY: Invoice file is downloaded successfully to OS' default Downloads folder`
 
-**Explorer-Builder action:** Use Playwright's download event API to capture the file. If the scenario specifies a download location (e.g., "OS' default Downloads folder"), use THAT location — do NOT substitute a project-local path.
+**Explorer action** (verify in browser) / **Builder action** (generate code): Use Playwright's download event API to capture the file. If the scenario specifies a download location (e.g., "OS' default Downloads folder"), use THAT location — do NOT substitute a project-local path.
 
 **Generated code:**
 ```typescript
@@ -354,7 +355,7 @@ process.env.BASE_URL
 
 All four sections are optional. Only generate the corresponding hook if the section exists in the scenario file.
 
-**Explorer-Builder action:**
+**Explorer action** (verify in browser) / **Builder action** (generate code):
 - `Common Setup Once` — Execute once at the very start, before any scenario
 - `Common Setup` — Execute before each scenario (existing behavior)
 - `Common Teardown` — Execute after each scenario completes
