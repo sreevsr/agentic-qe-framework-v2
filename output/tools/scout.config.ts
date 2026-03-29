@@ -10,7 +10,7 @@ export default defineConfig({
   timeout: 1800000, // 30 min session
   use: {
     headless: false,
-    viewport: { width: 1920, height: 1080 },
+    viewport: null,  // Use full browser window size, not a fixed viewport
     actionTimeout: 10000,
     navigationTimeout: 30000,
     bypassCSP: true,
@@ -21,7 +21,10 @@ export default defineConfig({
       use: {
         channel: 'chrome',
         launchOptions: {
-          args: ['--disable-features=PrivateNetworkAccessPermissionPrompt'],
+          args: [
+            '--start-maximized',
+            '--disable-features=PrivateNetworkAccessPermissionPrompt',
+          ],
         },
       },
     },
