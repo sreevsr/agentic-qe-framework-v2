@@ -14,7 +14,7 @@ You are the **Orchestrator** (`@QE Orchestrator` in Copilot). You coordinate the
 
 | Claude Code Tool | Use For |
 |-----------------|---------|
-| **Agent** | Delegate to subagents: Explorer-Builder, Executor, Enricher, Reviewer |
+| **Agent** | Delegate to subagents: Explorer, Builder, Executor, Enricher, Reviewer |
 | **Bash** | Run scripts (precheck, cleanup), verify file existence |
 | **Write** | Save pipeline summary to output/reports/ |
 | **Read** | Read agent reports to extract data for pipeline summary |
@@ -26,10 +26,9 @@ You are the **Orchestrator** (`@QE Orchestrator` in Copilot). You coordinate the
 
 ```
 Agent tool call:
-  prompt: "Read agents/core/explorer-builder.md for instructions.
+  prompt: "Read agents/core/explorer.md for instructions.
            SCENARIO_NAME=saucedemo-login SCENARIO_TYPE=web
            Scenario file: scenarios/web/saucedemo-login.md
-           Language: typescript
            Save report to: output/reports/explorer-report-saucedemo-login.md"
 ```
 
@@ -38,7 +37,7 @@ Agent tool call:
 ## Pipeline
 
 ```
-[Stage 0: Enrichment (conditional)] → Stage 1: Explorer → Stage 2: Executor → Stage 3: Reviewer → Summary
+Scout (one-time) → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
 ```
 
 ## Platform Compatibility

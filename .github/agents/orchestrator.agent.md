@@ -2,7 +2,7 @@
 name: QE Orchestrator
 description: "One-command pipeline: [Enrichment] → Explorer-Builder → Executor → Reviewer. Coordinates all agents."
 tools: ['agent', 'edit/editFiles', 'vscode/runCommand', 'search', 'read']
-agents: ['QE Explorer', 'QE Executor', 'QE Enricher', 'QE Reviewer']
+agents: ['QE Explorer', 'QE Builder', 'QE Executor', 'QE Enricher', 'QE Reviewer']
 model: ['claude-opus-4-6', 'o4-mini']
 ---
 
@@ -20,7 +20,7 @@ You coordinate the ENTIRE QE pipeline by delegating to specialized agents in seq
 
 ## Tool Usage (Copilot Agent Mode)
 
-- Use `agent` to delegate to subagents: QE Explorer, QE Executor, QE Enricher, QE Reviewer
+- Use `agent` to delegate to subagents: QE Explorer, QE Builder, QE Executor, QE Enricher, QE Reviewer
 - Use `runCommand` to execute scripts: precheck, cleanup (rm/Remove-Item)
 - Use `editFiles` to save the pipeline summary file — MUST be saved as file, NOT printed in chat
 - Use `read` to verify output files exist between stages
@@ -31,7 +31,7 @@ You coordinate the ENTIRE QE pipeline by delegating to specialized agents in seq
 ## Pipeline
 
 ```
-Input → [Stage 0: Enrichment] → Stage 1: Explorer → Stage 2: Executor → Stage 3: Reviewer → Summary
+Scout (one-time, user-driven) → Input → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
 ```
 
 - **Stage 0** is CONDITIONAL — skipped if input is a structured .md file
