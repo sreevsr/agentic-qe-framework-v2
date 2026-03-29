@@ -745,8 +745,8 @@ async function injectToolbar(page: Page): Promise<void> {
   const toolbarExists = await page.evaluate(() => !!document.getElementById('scout-toolbar-root'));
   if (toolbarExists) return;
 
-  const toolbarCode = fs.readFileSync(CFG.toolbarScript, 'utf-8');
-  await page.evaluate(toolbarCode);
+  const toolbarPath = path.resolve(CFG.toolbarScript);
+  await page.addScriptTag({ path: toolbarPath });
 }
 
 // ============================================================================
