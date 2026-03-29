@@ -50,7 +50,7 @@
       "format": "markdown",
       "mimeType": "text/markdown",
       "location": "scenarios/{type}/{scenario-name}.md",
-      "description": "Structured scenario .md ready for Explorer-Builder"
+      "description": "Structured scenario .md ready for Explorer"
     },
     "clarifications": {
       "type": "object[]",

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * explorer-post-check.js — Mechanical verification of Explorer-Builder output
+ * explorer-post-check.js — Mechanical verification of Explorer/Builder output
  *
- * This script runs AFTER the Explorer-Builder completes (all chunks) and BEFORE
+ * This script runs AFTER the Explorer/Builder completes (all chunks) and BEFORE
  * the Executor starts. It provides deterministic, non-fabricatable evidence about
  * what was actually produced.
  *

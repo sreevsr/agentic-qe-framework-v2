@@ -3,7 +3,7 @@
   "name": "executor",
   "version": "2.0.0",
   "protocolVersion": "1.0.0",
-  "description": "Thin verification layer — runs generated tests, fixes timing/sequencing issues (max 3 cycles). NOT a debugging agent. Selectors already verified by Explorer-Builder.",
+  "description": "Thin verification layer — runs generated tests, fixes timing/sequencing issues (max 3 cycles). NOT a debugging agent. Selectors from Scout, code from Builder.",
   "provider": {
     "organization": "Agentic QE Framework",
     "repository": "agentic-qe-framework-v2"

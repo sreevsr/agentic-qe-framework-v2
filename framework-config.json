@@ -5,7 +5,7 @@
     "maxAttemptsPerStep": 5,
     "snapshotTimeoutMs": 5000,
     "interactionTimeoutMs": 60000,
-    "$comment": "maxAttemptsPerStep: how many times Explorer-Builder retries a failing step before test.fixme"
+    "$comment": "maxAttemptsPerStep: how many times Explorer retries a failing interaction before flagging in enriched.md"
   },
 
   "executor": {
@@ -39,7 +39,7 @@
   "chunking": {
     "maxStepsPerChunk": 15,
     "alwaysChunk": true,
-    "$comment": "maxStepsPerChunk: maximum steps per chunk before spawning a subagent. alwaysChunk: when true, chunked execution is the default mode (Explorer-Builder always creates a chunk plan). Set to false to revert to single-agent Core Loop for all steps."
+    "$comment": "maxStepsPerChunk: maximum steps per Explorer chunk (if Explorer verification is chunked for long scenarios). alwaysChunk: legacy setting, not used in Scout+Explorer+Builder architecture."
   },
 
   "observability": {

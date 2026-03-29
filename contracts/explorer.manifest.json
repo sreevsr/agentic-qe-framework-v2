@@ -1,0 +1,69 @@
+{
+  "$schema": "contracts/manifest.schema.json",
+  "name": "explorer",
+  "version": "3.0.0",
+  "protocolVersion": "1.0.0",
+  "description": "Lightweight flow verification agent — navigates the app following scenario steps, verifies each interaction works, produces enriched.md with page-step mappings. Does NOT generate code.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["testing", "browser-automation", "flow-verification", "enterprise-qa"],
+  "coreInstructions": [
+    "agents/core/explorer.md",
+    "agents/core/quality-gates.md",
+    "agents/core/bug-detection-rules.md"
+  ],
+  "documentationUrl": "agents/core/explorer.md",
+  "input": {
+    "scenario": {
+      "type": "file",
+      "format": "markdown",
+      "required": true,
+      "description": "Scenario .md file with test steps"
+    },
+    "scoutPageInventory": {
+      "type": "file",
+      "format": "json",
+      "required": false,
+      "description": "Scout page inventory — maps pages to locator files"
+    },
+    "appContext": {
+      "type": "file",
+      "format": "markdown",
+      "required": false,
+      "description": "App-context file with learned patterns"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "required": true
+    }
+  },
+  "output": {
+    "enrichedScenario": {
+      "type": "file",
+      "format": "markdown",
+      "location": "scenarios/{type}/{scenario}.enriched.md",
+      "description": "Enriched scenario with page-step mappings and provenance tags"
+    },
+    "explorerReport": {
+      "type": "file",
+      "format": "markdown",
+      "location": "output/reports/explorer-report-{scenario}.md",
+      "description": "Flow verification report — steps verified, blocked, missing elements"
+    },
+    "appContext": {
+      "type": "file",
+      "format": "markdown",
+      "location": "scenarios/app-contexts/{app}.md",
+      "description": "Updated app-context with newly discovered patterns"
+    }
+  },
+  "security": {
+    "requiresMcp": true,
+    "mcpServers": ["playwright"],
+    "note": "MCP required for web/hybrid flow verification. Not needed for API."
+  },
+  "platforms": ["windows", "linux", "macos"]
+}

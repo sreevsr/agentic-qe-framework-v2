@@ -9,13 +9,15 @@ You are a **QE automation agent** running inside Claude Code. You are part of th
 ## Architecture
 
 ```
-Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → [Healer]
+Scout (one-time tool) → [Enrichment Agent] → Explorer → Builder → Executor → Reviewer → [Healer]
 ```
 
-| Agent | Copilot: `@` | Core Instructions | Job |
-|-------|-------------|------------------|-----|
+| Agent/Tool | Copilot: `@` | Core Instructions | Job |
+|------------|-------------|------------------|-----|
+| **Scout** | N/A (user tool) | `output/tools/README.md` | **One-time** — user navigates app, Scout records elements into locator JSONs |
 | **Orchestrator** | `@QE Orchestrator` | `agents/core/orchestrator.md` | **One-command pipeline** — coordinates all agents in sequence |
-| **Explorer-Builder** | `@QE Explorer` | `agents/core/explorer-builder.md` | Explore app via chunked execution, verify interactions in live browser, write test code |
+| **Explorer** | `@QE Explorer` | `agents/core/explorer.md` | Verify flow in live browser, produce enriched.md with page-step mappings |
+| **Builder** | `@QE Builder` | `agents/core/builder.md` | Generate code from Scout locator JSONs + enriched.md (NO browser) |
 | **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
 | **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language / Swagger to structured scenario .md |
 | **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
@@ -83,7 +85,7 @@ Optional `folder` parameter organizes output within subfolders:
 - **Level 3** (app-context patterns): Resources loaded on demand during execution
 
 ### App-Contexts — Self-Improving Skills
-`scenarios/app-contexts/` stores learned application patterns. The Explorer-Builder reads known patterns BEFORE exploring (saves time) and writes NEW patterns AFTER exploring (next run is faster). This is the Voyager trajectory storage mechanism.
+`scenarios/app-contexts/` stores learned application patterns. The Explorer/Builder reads known patterns BEFORE exploring (saves time) and writes NEW patterns AFTER exploring (next run is faster). This is the Voyager trajectory storage mechanism.
 
 ## File Ownership — HARD BOUNDARIES
 
@@ -93,22 +95,22 @@ Optional `folder` parameter organizes output within subfolders:
 | `output/pages/*.helpers.ts` | Team | **Read ONLY — NEVER create, modify, or delete** |
 | `output/test-data/shared/` | Team | **Read ONLY — NEVER modify** |
 | `output/core/*` | Framework (setup.js) | **Read ONLY** |
-| `output/pages/*.ts` | Explorer-Builder | Create/modify |
-| `output/locators/*.json` | Explorer-Builder | Create/modify |
-| `output/tests/**/*.spec.ts` | Explorer-Builder | Create/modify |
-| `output/test-data/{type}/*.json` | Explorer-Builder | Create/modify |
-| `scenarios/app-contexts/*.md` | Explorer-Builder | Read/write |
+| `output/pages/*.ts` | Explorer/Builder | Create/modify |
+| `output/locators/*.json` | Explorer/Builder | Create/modify |
+| `output/tests/**/*.spec.ts` | Explorer/Builder | Create/modify |
+| `output/test-data/{type}/*.json` | Explorer/Builder | Create/modify |
+| `scenarios/app-contexts/*.md` | Explorer/Builder | Read/write |
 
 ### Pipeline Summary Reports
 When producing a pipeline summary report, it MUST include: pipeline results table, final verdict (APPROVED / NEEDS FIXES / TESTS FAILING), files generated, test execution summary, quality metrics with dimension score table, and critical fixes applied. All fields MUST have actual data — NO placeholders.
 
 ## MCP Server Configuration
 
-The Explorer-Builder requires Playwright MCP for browser interaction. Configure in one of:
+The Explorer/Builder requires Playwright MCP for browser interaction. Configure in one of:
 - **VS Code:** `.vscode/mcp.json` → add Playwright MCP server
 - **Claude Code CLI:** `~/.claude/mcp_servers.json` or project-level `.mcp.json`
 
-Without Playwright MCP configured, the Explorer-Builder CANNOT explore web/hybrid scenarios.
+Without Playwright MCP configured, the Explorer/Builder CANNOT explore web/hybrid scenarios.
 
 ## Scripts — Use to Save Tokens
 

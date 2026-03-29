@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * swagger-parser.js — Structured summary of OpenAPI/Swagger specs for the Explorer-Builder
+ * swagger-parser.js — Structured summary of OpenAPI/Swagger specs for the Builder
  *
  * DESIGN PRINCIPLE: This script is a token-saving optimization for API scenario generation.
  * It parses the full Swagger/OpenAPI JSON spec and produces a compact, structured summary

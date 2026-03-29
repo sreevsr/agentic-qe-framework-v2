@@ -1,0 +1,79 @@
+{
+  "$schema": "contracts/manifest.schema.json",
+  "name": "builder",
+  "version": "3.0.0",
+  "protocolVersion": "1.0.0",
+  "description": "Pure code generation agent — reads Scout locator JSONs + Explorer enriched.md, generates Playwright page objects, spec files, and test data. NO browser dependency.",
+  "provider": {
+    "organization": "Agentic QE Framework",
+    "repository": "agentic-qe-framework-v2"
+  },
+  "tags": ["testing", "playwright", "code-generation", "enterprise-qa"],
+  "coreInstructions": [
+    "agents/core/builder.md",
+    "agents/core/code-generation-rules.md",
+    "agents/core/quality-gates.md"
+  ],
+  "documentationUrl": "agents/core/builder.md",
+  "input": {
+    "enrichedScenario": {
+      "type": "file",
+      "format": "markdown",
+      "required": true,
+      "description": "Enriched scenario with page-step mappings from Explorer"
+    },
+    "locatorJsons": {
+      "type": "file[]",
+      "format": "json",
+      "required": true,
+      "description": "Scout-produced locator JSON files with verified selectors"
+    },
+    "scoutPageInventory": {
+      "type": "file",
+      "format": "json",
+      "required": false,
+      "description": "Scout page inventory — maps pages to locator files"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "required": true
+    },
+    "language": {
+      "type": "string",
+      "enum": ["typescript", "javascript", "python"],
+      "default": "typescript"
+    }
+  },
+  "output": {
+    "pageObjects": {
+      "type": "file[]",
+      "format": "typescript",
+      "location": "output/pages/*Page.ts",
+      "description": "Page object classes using Scout locator keys"
+    },
+    "specFile": {
+      "type": "file",
+      "format": "typescript",
+      "location": "output/tests/{type}/{scenario}.spec.ts",
+      "description": "Playwright test spec"
+    },
+    "testData": {
+      "type": "file",
+      "format": "json",
+      "location": "output/test-data/{type}/{scenario}.json",
+      "description": "Scenario-specific test data"
+    },
+    "builderReport": {
+      "type": "file",
+      "format": "markdown",
+      "location": "output/reports/builder-report-{scenario}.md",
+      "description": "Builder report — files generated, locator usage, missing elements"
+    }
+  },
+  "security": {
+    "requiresMcp": false,
+    "note": "Builder has ZERO browser dependency. Works on any platform without MCP."
+  },
+  "platforms": ["windows", "linux", "macos"]
+}

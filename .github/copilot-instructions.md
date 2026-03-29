@@ -21,7 +21,7 @@ Your instructions come from:
 ## Architecture
 
 ```
-Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → [Healer]
+Pipeline: [Enrichment Agent] → Explorer/Builder → Executor → Reviewer → [Healer]
 ```
 
 ## Agent Roster
@@ -41,8 +41,8 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → 
 - **Output** goes into `output/` — **ONE shared Playwright project** for all scenarios, NOT one per scenario. Page objects are REUSED across scenarios.
 - **Folder parameter** is optional — organizes output by app/feature. Without: `output/tests/web/scenario.spec.ts`. With folder: `output/tests/web/my-app/scenario.spec.ts`
 - **Skills** (`skills/`) define agent capabilities — read `skills/registry.md`. Three levels: registry (always loaded) → instructions (on activation) → resources (on demand)
-- **App-contexts** (`scenarios/app-contexts/`) store learned application patterns across runs. Explorer-Builder reads them BEFORE exploring and writes them AFTER. This is the self-improving mechanism.
-- **Chunked execution** — The Explorer-Builder uses chunked execution by default. Scenarios are partitioned into chunks of max 15 steps (configurable via `framework-config.json`). For scenarios > 15 steps, subagents (`step-explorer`) handle each chunk with a fresh context window while sharing the same MCP browser/Appium session. This prevents context pressure from causing the LLM to shortcut exploration.
+- **App-contexts** (`scenarios/app-contexts/`) store learned application patterns across runs. Explorer/Builder reads them BEFORE exploring and writes them AFTER. This is the self-improving mechanism.
+- **Chunked execution** — The Explorer/Builder uses chunked execution by default. Scenarios are partitioned into chunks of max 15 steps (configurable via `framework-config.json`). For scenarios > 15 steps, subagents (`step-explorer`) handle each chunk with a fresh context window while sharing the same MCP browser/Appium session. This prevents context pressure from causing the LLM to shortcut exploration.
 - **`## API Behavior: mock`** in a scenario header means the API is non-persistent; agents may adapt tests for non-persistence. No header or `live` = ALL guardrails fully enforced with ZERO exceptions. NEVER infer API behavior from the URL.
 - **Shared test data** (`output/test-data/shared/`) — cross-scenario reference data. **NEVER overwrite or delete** — other scenarios depend on these files.
 - **Helper files** (`output/pages/*.helpers.ts`) are team-maintained companion files. The `USE_HELPER:` keyword invokes helper methods. **NEVER create, modify, or delete** `*.helpers.ts` files from any agent — they are team-owned. If helpers exist, import the helpers class (not the base class).
@@ -58,10 +58,10 @@ Pipeline: [Enrichment Agent] → Explorer-Builder → Executor → Reviewer → 
 | `output/pages/*.helpers.ts` | Team | Read ONLY — **NEVER modify** |
 | `output/test-data/shared/` | Team | Read ONLY — **NEVER modify** |
 | `output/core/*` | Framework | Read ONLY (managed by setup.js) |
-| `output/pages/*.ts` | Explorer-Builder | Create/modify |
-| `output/locators/*.json` | Explorer-Builder | Create/modify |
-| `output/tests/**/*.spec.ts` | Explorer-Builder | Create/modify |
-| `scenarios/app-contexts/*.md` | Explorer-Builder | Read/write |
+| `output/pages/*.ts` | Explorer/Builder | Create/modify |
+| `output/locators/*.json` | Explorer/Builder | Create/modify |
+| `output/tests/**/*.spec.ts` | Explorer/Builder | Create/modify |
+| `scenarios/app-contexts/*.md` | Explorer/Builder | Read/write |
 
 ## Platform Compatibility
 

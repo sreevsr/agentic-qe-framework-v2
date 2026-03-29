@@ -3,7 +3,7 @@
   "name": "orchestrator",
   "version": "2.0.0",
   "protocolVersion": "1.0.0",
-  "description": "Pipeline coordinator — invokes Enrichment, Explorer-Builder, Executor, and Reviewer in sequence. One-command test generation and validation.",
+  "description": "Pipeline coordinator — invokes Enrichment, Explorer, Builder, Executor, and Reviewer in sequence. Verifies Scout locator JSONs exist before starting. One-command test generation and validation.",
   "provider": {
     "organization": "Agentic QE Framework",
     "repository": "agentic-qe-framework-v2"
@@ -50,7 +50,8 @@
   },
   "delegatesTo": [
     "enrichment-agent",
-    "explorer-builder",
+    "explorer",
+    "builder",
     "executor",
     "reviewer",
     "healer"
