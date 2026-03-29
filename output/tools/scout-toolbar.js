@@ -21,8 +21,8 @@ function injectScoutToolbar() {
     <style>
       #scout-toolbar {
         position: fixed;
-        bottom: 16px;
-        right: 16px;
+        top: 10px;
+        left: 10px;
         z-index: 2147483647;
         background: #1a1a2e;
         color: #e0e0e0;
@@ -150,7 +150,7 @@ function injectScoutToolbar() {
         font-family: inherit;
       }
     </style>
-    <div id="scout-toolbar">
+    <div id="scout-toolbar" style="position:fixed !important; top:10px !important; left:10px !important; z-index:2147483647 !important; background:#1a1a2e !important; color:#e0e0e0 !important; padding:0 !important; border-radius:10px !important; min-width:280px !important; box-shadow:0 4px 20px rgba(0,0,0,0.4) !important; border:1px solid #2d2d4a !important; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif !important; font-size:13px !important; display:block !important; visibility:visible !important; opacity:1 !important;">
       <div id="scout-toolbar-header">
         <span class="grip">&#9776;</span>
         <span class="title">Scout Recording</span>
@@ -207,10 +207,10 @@ function injectScoutToolbar() {
     if (!isDragging) return;
     const x = e.clientX - dragOffsetX;
     const y = e.clientY - dragOffsetY;
-    toolbar.style.left = x + 'px';
-    toolbar.style.top = y + 'px';
-    toolbar.style.right = 'auto';
-    toolbar.style.bottom = 'auto';
+    toolbar.style.setProperty('left', x + 'px', 'important');
+    toolbar.style.setProperty('top', y + 'px', 'important');
+    toolbar.style.setProperty('right', 'auto', 'important');
+    toolbar.style.setProperty('bottom', 'auto', 'important');
   });
 
   document.addEventListener('mouseup', () => {
