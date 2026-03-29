@@ -88,9 +88,13 @@ Delete (ignore errors if they don't exist):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
+│  PRE-REQUISITE: Scout (ONE-TIME per app — user-driven, NOT a stage) │
+│                                                                      │
 │  STAGE 0: Enrichment (CONDITIONAL)                                   │
 │  ↓                                                                    │
-│  STAGE 1: Explorer-Builder (explore + generate code)                 │
+│  STAGE 1a: Explorer (verify flow in live browser → enriched.md)     │
+│  ↓                                                                    │
+│  STAGE 1b: Builder (generate code from locator JSONs + enriched.md) │
 │  ↓                                                                    │
 │  STAGE 2: Executor (run tests + fix timing — max 3 cycles)          │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
@@ -103,6 +107,8 @@ Delete (ignore errors if they don't exist):
 │  OUTPUT: Pipeline Summary                                             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+**Scout is NOT a pipeline stage.** Scout is a one-time, user-driven tool that runs BEFORE the pipeline. It produces locator JSONs in `output/locators/`. The Orchestrator checks that locator JSONs exist before starting. If missing, the Orchestrator tells the user to run Scout first: `cd output && npx playwright test --config=tools/scout.config.ts`
 
 ### STAGE 0: Enrichment Agent (CONDITIONAL — skip if structured .md exists)
 
@@ -127,57 +133,52 @@ Save enrichment report to: output/reports/enrichment-report-{scenario}.md
 
 **HARD STOP — Verify before proceeding:** MUST check that `SCENARIO_PATH` exists and contains `## Steps` with numbered steps. If file missing or malformed → STOP pipeline, report INCOMPLETE.
 
-### STAGE 1: Explorer-Builder — Orchestrator-Driven Chunking
+### PRE-CHECK: Scout Locator JSONs — MANDATORY Before Stage 1
 
-**The Orchestrator owns chunking. The Explorer-Builder is a single-chunk agent — it explores only the steps it is given. This prevents the Explorer-Builder from deciding not to spawn subagents.**
+**HARD STOP: Before starting any pipeline stage, verify that Scout has been run for this application.**
 
-#### Step 1a: Read Chunking Config
+1. Check if `output/locators/` contains `.locators.json` files
+2. Check if `output/scout-reports/{app}-page-inventory.json` exists
 
-Read `framework-config.json` → `chunking.maxStepsPerChunk` (default: 15) and `chunking.alwaysChunk` (default: true).
+| Condition | Action |
+|-----------|--------|
+| Locator JSONs exist | Scout has run. Proceed to Stage 1a. |
+| No locator JSONs | **STOP.** Tell the user: "Scout has not been run for this application. Run: `cd output && npx playwright test --config=tools/scout.config.ts`" |
 
-#### Step 1b: Count Steps and Partition
+### STAGE 1a: Explorer (Flow Verification → enriched.md)
 
-1. Read the scenario file and count total steps (numbered lines under `## Steps`)
-2. If total steps ≤ `maxStepsPerChunk` → **DIRECT mode** (one Explorer-Builder invocation)
-3. If total steps > `maxStepsPerChunk` → **CHUNKED mode** (multiple Explorer-Builder invocations)
+**The Explorer navigates the app following the scenario steps, verifies the flow works, maps steps to pages, and produces the enriched.md file. It does NOT generate code.**
 
-**Chunk partitioning rules:**
-- Chunk 1 MUST include all authentication/setup steps
-- Split at natural breakpoints: section headers, page transitions, phase changes
-- Each chunk has AT MOST `maxStepsPerChunk` steps
-- Record the chunk plan for the pipeline summary
-
-#### Step 1c: DIRECT Mode (≤ maxStepsPerChunk steps)
-
-Delegate to **ONE QE Explorer** subagent with all steps:
+Delegate to **QE Explorer** with:
 ```
-Read agents/core/explorer-builder.md for your instructions.
-Read agents/core/code-generation-rules.md for code patterns.
-Read agents/core/quality-gates.md for guardrails.
+Read agents/core/explorer.md for your instructions.
 
 SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
 FOLDER = {folder}    (only if provided)
-LANGUAGE = {language from output/.language}
-CHUNK = 1 of 1 (DIRECT mode — all steps)
-STEP_RANGE = 1 to {totalSteps}
 
 Scenario file: {SCENARIO_PATH}
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
-Scout report (if exists): output/scout-reports/{scenario}-page-inventory-latest.md
-Language profile: templates/languages/{language}.profile.json
+Scout page inventory: output/scout-reports/{app}-page-inventory.json
 
 Save explorer report to: {EXPLORER_REPORT}
-Save metrics to: output/reports/metrics/explorer-metrics-{scenario}.json
+Save enriched scenario to: scenarios/{type}/{scenario}.enriched.md
 ```
 
-#### Step 1d: CHUNKED Mode (> maxStepsPerChunk steps)
+**Skip Stage 1a if `{scenario}.enriched.md` already exists** — the enriched file is user-owned after first creation. Proceed directly to Stage 1b.
 
-**Spawn ONE subagent per chunk, SEQUENTIALLY. Wait for each to complete before spawning the next.**
+**HARD STOP — Verify before proceeding to Stage 1b:**
+1. **MUST** check that `scenarios/{type}/{scenario}.enriched.md` exists — if missing → STOP, report INCOMPLETE
+2. **MUST** check that EXPLORER_REPORT exists — if missing → STOP, report INCOMPLETE
+3. Read explorer report — extract: steps verified, steps blocked, missing elements flagged
 
-**Chunk 1 (auth/setup) — subagent prompt:**
+### STAGE 1b: Builder (Code Generation from Locator JSONs + enriched.md)
+
+**The Builder reads the enriched.md and Scout locator JSONs to generate all code files. It does NOT open a browser.**
+
+Delegate to **QE Builder** with:
 ```
-Read agents/core/explorer-builder.md for your instructions.
+Read agents/core/builder.md for your instructions.
 Read agents/core/code-generation-rules.md for code patterns.
 Read agents/core/quality-gates.md for guardrails.
 
@@ -185,108 +186,25 @@ SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
 FOLDER = {folder}    (only if provided)
 LANGUAGE = {language from output/.language}
-CHUNK = 1 of {totalChunks}
-STEP_RANGE = 1 to {chunk1EndStep}
 
-Scenario file: {SCENARIO_PATH}
+Enriched scenario: scenarios/{type}/{scenario}.enriched.md
+Scout page inventory: output/scout-reports/{app}-page-inventory.json
+Locator JSONs: output/locators/*.locators.json
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
 
-This is the FIRST chunk — it includes authentication/setup steps.
-After exploring all steps in your range:
-1. Save storageState: await page.context().storageState({ path: 'output/auth/storage-state.json' })
-2. DO NOT close the browser — the next chunk needs it open on the current page
-3. Write all code files (locators, page objects, spec steps, test data)
-4. Report your chunk status: COMPLETE, PARTIAL, or FAILED
-DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
+Save builder report to: output/reports/builder-report-{scenario}.md
 ```
 
-**Chunks 2 to N — subagent prompt (for each remaining chunk):**
+**Post-Builder validation — run the post-check script:**
+```bash
+node scripts/explorer-post-check.js --scenario={scenario} --type={type} [--folder={folder}]
 ```
-Read agents/core/explorer-builder.md for your instructions.
-Read agents/core/code-generation-rules.md for code patterns.
-Read agents/core/quality-gates.md for guardrails.
-
-SCENARIO_NAME = {scenario}
-SCENARIO_TYPE = {type}
-CHUNK = {chunkNumber} of {totalChunks}
-STEP_RANGE = {startStep} to {endStep}
-
-Scenario file: {SCENARIO_PATH}
-App-context (if exists): scenarios/app-contexts/{app-identifier}.md
-storageState: output/auth/storage-state.json
-
-The MCP browser is shared — take a snapshot FIRST to see the current page state.
-DO NOT replay steps before step {startStep}. DO NOT explore steps after step {endStep}.
-
-Existing files (READ these, ADD to them — do NOT recreate):
-- Page objects: {list of output/pages/*.ts files}
-- Locators: {list of output/locators/*.json files}
-- Spec file: output/tests/{type}/{scenario}.spec.ts — APPEND your test.step() blocks
-
-After exploring all steps in your range:
-1. Save storageState for the next chunk (skip if this is the LAST chunk)
-2. If this is the LAST chunk: close the browser via browser_close MCP call
-   If this is NOT the last chunk: DO NOT close the browser — the next chunk needs it
-3. Write all code files (locators, page objects, spec steps)
-4. Report your chunk status: COMPLETE, PARTIAL, or FAILED
-DO NOT generate the explorer report or enriched.md — the Orchestrator handles final assembly.
-```
-
-#### Step 1e: Post-Chunk Verification (after each chunk subagent returns)
-
-After EACH chunk subagent completes, the Orchestrator MUST verify:
-1. Check that the spec file has `test.step()` blocks for the step range
-2. Check that locator JSONs and page object files exist for any new pages
-3. If the subagent returned FAILED or PARTIAL, log it and continue to next chunk
-
-#### Step 1f: Final Assembly (after ALL chunks complete)
-
-After all chunk subagents have completed:
-
-1. **Run post-explorer validation script:**
-   ```bash
-   node scripts/explorer-post-check.js --scenario={scenario} --type={type} [--folder={folder}]
-   ```
-   Read the output — it provides mechanical verification of step counts, locator counts, and keyword counts.
-
-2. **Generate enriched.md** — Delegate to ONE more Explorer-Builder subagent:
-   ```
-   Read agents/core/explorer-builder.md Section 6b for enriched.md rules.
-
-   SCENARIO_NAME = {scenario}
-   SCENARIO_TYPE = {type}
-   TASK = GENERATE_ENRICHED_MD_ONLY
-
-   Scenario file: {SCENARIO_PATH}
-   Spec file: {TEST_SPEC}
-   Explorer data: Read the spec file to see what was explored.
-
-   Generate ONLY the enriched.md file at: scenarios/{type}/{scenario}.enriched.md
-   DO NOT explore, DO NOT modify code files, DO NOT generate reports.
-
-   CRITICAL: The enriched.md is a SCENARIO file for humans, NOT an implementation file.
-   Steps must describe WHAT to test in plain language. DO NOT include:
-   - CSS selectors, locator strings, or XPath
-   - Playwright code, wait strategies, or page object names
-   - Selector inventory tables or interaction pattern code
-   Read Section 6b Content Rules carefully — they list exactly what is prohibited.
-   ```
-   **Skip this step if `{scenario}.enriched.md` already exists.**
-
-3. **Generate explorer report** — The Orchestrator writes the explorer report itself using data from:
-   - The post-check script output (step counts, locator counts, keyword counts)
-   - Each chunk subagent's returned status
-   - The spec file (for fidelity verification)
-
-   Save to: `{EXPLORER_REPORT}`
-
-4. **Generate explorer metrics** — Save to: `output/reports/metrics/explorer-metrics-{scenario}.json`
+Read the output — mechanical verification of step counts, locator usage, and keyword counts.
 
 **HARD STOP — Verify before proceeding to Stage 2:**
 1. **MUST** check that TEST_SPEC exists — if missing → STOP, report INCOMPLETE
-2. **MUST** check that EXPLORER_REPORT exists — if missing → STOP, report INCOMPLETE
-3. **MUST** check that `scenarios/{type}/{scenario}.enriched.md` exists (if first run) — if missing → log WARNING in pipeline summary
-4. Read explorer report — extract: steps explored, steps blocked, pages discovered
+2. **MUST** check that builder report exists — if missing → STOP, report INCOMPLETE
+3. Read post-check output — verify step count match, zero raw selectors in spec
 
 ### STAGE 2: Executor
 
@@ -428,8 +346,8 @@ Where:
 
 | Section | Source |
 |---------|--------|
-| Pipeline Results | All agent reports + metrics |
-| Test Execution Summary | Explorer report + Executor report + Healer report (if exists) |
+| Pipeline Results | All agent reports + metrics (Explorer, Builder, Executor, Reviewer, Healer) |
+| Test Execution Summary | Explorer report + Builder report + Executor report + Healer report (if exists) |
 | Quality Metrics | Review scorecard (9 dimension scores) — use LATEST scorecard if re-reviewed |
 | Token Usage & Performance | `output/reports/metrics/*-metrics-*.json` (explorer, executor, healer) |
 | Critical Fixes | Explorer report (discoveries) + Executor report (fixes) + Healer report (quality fixes) |
@@ -466,7 +384,7 @@ Where:
 
 ## 10. Platform Awareness
 
-The framework runs on multiple platforms. Both support Orchestrator-driven chunking with fresh-context subagents:
+The framework runs on multiple platforms. Both support subagent spawning with fresh context:
 
 | Platform | Subagent Mechanism | Fresh Context? | Prerequisite |
 |----------|--------------------|----------------|-------------|
@@ -474,15 +392,21 @@ The framework runs on multiple platforms. Both support Orchestrator-driven chunk
 | **VS Code Copilot (1.113+)** | `runSubagent` tool | YES | Enable `chat.subagents.allowInvocationsFromSubagents` in VS Code settings |
 
 **On both platforms:**
-1. Use Orchestrator-driven chunking as defined in Step 1d
-2. Each Explorer-Builder subagent gets a fresh context window
-3. Per-step file writes (Explorer Section 4.6) ensure observations are persisted before context compression
+1. The Orchestrator spawns Explorer, Builder, Executor, Reviewer as separate subagents
+2. Each subagent gets a fresh context window — no context pressure from prior stages
+3. The Builder has ZERO browser dependency — works on any platform without MCP
 4. If a subagent returns PARTIAL or FAILED, report INCOMPLETE — do NOT generate code yourself
 
 **Copilot-specific notes:**
 - Requires VS Code 1.113 or later for nested subagent support
-- The `chat.subagents.allowInvocationsFromSubagents` setting MUST be enabled — without it, the Orchestrator cannot spawn Explorer-Builder chunks as subagents
+- The `chat.subagents.allowInvocationsFromSubagents` setting MUST be enabled
 - Agent prompt files in `.github/agents/` define tool access and subagent relationships
+
+**Why the Scout + Explorer + Builder separation works on both platforms:**
+- Scout is a user-driven Playwright tool — no LLM involved, no platform dependency
+- Explorer uses MCP but produces only enriched.md (text) — lightweight context
+- Builder reads structured JSON + text and generates code — no MCP, no context pressure
+- The old Explorer-Builder failed on Copilot because it combined MCP exploration + code generation in one context. That problem is eliminated.
 
 ---
 
