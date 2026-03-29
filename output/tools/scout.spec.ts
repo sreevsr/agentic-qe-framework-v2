@@ -737,10 +737,12 @@ function generateAppContext(scans: any[], appName: string, startUrl: string): st
 // ============================================================================
 
 async function waitForToolbarAction(page: Page): Promise<{ type: 'scan' | 'timed_scan' | 'done'; name: string }> {
-  return new Promise((resolve) => {
-    const interval = setInterval(async () => {
-      try {
-        const result = await page.evaluate(() => {
+  // Sequential polling loop — NOT setInterval (which piles up if page.evaluate hangs)
+  while (true) {
+    try {
+      // Add a timeout to page.evaluate so it never hangs forever
+      const result = await Promise.race([
+        page.evaluate(() => {
           const action = (window as any).__scoutAction;
           const name = (window as any).__scoutPageName || '';
           if (action) {
@@ -748,23 +750,34 @@ async function waitForToolbarAction(page: Page): Promise<{ type: 'scan' | 'timed
             return { action, name };
           }
           return null;
-        });
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)), // 3s timeout
+      ]);
 
-        if (result) {
-          clearInterval(interval);
-          if (result.action === 'DONE') {
-            resolve({ type: 'done', name: 'done' });
-          } else if (result.action === 'SCAN') {
-            resolve({ type: 'scan', name: result.name || `page-${Date.now()}` });
-          } else if (result.action === 'TIMED_SCAN') {
-            resolve({ type: 'timed_scan', name: '' }); // Name will be asked after scan
-          }
+      if (result) {
+        if (result.action === 'DONE') {
+          return { type: 'done', name: 'done' };
+        } else if (result.action === 'SCAN') {
+          return { type: 'scan', name: result.name || `page-${Date.now()}` };
+        } else if (result.action === 'TIMED_SCAN') {
+          return { type: 'timed_scan', name: '' };
         }
-      } catch {
-        // Page might be navigating, retry on next poll
       }
-    }, CFG.pollInterval);
-  });
+    } catch {
+      // Page might be navigating — re-inject toolbar on next successful poll
+      try {
+        await injectToolbar(page);
+      } catch { /* still navigating */ }
+    }
+
+    // Wait before next poll — sequential, never overlapping
+    await new Promise((resolve) => setTimeout(resolve, CFG.pollInterval));
+
+    // Periodically check if toolbar still exists and re-inject if needed
+    try {
+      await injectToolbar(page);
+    } catch { /* page not ready yet */ }
+  }
 }
 
 /**
@@ -793,27 +806,25 @@ async function waitForTimedScanName(page: Page): Promise<string> {
     (window as any).__scoutShowMessage('Scan captured! Enter a name for this page.', 0);
   });
 
-  // Wait for the user to confirm the name
-  return new Promise((resolve) => {
-    const interval = setInterval(async () => {
-      try {
-        const name = await page.evaluate(() => {
+  // Wait for the user to confirm the name — sequential polling
+  while (true) {
+    try {
+      const name = await Promise.race([
+        page.evaluate(() => {
           const action = (window as any).__scoutAction;
           const pageName = (window as any).__scoutPageName || '';
           if (action === 'SCAN' && pageName) {
-            // confirmName() sets __scoutAction to SCAN and __scoutPageName
             (window as any).__scoutAction = null;
             return pageName;
           }
           return null;
-        });
-        if (name) {
-          clearInterval(interval);
-          resolve(name);
-        }
-      } catch { /* retry */ }
-    }, CFG.pollInterval);
-  });
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ]);
+      if (name) return name;
+    } catch { /* page navigating, retry */ }
+    await new Promise((resolve) => setTimeout(resolve, CFG.pollInterval));
+  }
 }
 
 // ============================================================================
