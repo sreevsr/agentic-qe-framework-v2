@@ -213,16 +213,29 @@ function detectComponent(el: { classes: string[]; tag: string; role: string | nu
 function generateSelector(el: {
   dataTestId: string | null; dataAutomationId: string | null;
   id: string | null; role: string | null; ariaLabel: string | null;
-  classes: string[]; tag: string;
+  classes: string[]; tag: string; text: string;
 }): string {
+  // Priority 1: Explicit test attributes (most stable)
   if (el.dataTestId) return `[data-testid="${el.dataTestId}"]`;
   if (el.dataAutomationId) return `[data-automation-id="${el.dataAutomationId}"]`;
-  if (el.id && !el.id.match(/^[0-9]/)) return `#${el.id}`;
-  if (el.role && el.ariaLabel) return `[role="${el.role}"][aria-label="${el.ariaLabel}"]`;
-  const compClass = el.classes.find(c => /^fui-|^ms-|^Mui|^ant-|^p-|^k-/.test(c) && !/--|__/.test(c));
+  // Priority 2: Stable ID (skip auto-generated IDs)
+  if (el.id && !isDynamicId(el.id) && !el.id.match(/^[0-9]/)) return `#${el.id}`;
+  // Priority 3: Role + aria-label (semantic, resilient)
+  if (el.role && el.ariaLabel && !hasGarbledText(el.ariaLabel)) return `[role="${el.role}"][aria-label="${el.ariaLabel}"]`;
+  // Priority 4: Library component class (skip CSS-in-JS)
+  const compClass = el.classes.find(c =>
+    /^fui-|^ms-|^Mui[A-Z]|^ant-|^p-|^k-/.test(c) &&
+    !/--|__/.test(c) &&
+    !/^css-\d/.test(c) && !/^sc-/.test(c)  // exclude CSS-in-JS
+  );
   if (compClass) return `${el.tag}.${compClass}`;
-  if (el.role) return `[role="${el.role}"]`;
-  if (el.classes.length > 0) return `${el.tag}.${el.classes[0]}`;
+  // Priority 5: Role + text (for buttons/links with unique text)
+  if (el.role && el.text && !hasGarbledText(el.text) && el.text.length < 30) {
+    return `${el.tag}:has-text("${el.text.substring(0, 30)}")`;
+  }
+  // Priority 6: Tag with aria-label
+  if (el.ariaLabel && !hasGarbledText(el.ariaLabel)) return `${el.tag}[aria-label="${el.ariaLabel}"]`;
+  // Priority 7: Tag only (last resort — likely non-unique)
   return el.tag;
 }
 
@@ -232,10 +245,23 @@ function generateFallbacks(el: {
   classes: string[]; tag: string; text: string;
 }, primarySelector: string): string[] {
   const fallbacks: string[] = [];
-  if (primarySelector !== `#${el.id}` && el.id && !el.id.match(/^[0-9]/)) fallbacks.push(`#${el.id}`);
-  if (primarySelector !== `[data-testid="${el.dataTestId}"]` && el.dataTestId) fallbacks.push(`[data-testid="${el.dataTestId}"]`);
-  if (el.role && el.ariaLabel && primarySelector !== `[role="${el.role}"][aria-label="${el.ariaLabel}"]`) fallbacks.push(`[role="${el.role}"][aria-label="${el.ariaLabel}"]`);
-  if (el.text && el.tag) fallbacks.push(`${el.tag}:has-text("${el.text.substring(0, 40)}")`);
+  // Stable ID
+  if (primarySelector !== `#${el.id}` && el.id && !isDynamicId(el.id) && !el.id.match(/^[0-9]/)) {
+    fallbacks.push(`#${el.id}`);
+  }
+  // data-testid
+  if (primarySelector !== `[data-testid="${el.dataTestId}"]` && el.dataTestId) {
+    fallbacks.push(`[data-testid="${el.dataTestId}"]`);
+  }
+  // role + aria-label
+  if (el.role && el.ariaLabel && !hasGarbledText(el.ariaLabel) &&
+      primarySelector !== `[role="${el.role}"][aria-label="${el.ariaLabel}"]`) {
+    fallbacks.push(`[role="${el.role}"][aria-label="${el.ariaLabel}"]`);
+  }
+  // Clean text-based fallback
+  if (el.text && el.tag && !hasGarbledText(el.text) && el.text.length > 1 && el.text.length < 40) {
+    fallbacks.push(`${el.tag}:has-text("${el.text.substring(0, 30)}")`);
+  }
   return fallbacks.slice(0, 3);
 }
 
@@ -248,16 +274,32 @@ function generateElementName(el: {
   id: string | null; ariaLabel: string | null; text: string;
   tag: string; role: string | null;
 }, category: string): string {
-  // Prefer data-testid as name source
-  const raw = el.dataTestId || el.dataAutomationId || el.id || el.ariaLabel || el.text || '';
-  if (!raw) return `${category}${el.tag}`;
+  // Priority chain for name source — skip garbled/dynamic values
+  const candidates = [
+    el.dataTestId,
+    el.dataAutomationId,
+    (el.id && !isDynamicId(el.id)) ? el.id : null,
+    (el.ariaLabel && !hasGarbledText(el.ariaLabel)) ? el.ariaLabel : null,
+    (el.text && !hasGarbledText(el.text) && el.text.length < 40) ? el.text : null,
+  ].filter(Boolean) as string[];
+
+  const raw = candidates[0] || '';
+  if (!raw) {
+    // Last resort: role + tag (e.g., "buttonInput", "linkA")
+    return `${category}${el.tag}${el.role ? '_' + el.role : ''}`;
+  }
 
   // Convert to camelCase: "Photo Status" → "photoStatus", "search-btn" → "searchBtn"
-  return raw
+  const cleaned = raw
     .replace(/[^a-zA-Z0-9\s-_]/g, '')
     .trim()
-    .substring(0, 40)
+    .substring(0, 40);
+
+  if (!cleaned) return `${category}${el.tag}`;
+
+  return cleaned
     .split(/[\s\-_]+/)
+    .filter(w => w.length > 0)
     .map((word, i) => i === 0 ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join('');
 }
@@ -266,50 +308,152 @@ function generateElementName(el: {
 // INTERACTIVE ELEMENT SELECTORS
 // ============================================================================
 
+// ============================================================================
+// INTERACTIVE ELEMENT SELECTORS — Only elements a human would automate
+// Deliberately NARROW — better to miss an element than capture 200 noise entries
+// ============================================================================
+
 const INTERACTIVE_SELECTORS = [
+  // Native interactive elements
   'button', 'a[href]', 'input', 'select', 'textarea',
-  '[role="button"]', '[role="combobox"]', '[role="listbox"]',
-  '[role="menu"]', '[role="menubar"]', '[role="menuitem"]',
-  '[role="tab"]', '[role="tablist"]', '[role="grid"]', '[role="treegrid"]',
+  // ARIA interactive roles (leaf-level controls only)
+  '[role="button"]', '[role="combobox"]', '[role="menuitem"]',
+  '[role="tab"]', '[role="switch"]', '[role="slider"]',
+  '[role="checkbox"]', '[role="radio"]', '[role="option"]',
+  '[role="searchbox"]', '[role="textbox"]',
+  // ARIA containers (captured once, not their children)
+  '[role="grid"]', '[role="treegrid"]',
   '[role="dialog"]', '[role="alertdialog"]',
-  '[role="navigation"]', '[role="search"]',
-  '[role="switch"]', '[role="slider"]',
-  // Fluent UI v9
+  '[role="navigation"]',
+  '[role="tablist"]',
+  // Fluent UI v9 — specific interactive components only
   '[class*="fui-Combobox"]', '[class*="fui-Dropdown"]', '[class*="fui-Button"]',
-  '[class*="fui-Input"]', '[class*="fui-Dialog"]', '[class*="fui-DataGrid"]',
-  '[class*="fui-Tab"]', '[class*="fui-Menu"]', '[class*="fui-Checkbox"]',
-  '[class*="fui-Switch"]', '[class*="fui-Textarea"]', '[class*="fui-SpinButton"]',
-  '[class*="fui-Slider"]',
-  // Fluent UI v8
+  '[class*="fui-Input"]', '[class*="fui-Checkbox"]', '[class*="fui-Switch"]',
+  '[class*="fui-Textarea"]', '[class*="fui-SpinButton"]', '[class*="fui-Slider"]',
+  // Fluent UI v8 — specific interactive components only (NOT nav containers)
   '[class*="ms-ComboBox"]', '[class*="ms-Dropdown"]',
-  '[class*="ms-Button"]', '[class*="ms-TextField"]',
-  '[class*="ms-DetailsList"]', '[class*="ms-Pivot"]',
-  '[class*="ms-ContextualMenu"]', '[class*="ms-Nav"]',
-  '[class*="ms-Modal"]', '[class*="ms-Dialog"]',
-  '[class*="ms-Panel"]', '[class*="ms-CommandBar"]',
-  '[class*="ms-SearchBox"]', '[class*="ms-Toggle"]',
-  '[class*="ms-Checkbox"]', '[class*="ms-Callout"]',
-  '[class*="ms-DatePicker"]',
-  // MUI
-  '[class*="Mui"]',
-  // Ant Design
-  '[class*="ant-select"]', '[class*="ant-btn"]', '[class*="ant-input"]',
-  '[class*="ant-table"]', '[class*="ant-modal"]', '[class*="ant-drawer"]',
-  '[class*="ant-menu"]', '[class*="ant-tabs"]', '[class*="ant-tree"]',
-  '[class*="ant-cascader"]',
-  // PrimeNG
-  '[class*="p-dropdown"]', '[class*="p-button"]', '[class*="p-datatable"]',
-  '[class*="p-dialog"]', '[class*="p-multiselect"]', '[class*="p-autocomplete"]',
-  // Bootstrap
-  '[class*="btn-"]', '.form-control', '.form-select', '.dropdown-toggle',
-  '.modal-dialog', '.nav-tabs',
-  // Kendo
-  '[class*="k-dropdown"]', '[class*="k-grid"]', '[class*="k-button"]',
-  '[class*="k-dialog"]', '[class*="k-combobox"]', '[class*="k-datepicker"]',
-  // Generic
-  '[onclick]', '[data-testid]', '[data-automation-id]',
-  '[aria-haspopup]', '[aria-expanded]',
+  'button[class*="ms-Button"]',  // only buttons, not spans inside buttons
+  'input[class*="ms-TextField"]', 'input[class*="ms-SearchBox"]',
+  '[class*="ms-Toggle"]', '[class*="ms-Checkbox"]', '[class*="ms-DatePicker"]',
+  '[class*="ms-DetailsList"]',  // grid container
+  '[class*="ms-Pivot"]',  // tabs
+  // MUI — specific interactive components only (NOT MuiBox, MuiStack, MuiTypography)
+  'button[class*="MuiButton"]', 'button[class*="MuiIconButton"]',
+  'input[class*="MuiInput"]', 'input[class*="MuiOutlinedInput"]',
+  'div[class*="MuiSelect-root"]', '[class*="MuiAutocomplete"]',
+  '[class*="MuiDataGrid-root"]',  // grid container only
+  '[class*="MuiDialog-root"]', '[class*="MuiDrawer-root"]',
+  '[class*="MuiTab-root"]',
+  'li[class*="MuiMenuItem"]', 'li[class*="MuiButtonBase-root"]',
+  // Ant Design — specific interactive only
+  '[class*="ant-select"]:not([class*="ant-select-item"])',
+  'button[class*="ant-btn"]', 'input[class*="ant-input"]',
+  '[class*="ant-table-wrapper"]', '[class*="ant-modal-wrap"]',
+  '[class*="ant-tabs-tab"]',
+  // PrimeNG — specific interactive only
+  '[class*="p-dropdown"]:not([class*="p-dropdown-item"])',
+  'button[class*="p-button"]',
+  '[class*="p-datatable-wrapper"]',
+  // Bootstrap — specific interactive only
+  'button[class*="btn-"]', 'input.form-control', 'select.form-select',
+  '.dropdown-toggle',
+  // Kendo — specific interactive only
+  '[class*="k-dropdown"]', '[class*="k-combobox"]',
+  'button[class*="k-button"]', '[class*="k-datepicker"]',
+  '[class*="k-grid"]:not([class*="k-grid-header"]):not([class*="k-grid-content"])',
+  // Generic — explicit automation attributes
+  '[data-testid]', '[data-automation-id]',
 ].join(',');
+
+// ============================================================================
+// STRUCTURAL NOISE BLOCKLIST — classes that are NEVER interactive controls
+// ============================================================================
+
+const NOISE_CLASS_PATTERNS = [
+  // MUI layout wrappers
+  /^MuiBox/, /^MuiStack/, /^MuiContainer/, /^MuiToolbar/,
+  /^MuiTypography/, /^MuiCardHeader/, /^MuiPaper/,
+  /^MuiDataGrid-(?:main|virtualScroller|virtualScrollerContent|virtualScrollerRenderZone|topContainer|columnHeaders|columnHeader(?!$)|columnHeaderTitle|columnHeaderDraggable|columnSeparator|filler|scrollbar|footerContainer)/,
+  /^MuiDataGrid-(?:cell|row)$/,  // individual cells/rows are data, not controls
+  /^MuiTablePagination-(?:root|displayedRows|actions)/,
+  /^MuiInputAdornment/, /^MuiFormControl/,
+  /^MuiTooltip/, /^MuiBadge/, /^MuiAvatar/,
+  // Fluent UI v8 layout wrappers
+  /^ms-Nav-(?:group|groupContent|navItems|navItem|compositeLink)$/,
+  /^ms-FocusZone$/, /^ms-OverflowSet$/,
+  /^ms-DetailsList-(?:headerWrapper|contentWrapper)$/,
+  /^ms-Button-(?:flexContainer|textContainer)$/,  // inner spans of buttons
+  /^ms-Panel-(?:main|contentInner|scrollableContent|content|commands|navigation|header)$/,
+  // Generic CSS-in-JS (changes every build)
+  /^css-\d/, /^sc-[a-zA-Z]/,
+  // Scout toolbar
+  /^scout-/,
+];
+
+const NOISE_ID_PATTERNS = [
+  /^id__\d+$/,       // Fluent auto-generated IDs
+  /^_r_\w+_$/,       // React auto-generated IDs
+  /^scout-/,         // Scout toolbar
+];
+
+// ============================================================================
+// POST-SCAN FILTERS — Applied after Pass 1, before Pass 2
+// ============================================================================
+
+function isStructuralNoise(el: RawElement): boolean {
+  // Check if ANY class matches a noise pattern
+  for (const cls of el.classes) {
+    for (const pattern of NOISE_CLASS_PATTERNS) {
+      if (pattern.test(cls)) return true;
+    }
+  }
+  return false;
+}
+
+function isDynamicId(id: string | null): boolean {
+  if (!id) return false;
+  return NOISE_ID_PATTERNS.some(p => p.test(id));
+}
+
+function hasGarbledText(text: string): boolean {
+  // Fluent UI icon fonts render as mojibake — detect non-printable or icon characters
+  if (!text) return false;
+  const garbledCount = (text.match(/[\u{E000}-\u{F8FF}\u{F000}-\u{FFFF}]/gu) || []).length;
+  // If more than 30% of text is garbled, it's icon-only
+  return garbledCount > 0 && (garbledCount / text.length) > 0.3;
+}
+
+function isInsideDataContainer(el: RawElement, allElements: RawElement[]): boolean {
+  // Elements that are part of grid/list data content — skip individual rows/cells
+  // We check if the element's classes suggest it's a data row or cell
+  const dataClasses = ['MuiDataGrid-row', 'MuiDataGrid-cell', 'k-master-row', 'k-grid-content'];
+  return el.classes.some(cls => dataClasses.some(dc => cls.includes(dc)));
+}
+
+function isDropdownOption(el: RawElement): boolean {
+  // Skip individual dropdown options — they're selected by text at runtime
+  if (el.role === 'option') return true;
+  // MUI listbox items that are specific data values (company names, status values, etc.)
+  // Keep generic options like "Search", "Clear" but skip data like "8876: ARS RALEIGH"
+  if (el.tag === 'li' && el.classes.some(c => c.includes('MuiButtonBase'))) {
+    // If text looks like data (contains numbers/codes), it's a dropdown option
+    if (el.text && /^\d{4}/.test(el.text.trim())) return true;
+  }
+  return false;
+}
+
+function canGenerateMeaningfulName(el: RawElement): boolean {
+  // Check if we can produce a useful name from the element's attributes
+  if (el.dataTestId) return true;
+  if (el.dataAutomationId) return true;
+  if (el.ariaLabel && !hasGarbledText(el.ariaLabel)) return true;
+  if (el.id && !isDynamicId(el.id)) return true;
+  // Check text content — must be clean, short, and meaningful
+  if (el.text && !hasGarbledText(el.text) && el.text.length > 1 && el.text.length < 40) return true;
+  // Native interactive elements can derive name from tag + role
+  if (['input', 'select', 'textarea'].includes(el.tag)) return true;
+  return false;
+}
 
 // ============================================================================
 // RAW ELEMENT INTERFACE
@@ -382,12 +526,29 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
     return { rawElements: results, iframes: iframeData };
   }, INTERACTIVE_SELECTORS);
 
-  // Noise filter: remove hidden, tiny, duplicates
+  // ── MULTI-STAGE FILTERING ──
+  // Stage 1: Remove hidden, tiny
+  // Stage 2: Remove structural noise (layout wrappers, inner spans)
+  // Stage 3: Remove data content (grid rows/cells, dropdown options)
+  // Stage 4: Remove elements we can't meaningfully name
+  // Stage 5: Deduplicate
+
+  let candidates = rawElements.filter(el => !el.isHidden && !el.hasZeroSize);
+
+  // Stage 2: Structural noise
+  candidates = candidates.filter(el => !isStructuralNoise(el));
+
+  // Stage 3: Data content and dropdown options
+  candidates = candidates.filter(el => !isInsideDataContainer(el, rawElements));
+  candidates = candidates.filter(el => !isDropdownOption(el));
+
+  // Stage 4: Must be meaningfully nameable
+  candidates = candidates.filter(el => canGenerateMeaningfulName(el));
+
+  // Stage 5: Deduplicate
   const seen = new Set<string>();
   const filtered: RawElement[] = [];
-  for (const el of rawElements) {
-    if (el.isHidden || el.hasZeroSize) continue;
-    // Dedup key includes id/name/testid to avoid collapsing distinct inputs with same classes
+  for (const el of candidates) {
     const uniqueParts = [
       el.tag,
       el.id || '',
@@ -402,20 +563,25 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
     filtered.push(el);
   }
 
-  // Pass 2: Async bounding box checks via Playwright (non-blocking)
+  // Pass 2: Async bounding box + uniqueness checks via Playwright (non-blocking)
   const elements: any[] = [];
   for (const el of filtered) {
     const lib = detectLib(el.classes);
     const comp = detectComponent(el);
-    const selector = generateSelector(el);
+    const selector = generateSelector({ ...el, text: el.text });
     const fallbacks = generateFallbacks(el, selector);
     const elementName = generateElementName(el, comp.category);
 
+    // Skip if selector is just a bare tag (will match everything)
+    if (['div', 'span', 'button', 'a', 'li', 'ul', 'nav', 'input'].includes(selector)) continue;
+
     let boundingBox = null;
     let hitAreaWarning: string | null = null;
+    let matchCount = 0;
     try {
-      const loc = target.locator(selector).first();
-      const box = await loc.boundingBox({ timeout: CFG.boundingBoxTimeout });
+      const loc = target.locator(selector);
+      matchCount = await loc.count();
+      const box = await loc.first().boundingBox({ timeout: CFG.boundingBoxTimeout });
       if (box && box.width > 0 && box.height > 0) {
         boundingBox = {
           x: Math.round(box.x), y: Math.round(box.y),
@@ -427,6 +593,11 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
     } catch {
       continue;
     }
+
+    // Skip elements whose selector matches too many elements (non-unique structural pattern)
+    // Exception: grid containers, navigation, tablist — these are OK to be non-unique
+    const containerTypes = ['grid', 'navigation', 'tab', 'modal'];
+    if (matchCount > 5 && !containerTypes.includes(comp.category)) continue;
 
     // Hit-area mismatch detection for dropdowns/comboboxes
     if (el.ariaHasPopup || el.role === 'combobox') {
