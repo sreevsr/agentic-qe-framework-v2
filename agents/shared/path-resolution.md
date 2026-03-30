@@ -13,7 +13,9 @@
 | hybrid | `scenarios/hybrid/{scenario}.md` or `scenarios/hybrid/{folder}/{scenario}.md` |
 | mobile | `scenarios/mobile/{scenario}.md` or `scenarios/mobile/{folder}/{scenario}.md` |
 | Swagger specs | `scenarios/api/swagger-specs/{spec}.json` (raw) / `{spec}.parsed.json` (parsed) |
+| Enriched scenarios | `scenarios/{type}/[{folder}/]{scenario}.enriched.md` (created by Explorer, user-owned after first creation) |
 | App-contexts | `scenarios/app-contexts/{app-identifier}.md` |
+| Scout app-context | `scenarios/app-contexts/{app-identifier}-scout.md` (created by Scout, user merges into main) |
 
 ---
 
@@ -24,7 +26,9 @@
 | Spec files | `output/tests/{type}/[{folder}/]{scenario}.spec.ts` |
 | Page objects | `output/pages/{PageName}Page.ts` |
 | Helper files | `output/pages/{PageName}Page.helpers.ts` (team-owned, read-only) |
-| Locator JSONs | `output/locators/{page-name}.locators.json` |
+| Locator JSONs | `output/locators/{page-name}.locators.json` (created by Scout, read by Builder) |
+| Scout page inventory | `output/scout-reports/{app}-page-inventory.json` |
+| Scout feasibility data | `output/scout-reports/{app}-feasibility-data.json` |
 | Mobile locators | `output/locators/mobile/{screen-name}.locators.json` |
 | Screen objects | `output/screens/{ScreenName}Screen.ts` (mobile) |
 | Test data (scenario) | `output/test-data/{type}/{scenario}.json` |

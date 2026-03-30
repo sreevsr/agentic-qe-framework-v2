@@ -86,7 +86,7 @@ Every element you interact with MUST have an entry in a locator JSON file.
 - Use descriptive camelCase element names
 - One locator file per page object
 - **NEVER** put selectors directly in page objects or spec files
-- Follow the selector priority from `agents/core/explorer-builder.md` Section 4.3: role > label > testid > id > name > text > placeholder > CSS
+- Selector priority (from Scout locator JSONs): data-testid > data-automation-id > stable ID > role+aria-label > component class > text-based > tag. The Builder uses whatever Scout captured — do NOT override.
 
 ---
 

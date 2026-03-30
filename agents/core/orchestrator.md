@@ -96,7 +96,7 @@ Delete (ignore errors if they don't exist):
 │  ↓                                                                    │
 │  STAGE 1b: Builder (generate code from locator JSONs + enriched.md) │
 │  ↓                                                                    │
-│  STAGE 2: Executor (run tests + fix timing — max 3 cycles)          │
+│  STAGE 2: Executor (run tests + fix timing + heal Scout gaps)        │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
 │  STAGE 3: Reviewer (precheck script + 9-dimension audit)            │
 │  ↓ [if NEEDS FIXES]                                                   │
@@ -180,7 +180,7 @@ Delegate to **QE Builder** with:
 ```
 Read agents/core/builder.md for your instructions.
 Read agents/core/code-generation-rules.md for code patterns.
-Read agents/core/quality-gates.md for guardrails.
+Read agents/report-templates/builder-report.md for the MANDATORY report format.
 
 SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
