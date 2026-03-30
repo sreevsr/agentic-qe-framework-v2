@@ -210,11 +210,15 @@ function detectComponent(el: { classes: string[]; tag: string; role: string | nu
 // SELECTOR GENERATION (priority chain with fallbacks)
 // ============================================================================
 
+const NATIVE_INTERACTIVE_TAGS = ['button', 'a', 'input', 'select', 'textarea'];
+
 function generateSelector(el: {
   dataTestId: string | null; dataAutomationId: string | null;
   id: string | null; role: string | null; ariaLabel: string | null;
   classes: string[]; tag: string; text: string;
 }): string {
+  const isNativeInteractive = NATIVE_INTERACTIVE_TAGS.includes(el.tag);
+
   // Priority 1: Explicit test attributes (most stable)
   if (el.dataTestId) return `[data-testid="${el.dataTestId}"]`;
   if (el.dataAutomationId) return `[data-automation-id="${el.dataAutomationId}"]`;
@@ -222,20 +226,27 @@ function generateSelector(el: {
   if (el.id && !isDynamicId(el.id) && !el.id.match(/^[0-9]/)) return `#${el.id}`;
   // Priority 3: Role + aria-label (semantic, resilient)
   if (el.role && el.ariaLabel && !hasGarbledText(el.ariaLabel)) return `[role="${el.role}"][aria-label="${el.ariaLabel}"]`;
-  // Priority 4: Library component class (skip CSS-in-JS)
+  // Priority 3b: For native interactive elements, aria-label alone is sufficient
+  // (native <button>, <a>, <input> have implicit roles — no need for explicit role attribute)
+  if (isNativeInteractive && el.ariaLabel && !hasGarbledText(el.ariaLabel)) return `${el.tag}[aria-label="${el.ariaLabel}"]`;
+  // Priority 4: Native interactive element with clean, short text — text-based selector
+  if (isNativeInteractive && el.text && !hasGarbledText(el.text) && el.text.length > 1 && el.text.length < 40) {
+    return `${el.tag}:has-text("${el.text.substring(0, 30)}")`;
+  }
+  // Priority 5: Library component class (skip CSS-in-JS)
   const compClass = el.classes.find(c =>
     /^fui-|^ms-|^Mui[A-Z]|^ant-|^p-|^k-/.test(c) &&
     !/--|__/.test(c) &&
-    !/^css-\d/.test(c) && !/^sc-/.test(c)  // exclude CSS-in-JS
+    !/^css-\d/.test(c) && !/^sc-/.test(c)
   );
   if (compClass) return `${el.tag}.${compClass}`;
-  // Priority 5: Role + text (for buttons/links with unique text)
-  if (el.role && el.text && !hasGarbledText(el.text) && el.text.length < 30) {
+  // Priority 6: Text-based fallback for any element with clean text
+  if (el.text && !hasGarbledText(el.text) && el.text.length > 1 && el.text.length < 30) {
     return `${el.tag}:has-text("${el.text.substring(0, 30)}")`;
   }
-  // Priority 6: Tag with aria-label
+  // Priority 7: Tag with aria-label (non-native elements)
   if (el.ariaLabel && !hasGarbledText(el.ariaLabel)) return `${el.tag}[aria-label="${el.ariaLabel}"]`;
-  // Priority 7: Tag only (last resort — likely non-unique)
+  // Priority 8: Tag only (last resort — likely non-unique, will be filtered by uniqueness check)
   return el.tag;
 }
 
@@ -595,9 +606,12 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
     }
 
     // Skip elements whose selector matches too many elements (non-unique structural pattern)
-    // Exception: grid containers, navigation, tablist — these are OK to be non-unique
+    // Exception 1: Container types (grid, navigation, tablist, modal) — OK to be non-unique
+    // Exception 2: Native interactive elements (button, a, input, select) — always keep if named
+    //   Their class selector may be non-unique, but Builder uses loc.get('keyName') not raw selector
     const containerTypes = ['grid', 'navigation', 'tab', 'modal'];
-    if (matchCount > 5 && !containerTypes.includes(comp.category)) continue;
+    const isNativeInteractive = NATIVE_INTERACTIVE_TAGS.includes(el.tag);
+    if (matchCount > 5 && !containerTypes.includes(comp.category) && !isNativeInteractive) continue;
 
     // Hit-area mismatch detection for dropdowns/comboboxes
     if (el.ariaHasPopup || el.role === 'combobox') {
