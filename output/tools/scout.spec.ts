@@ -351,7 +351,10 @@ const INTERACTIVE_SELECTORS = [
   // MUI — specific interactive components only (NOT MuiBox, MuiStack, MuiTypography)
   'button[class*="MuiButton"]', 'button[class*="MuiIconButton"]',
   'input[class*="MuiInput"]', 'input[class*="MuiOutlinedInput"]',
-  'div[class*="MuiSelect-root"]', '[class*="MuiAutocomplete"]',
+  'div[class*="MuiSelect"]', '[class*="MuiAutocomplete"]',
+  '[id*="mui-component-select"]',  // MUI Select elements with stable IDs
+  'div[class*="MuiFormControl"]',  // Form controls wrapping inputs/dropdowns
+  'label[class*="MuiInputLabel"]', // Form labels (useful for identification)
   '[class*="MuiDataGrid-root"]',  // grid container only
   '[class*="MuiDialog-root"]', '[class*="MuiDrawer-root"]',
   '[class*="MuiTab-root"]',
@@ -372,8 +375,9 @@ const INTERACTIVE_SELECTORS = [
   '[class*="k-dropdown"]', '[class*="k-combobox"]',
   'button[class*="k-button"]', '[class*="k-datepicker"]',
   '[class*="k-grid"]:not([class*="k-grid-header"]):not([class*="k-grid-content"])',
-  // Generic — explicit automation attributes
+  // Generic — explicit automation attributes + common ID patterns
   '[data-testid]', '[data-automation-id]',
+  '[id*="filter"]', '[id*="search"]',  // Common form element IDs
 ].join(',');
 
 // ============================================================================
@@ -387,7 +391,8 @@ const NOISE_CLASS_PATTERNS = [
   /^MuiDataGrid-(?:main|virtualScroller|virtualScrollerContent|virtualScrollerRenderZone|topContainer|columnHeaders|columnHeader(?!$)|columnHeaderTitle|columnHeaderDraggable|columnSeparator|filler|scrollbar|footerContainer)/,
   /^MuiDataGrid-(?:cell|row)$/,  // individual cells/rows are data, not controls
   /^MuiTablePagination-(?:root|displayedRows|actions)/,
-  /^MuiInputAdornment/, /^MuiFormControl/,
+  /^MuiInputAdornment/,
+  // NOTE: MuiFormControl intentionally NOT blocked — it wraps dropdowns and inputs
   /^MuiTooltip/, /^MuiBadge/, /^MuiAvatar/,
   // Fluent UI v8 layout wrappers
   /^ms-Nav-(?:group|groupContent|navItems|navItem|compositeLink)$/,
