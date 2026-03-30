@@ -992,21 +992,35 @@ async function waitForTimedScanName(page: Page): Promise<string> {
   });
 
   // Wait for the user to confirm the name — sequential polling
+  // Also check for DONE — if user clicks Done while name prompt is showing,
+  // auto-name and return immediately so Done can proceed
   while (true) {
     try {
-      const name = await Promise.race([
+      const result = await Promise.race([
         page.evaluate(() => {
           const action = (window as any).__scoutAction;
           const pageName = (window as any).__scoutPageName || '';
           if (action === 'SCAN' && pageName) {
             (window as any).__scoutAction = null;
-            return pageName;
+            return { type: 'name', value: pageName };
+          }
+          if (action === 'DONE') {
+            // Don't clear the DONE action — let the main loop pick it up
+            // Just auto-derive a name and return
+            try {
+              const url = new URL(window.location.href);
+              let pathName = url.pathname.replace(/^\/+|\/+$/g, '');
+              if (!pathName) pathName = 'home';
+              return { type: 'done', value: pathName.replace(/\//g, '-').replace(/[^a-zA-Z0-9-]/g, '') + '-page' };
+            } catch {
+              return { type: 'done', value: 'timed-scan-page' };
+            }
           }
           return null;
         }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
       ]);
-      if (name) return name;
+      if (result) return result.value;
     } catch { /* page navigating, retry */ }
     await new Promise((resolve) => setTimeout(resolve, CFG.pollInterval));
   }
