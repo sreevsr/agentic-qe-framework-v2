@@ -412,6 +412,15 @@ const NOISE_ID_PATTERNS = [
 // ============================================================================
 
 function isStructuralNoise(el: RawElement): boolean {
+  // Scout toolbar self-exclusion — check ID and text
+  if (el.id && el.id.startsWith('scout-')) return true;
+  if (el.text && /^(Scan|Timed 5s|Done|Confirm & Scan|Scout Recording)$/.test(el.text.trim())) {
+    // Only exclude if it's actually Scout's toolbar (check for scout- in ancestor or ID pattern)
+    if (el.id?.startsWith('scout-') || el.classes.some(c => c.includes('scout'))) return true;
+    // Also exclude generic buttons with exact Scout text that have no other identifier
+    if (!el.ariaLabel && !el.dataTestId && !el.dataAutomationId) return true;
+  }
+
   // Check if ANY class matches a noise pattern
   for (const cls of el.classes) {
     for (const pattern of NOISE_CLASS_PATTERNS) {
@@ -509,6 +518,9 @@ async function scanPage(target: Page | Frame, scanName: string): Promise<any> {
       seen.add(el);
 
       const htmlEl = el as HTMLElement;
+
+      // Skip Scout toolbar elements entirely
+      if (htmlEl.id?.startsWith('scout-') || htmlEl.closest('#scout-toolbar-root')) return;
       const computed = window.getComputedStyle(htmlEl);
       const isHidden = computed.display === 'none' || computed.visibility === 'hidden' ||
                        htmlEl.hidden || htmlEl.getAttribute('aria-hidden') === 'true' ||
