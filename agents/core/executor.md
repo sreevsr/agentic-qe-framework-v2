@@ -231,9 +231,18 @@ Step failed → Element not found → Correct page confirmed
    - type: button/input/dropdown/link based on role
    - interactionNotes: if it's a dropdown, note the open → select pattern
   ↓
-5. ADD the entry to the locator JSON file on disk
-   - Read existing file → add new key → write back
+5. ADD the entry to the locator JSON file on disk — APPEND ONLY
+   **HARD STOP: You MUST read the existing JSON file FIRST, parse it, add your
+   new key to the existing object, then write the MERGED result back. You MUST
+   NOT overwrite the file with only your new entries. The file contains Scout
+   entries AND entries from previous healing cycles — destroying them forces
+   re-discovery of already-proven selectors.**
+   - Step 1: const existing = JSON.parse(fs.readFileSync(path, 'utf-8'));
+   - Step 2: existing['newKey'] = { primary: '...', fallbacks: [...], type: '...' };
+   - Step 3: fs.writeFileSync(path, JSON.stringify(existing, null, 2));
    - Key name: camelCase from aria-label or text (e.g., "photoStatusDropdown")
+   **If you overwrite the file with fewer entries than it had before, you have
+   violated this rule. Check entry count before and after writing.**
   ↓
 6. UPDATE the page object if needed
    - If the page object method references this locator key, it will now work

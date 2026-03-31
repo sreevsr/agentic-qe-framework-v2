@@ -36,6 +36,13 @@
     "$comment": "Controls bug detection sensitivity. uncertainVerdictEnabled: allow UNCERTAIN verdict for ambiguous cases."
   },
 
+  "builder": {
+    "incrementalUpdate": true,
+    "preserveHealedCode": true,
+    "preservePacingComments": true,
+    "$comment": "incrementalUpdate: when true, Builder runs scenario-diff.js and only updates changed steps. preserveHealedCode: never overwrite code with // HEALED comments. preservePacingComments: never remove // PACING: waits."
+  },
+
   "chunking": {
     "maxStepsPerChunk": 15,
     "alwaysChunk": true,
