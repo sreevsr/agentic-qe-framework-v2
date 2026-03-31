@@ -1,0 +1,408 @@
+{
+  "schema": "agentic-qe/execution-plan/1.0",
+  "scenario": {
+    "name": "orangehrm-claims",
+    "source": "scenarios/web/orangehrm-claims.md",
+    "sourceHash": "sha256:manual",
+    "type": "web",
+    "tags": [
+      "smoke",
+      "P1",
+      "claims"
+    ]
+  },
+  "generatedAt": "2026-03-31T16:15:00Z",
+  "generatedBy": "plan-generator-manual/1.0",
+  "planHash": "sha256:pending",
+  "environment": {
+    "baseUrl": "{{ENV.BASE_URL}}",
+    "variables": [
+      "BASE_URL",
+      "TEST_USERNAME",
+      "TEST_PASSWORD"
+    ]
+  },
+  "pacing": {
+    "globalDelayMs": 0,
+    "postNavWaitMs": 0,
+    "postNavWaitStrategy": "none"
+  },
+  "dataSources": {},
+  "setup": [],
+  "steps": [
+    {
+      "id": 1,
+      "section": "Login",
+      "description": "Navigate to OrangeHRM",
+      "type": "NAVIGATE",
+      "action": {
+        "url": "{{ENV.BASE_URL}}"
+      }
+    },
+    {
+      "id": 2,
+      "section": "Login",
+      "description": "Enter username",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "Username"
+        },
+        "value": "{{ENV.TEST_USERNAME}}"
+      }
+    },
+    {
+      "id": 3,
+      "section": "Login",
+      "description": "Enter password",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "Password"
+        },
+        "value": "{{ENV.TEST_PASSWORD}}"
+      }
+    },
+    {
+      "id": 4,
+      "section": "Login",
+      "description": "Click Login",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Login"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "section": "Login",
+      "description": "VERIFY: Dashboard loaded",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": {
+          "role": "heading",
+          "name": "Dashboard"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "section": "Navigate to Claims",
+      "description": "Click Claim in sidebar",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "link",
+          "name": "Claim"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "section": "Navigate to Claims",
+      "description": "VERIFY: Employee Claims page loaded",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": {
+          "role": "heading",
+          "name": "Employee Claims"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "section": "Verify Claims List",
+      "description": "CAPTURE: Row text for claim 202307180000003",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "role": "row",
+          "nameContains": "202307180000003"
+        },
+        "extract": "textContent",
+        "captureAs": "claim3Row"
+      }
+    },
+    {
+      "id": 9,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000003 has manda user",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim3Row",
+        "expected": "manda user"
+      }
+    },
+    {
+      "id": 10,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000003 has Algerian Dinar",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim3Row",
+        "expected": "Algerian Dinar"
+      }
+    },
+    {
+      "id": 11,
+      "section": "Verify Claims List",
+      "description": "CAPTURE: Row text for claim 202307180000002",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "role": "row",
+          "nameContains": "202307180000002"
+        },
+        "extract": "textContent",
+        "captureAs": "claim2Row"
+      }
+    },
+    {
+      "id": 12,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000002 has manda user",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim2Row",
+        "expected": "manda user"
+      }
+    },
+    {
+      "id": 13,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000002 has Canadian Dollar",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim2Row",
+        "expected": "Canadian Dollar"
+      }
+    },
+    {
+      "id": 14,
+      "section": "Verify Claims List",
+      "description": "CAPTURE: Row text for claim 202307180000001",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "role": "row",
+          "nameContains": "202307180000001"
+        },
+        "extract": "textContent",
+        "captureAs": "claim1Row"
+      }
+    },
+    {
+      "id": 15,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000001 has manda user",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim1Row",
+        "expected": "manda user"
+      }
+    },
+    {
+      "id": 16,
+      "section": "Verify Claims List",
+      "description": "VERIFY_SOFT: Claim 202307180000001 has Afghanistan Afghani",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueContains",
+        "variable": "claim1Row",
+        "expected": "Afghanistan Afghani"
+      }
+    },
+    {
+      "id": 17,
+      "section": "Open Claim Detail",
+      "description": "Click View Details on claim 202307180000003",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "View Details",
+          "within": {
+            "role": "row",
+            "nameContains": "202307180000003"
+          }
+        }
+      }
+    },
+    {
+      "id": 18,
+      "section": "Open Claim Detail",
+      "description": "VERIFY: Submit Claim page loaded for claim 202307180000003",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": {
+          "role": "heading",
+          "name": "Submit Claim"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "section": "Verify Expenses",
+      "description": "VERIFY_SOFT: Planned Surgery expense is listed",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "textContains",
+        "target": {
+          "role": "row",
+          "nameContains": "Planned Surgery"
+        },
+        "expected": "Planned Surgery"
+      }
+    },
+    {
+      "id": 20,
+      "section": "Verify Expenses",
+      "description": "VERIFY_SOFT: Transport expense is listed",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "textContains",
+        "target": {
+          "role": "row",
+          "nameContains": "Transport"
+        },
+        "expected": "Transport"
+      }
+    },
+    {
+      "id": 21,
+      "section": "Capture Expense 1 - Planned Surgery",
+      "description": "CAPTURE: Planned Surgery expense type",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Planned Surgery')) .oxd-table-cell:nth-child(1) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense1Type"
+      }
+    },
+    {
+      "id": 22,
+      "section": "Capture Expense 1 - Planned Surgery",
+      "description": "CAPTURE: Planned Surgery date",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Planned Surgery')) .oxd-table-cell:nth-child(2) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense1Date"
+      }
+    },
+    {
+      "id": 23,
+      "section": "Capture Expense 1 - Planned Surgery",
+      "description": "CAPTURE: Planned Surgery amount",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Planned Surgery')) .oxd-table-cell:nth-child(4) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense1Amount"
+      }
+    },
+    {
+      "id": 24,
+      "section": "Capture Expense 1 - Planned Surgery",
+      "description": "REPORT: Planned Surgery details",
+      "type": "REPORT",
+      "action": {
+        "message": "Expense 1: Type={{expense1Type}}, Date={{expense1Date}}, Amount={{expense1Amount}}"
+      }
+    },
+    {
+      "id": 25,
+      "section": "Capture Expense 2 - Transport",
+      "description": "CAPTURE: Transport expense type",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Transport')) .oxd-table-cell:nth-child(1) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense2Type"
+      }
+    },
+    {
+      "id": 26,
+      "section": "Capture Expense 2 - Transport",
+      "description": "CAPTURE: Transport date",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Transport')) .oxd-table-cell:nth-child(2) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense2Date"
+      }
+    },
+    {
+      "id": 27,
+      "section": "Capture Expense 2 - Transport",
+      "description": "CAPTURE: Transport amount",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-table-row:has(.oxd-table-cell:has-text('Transport')) .oxd-table-cell:nth-child(4) div:last-child"
+        },
+        "extract": "textContent",
+        "captureAs": "expense2Amount"
+      }
+    },
+    {
+      "id": 28,
+      "section": "Capture Expense 2 - Transport",
+      "description": "REPORT: Transport details",
+      "type": "REPORT",
+      "action": {
+        "message": "Expense 2: Type={{expense2Type}}, Date={{expense2Date}}, Amount={{expense2Amount}}"
+      }
+    },
+    {
+      "id": 29,
+      "section": "Capture Total",
+      "description": "CAPTURE: Total amount",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "text": "Total Amount"
+        },
+        "extract": "textContent",
+        "captureAs": "totalAmount"
+      }
+    },
+    {
+      "id": 30,
+      "section": "Capture Total",
+      "description": "REPORT: Total amount",
+      "type": "REPORT",
+      "action": {
+        "message": "Total: {{totalAmount}}"
+      }
+    }
+  ],
+  "teardown": []
+}

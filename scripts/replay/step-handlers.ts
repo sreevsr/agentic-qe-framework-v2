@@ -634,20 +634,19 @@ async function handleWriteData(step: Step, ctx: HandlerContext): Promise<StepRes
 async function handleSkill(step: Step, ctx: HandlerContext): Promise<StepResult> {
   const { skill, params, captureAs } = step.action;
 
-  // Load skill module dynamically
-  const skillPath = path.resolve('skills', 'replay', `${skill.split('/')[0]}.skill.ts`);
-  if (!fs.existsSync(skillPath)) {
-    // Try .js extension
-    const jsPath = skillPath.replace('.ts', '.js');
-    if (!fs.existsSync(jsPath)) {
-      return { status: 'fail', duration: 0, error: `Skill not found: ${skill} (looked for ${skillPath})` };
-    }
+  // Load skill module dynamically — try .js first, then .ts
+  const skillName = skill.split('/')[0];
+  const jsPath = path.resolve('skills', 'replay', `${skillName}.skill.js`);
+  const tsPath = path.resolve('skills', 'replay', `${skillName}.skill.ts`);
+  const resolvedPath = fs.existsSync(jsPath) ? jsPath : fs.existsSync(tsPath) ? tsPath : null;
+  if (!resolvedPath) {
+    return { status: 'fail', duration: 0, error: `Skill not found: ${skill} (looked for ${jsPath} and ${tsPath})` };
   }
 
   // Skills are loaded dynamically — they export a function per action
-  // e.g., skills/replay/ag-grid.skill.ts exports { readCell, filterColumn, ... }
+  // e.g., skills/replay/pie-chart.skill.js exports { scan }
   try {
-    const skillModule = require(skillPath.replace('.ts', '.js'));
+    const skillModule = require(resolvedPath);
     const actionName = skill.split('/')[1]; // "ag-grid/read-cell" → "readCell"
     const camelAction = actionName.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase());
 

@@ -108,7 +108,8 @@ export function generateMarkdownReport(results: ReplayResults): string {
     md += `| Variable | Value |\n`;
     md += `|----------|-------|\n`;
     for (const [key, value] of capturedEntries) {
-      md += `| ${key} | ${String(value).substring(0, 100)} |\n`;
+      const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      md += `| ${key} | ${displayValue.substring(0, 100)} |\n`;
     }
   }
 

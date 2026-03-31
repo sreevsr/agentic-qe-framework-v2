@@ -1,0 +1,490 @@
+{
+  "schema": "agentic-qe/execution-plan/1.0",
+  "scenario": {
+    "name": "orangehrm-myinfo-update",
+    "source": "scenarios/web/orangehrm-myinfo-update.md",
+    "sourceHash": "sha256:manual",
+    "type": "web",
+    "tags": [
+      "smoke",
+      "P1",
+      "myinfo",
+      "form"
+    ]
+  },
+  "generatedAt": "2026-03-31T17:30:00Z",
+  "generatedBy": "plan-generator-manual/1.0",
+  "planHash": "sha256:pending",
+  "environment": {
+    "baseUrl": "{{ENV.BASE_URL}}",
+    "variables": [
+      "BASE_URL",
+      "TEST_USERNAME",
+      "TEST_PASSWORD"
+    ]
+  },
+  "pacing": {
+    "globalDelayMs": 0,
+    "postNavWaitMs": 0,
+    "postNavWaitStrategy": "none"
+  },
+  "dataSources": {},
+  "setup": [],
+  "steps": [
+    {
+      "id": 1,
+      "section": "Login",
+      "description": "Navigate to OrangeHRM",
+      "type": "NAVIGATE",
+      "action": {
+        "url": "{{ENV.BASE_URL}}"
+      }
+    },
+    {
+      "id": 2,
+      "section": "Login",
+      "description": "Enter credentials and login",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          {
+            "target": {
+              "role": "textbox",
+              "name": "Username"
+            },
+            "value": "{{ENV.TEST_USERNAME}}"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "Password"
+            },
+            "value": "{{ENV.TEST_PASSWORD}}"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "section": "Login",
+      "description": "Click Login",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Login"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "section": "Login",
+      "description": "VERIFY: Dashboard loaded",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": {
+          "role": "heading",
+          "name": "Dashboard"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "section": "Navigate to My Info",
+      "description": "Click My Info in sidebar",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "link",
+          "name": "My Info"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "section": "Navigate to My Info",
+      "description": "VERIFY: Personal Details page loaded",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": {
+          "role": "heading",
+          "name": "Personal Details"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "section": "Fill Personal Details",
+      "description": "Clear and fill First Name",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "First Name"
+        },
+        "value": "Ram Krishna"
+      }
+    },
+    {
+      "id": 8,
+      "section": "Fill Personal Details",
+      "description": "Clear and fill Middle Name",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "Middle Name"
+        },
+        "value": ""
+      }
+    },
+    {
+      "id": 9,
+      "section": "Fill Personal Details",
+      "description": "Clear and fill Last Name",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "Last Name"
+        },
+        "value": "Swarup"
+      }
+    },
+    {
+      "id": 10,
+      "section": "Fill Personal Details",
+      "description": "Fill Employee Id",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Employee Id')) input"
+        },
+        "value": "HT00565"
+      }
+    },
+    {
+      "id": 11,
+      "section": "Fill Personal Details",
+      "description": "Fill Driver's License Number",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is(\"Driver's License Number\")) input"
+        },
+        "value": "987654"
+      }
+    },
+    {
+      "id": 12,
+      "section": "Fill Personal Details",
+      "description": "Fill License Expiry Date",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('License Expiry Date')) input"
+        },
+        "value": "2032-05-02"
+      }
+    },
+    {
+      "id": 13,
+      "section": "Fill Personal Details",
+      "description": "Select Nationality: Indian",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Nationality')) .oxd-select-text"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "section": "Fill Personal Details",
+      "description": "Click Indian option",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "option",
+          "name": "Indian"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "section": "Fill Personal Details",
+      "description": "Select Marital Status: Married",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Marital Status')) .oxd-select-text"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "section": "Fill Personal Details",
+      "description": "Click Married option",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "option",
+          "name": "Married"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "section": "Fill Personal Details",
+      "description": "Fill Date of Birth",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Date of Birth')) input"
+        },
+        "value": "1975-21-03"
+      }
+    },
+    {
+      "id": 18,
+      "section": "Fill Personal Details",
+      "description": "Select Gender: Male",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "css": "label:has-text(\"Male\"):not(:has-text(\"Female\"))"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "section": "Save Personal Details",
+      "description": "Click first Save button (Personal Details)",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Save",
+          "nth": 0
+        }
+      },
+      "waitAfter": 2000
+    },
+    {
+      "id": 20,
+      "section": "Fill Custom Fields",
+      "description": "Select Blood Type: O-",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Blood Type')) .oxd-select-text"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "section": "Fill Custom Fields",
+      "description": "Click O- option",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "option",
+          "name": "O-"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "section": "Save Custom Fields",
+      "description": "Click second Save button (Custom Fields)",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Save",
+          "nth": 1
+        }
+      },
+      "waitAfter": 2000
+    },
+    {
+      "id": 23,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: First Name is Ram Krishna",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "role": "textbox",
+          "name": "First Name"
+        },
+        "extract": "inputValue",
+        "captureAs": "savedFirstName"
+      }
+    },
+    {
+      "id": 24,
+      "section": "Verify Saved Data",
+      "description": "VERIFY_SOFT: First Name matches",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueEquals",
+        "variable": "savedFirstName",
+        "expected": "Ram Krishna"
+      }
+    },
+    {
+      "id": 25,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Last Name is Swarup",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "role": "textbox",
+          "name": "Last Name"
+        },
+        "extract": "inputValue",
+        "captureAs": "savedLastName"
+      }
+    },
+    {
+      "id": 26,
+      "section": "Verify Saved Data",
+      "description": "VERIFY_SOFT: Last Name matches",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueEquals",
+        "variable": "savedLastName",
+        "expected": "Swarup"
+      }
+    },
+    {
+      "id": 27,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Employee Id is HT00565",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Employee Id')) input"
+        },
+        "extract": "inputValue",
+        "captureAs": "savedEmpId"
+      }
+    },
+    {
+      "id": 28,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Employee Id matches",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueEquals",
+        "variable": "savedEmpId",
+        "expected": "HT00565"
+      }
+    },
+    {
+      "id": 29,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Driver's License is 987654",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is(\"Driver's License Number\")) input"
+        },
+        "extract": "inputValue",
+        "captureAs": "savedLicense"
+      }
+    },
+    {
+      "id": 30,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: License matches",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "valueEquals",
+        "variable": "savedLicense",
+        "expected": "987654"
+      }
+    },
+    {
+      "id": 31,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Nationality shows Indian",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Indian",
+        "scope": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Nationality'))"
+        }
+      }
+    },
+    {
+      "id": 32,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Marital Status shows Married",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Married",
+        "scope": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Marital Status'))"
+        }
+      }
+    },
+    {
+      "id": 33,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Blood Type shows O-",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "O-",
+        "scope": {
+          "css": ".oxd-input-group:has(.oxd-label:text-is('Blood Type'))"
+        }
+      }
+    },
+    {
+      "id": 34,
+      "section": "Verify Saved Data",
+      "description": "VERIFY: Page heading shows updated name",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Ram Krishna Swarup"
+      }
+    },
+    {
+      "id": 35,
+      "section": "Verify Saved Data",
+      "description": "SCREENSHOT: myinfo-updated",
+      "type": "SCREENSHOT",
+      "action": {
+        "name": "myinfo-updated",
+        "fullPage": true
+      }
+    }
+  ],
+  "teardown": []
+}

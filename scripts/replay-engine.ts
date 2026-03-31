@@ -41,6 +41,8 @@ interface CliArgs {
   timeout?: number;
   pacing: number;
   postNavWait: string; // ms number or 'networkidle'
+  fullscreen: boolean;
+  viewport?: { width: number; height: number };
 }
 
 function parseArgs(): CliArgs {
@@ -64,6 +66,8 @@ function parseArgs(): CliArgs {
     console.error('  --timeout=<ms>        Action timeout override');
     console.error('  --pacing=<ms>         Global delay between steps (default: 0)');
     console.error('  --post-nav-wait=<ms>  Wait after navigations (default: 0, or "networkidle")');
+    console.error('  --fullscreen          Maximize browser window (headed mode only)');
+    console.error('  --viewport=WxH        Fixed viewport size, e.g. --viewport=1920x1080');
     process.exit(1);
   }
 
@@ -78,7 +82,15 @@ function parseArgs(): CliArgs {
     timeout: args.timeout ? Number(args.timeout) : undefined,
     pacing: args.pacing ? Number(args.pacing) : 0,
     postNavWait: (args['post-nav-wait'] as string) || '0',
+    fullscreen: !!args.fullscreen,
+    viewport: args.viewport ? parseViewport(args.viewport as string) : undefined,
   };
+}
+
+function parseViewport(str: string): { width: number; height: number } {
+  const [w, h] = str.toLowerCase().split('x').map(Number);
+  if (!w || !h) throw new Error(`Invalid viewport format: "${str}". Use WIDTHxHEIGHT, e.g. 1920x1080`);
+  return { width: w, height: h };
 }
 
 // --- Load Framework Config ---
@@ -226,16 +238,35 @@ async function main() {
 
   // 5. Launch browser
   const browserLauncher = { chromium, firefox, webkit }[args.browser];
-  const browser: Browser = await browserLauncher.launch({
+  const launchOptions: any = {
     headless: !args.headed,
-  });
+  };
+  // Fullscreen: launch maximized (Chromium flag)
+  if (args.fullscreen && args.headed) {
+    launchOptions.args = ['--start-maximized'];
+  }
+  const browser: Browser = await browserLauncher.launch(launchOptions);
 
-  const contextOptions = {
+  // Viewport: --viewport=WxH for fixed size, --fullscreen for maximized, default 1280x720
+  let viewport: { width: number; height: number } | null;
+  if (args.viewport) {
+    viewport = args.viewport; // Fixed resolution, same on every machine
+  } else if (args.fullscreen && args.headed) {
+    viewport = null; // null = use full window size (maximized)
+  } else {
+    viewport = { width: 1280, height: 720 }; // Default
+  }
+
+  const contextOptions: any = {
     ...getPopupSuppressingContextOptions(),
-    viewport: { width: 1280, height: 720 },
+    viewport,
   };
   const browserContext: BrowserContext = await browser.newContext(contextOptions);
   const page: Page = await browserContext.newPage();
+
+  const viewportLabel = args.viewport ? `${args.viewport.width}x${args.viewport.height}`
+    : args.fullscreen ? 'fullscreen' : '1280x720';
+  console.log(`  Viewport: ${viewportLabel}`);
 
   configureBrowserPopupHandling(page);
 

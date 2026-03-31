@@ -1,0 +1,140 @@
+{
+  "schema": "agentic-qe/execution-plan/1.0",
+  "scenario": {
+    "name": "orangehrm-dashboard-charts",
+    "source": "scenarios/web/orangehrm-dashboard-charts.md",
+    "sourceHash": "sha256:manual",
+    "type": "web",
+    "tags": ["smoke", "P1", "dashboard", "charts"]
+  },
+  "generatedAt": "2026-03-31T16:45:00Z",
+  "generatedBy": "plan-generator-manual/1.0",
+  "planHash": "sha256:pending",
+  "environment": {
+    "baseUrl": "{{ENV.BASE_URL}}",
+    "variables": ["BASE_URL", "TEST_USERNAME", "TEST_PASSWORD"]
+  },
+  "pacing": {
+    "globalDelayMs": 0,
+    "postNavWaitMs": 0,
+    "postNavWaitStrategy": "none"
+  },
+  "dataSources": {},
+  "setup": [],
+  "steps": [
+    {
+      "id": 1,
+      "section": "Login",
+      "description": "Navigate to OrangeHRM",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}" }
+    },
+    {
+      "id": 2,
+      "section": "Login",
+      "description": "Enter credentials and login",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          { "target": { "role": "textbox", "name": "Username" }, "value": "{{ENV.TEST_USERNAME}}" },
+          { "target": { "role": "textbox", "name": "Password" }, "value": "{{ENV.TEST_PASSWORD}}" }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "section": "Login",
+      "description": "Click Login",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Login" }
+      }
+    },
+    {
+      "id": 4,
+      "section": "Login",
+      "description": "VERIFY: Dashboard loaded",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "elementVisible",
+        "target": { "role": "heading", "name": "Dashboard" }
+      }
+    },
+    {
+      "id": 5,
+      "section": "Verify Charts Exist",
+      "description": "VERIFY_SOFT: Employee Distribution by Sub Unit chart exists",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Employee Distribution by Sub Unit"
+      }
+    },
+    {
+      "id": 6,
+      "section": "Verify Charts Exist",
+      "description": "VERIFY_SOFT: Employee Distribution by Location chart exists",
+      "type": "VERIFY_SOFT",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Employee Distribution by Location"
+      }
+    },
+    {
+      "id": 7,
+      "section": "Sub Unit Chart",
+      "description": "SKILL: Scan Sub Unit pie chart for hover values",
+      "type": "SKILL",
+      "action": {
+        "skill": "pie-chart/scan",
+        "params": {
+          "chartTitle": "Employee Distribution by Sub Unit",
+          "angleStep": 5,
+          "radii": [0.4, 0.55, 0.7],
+          "hoverDelay": 80
+        },
+        "captureAs": "subUnitChartData"
+      }
+    },
+    {
+      "id": 8,
+      "section": "Sub Unit Chart",
+      "description": "REPORT: Sub Unit chart hover data",
+      "type": "REPORT",
+      "action": { "message": "Sub Unit chart data: {{subUnitChartData}}" }
+    },
+    {
+      "id": 9,
+      "section": "Location Chart",
+      "description": "SKILL: Scan Location pie chart for hover values",
+      "type": "SKILL",
+      "action": {
+        "skill": "pie-chart/scan",
+        "params": {
+          "chartTitle": "Employee Distribution by Location",
+          "angleStep": 5,
+          "radii": [0.4, 0.55, 0.7],
+          "hoverDelay": 80
+        },
+        "captureAs": "locationChartData"
+      }
+    },
+    {
+      "id": 10,
+      "section": "Location Chart",
+      "description": "REPORT: Location chart hover data",
+      "type": "REPORT",
+      "action": { "message": "Location chart data: {{locationChartData}}" }
+    },
+    {
+      "id": 11,
+      "section": "Screenshots",
+      "description": "SCREENSHOT: dashboard-charts",
+      "type": "SCREENSHOT",
+      "action": { "name": "dashboard-charts", "fullPage": true }
+    }
+  ],
+  "teardown": []
+}

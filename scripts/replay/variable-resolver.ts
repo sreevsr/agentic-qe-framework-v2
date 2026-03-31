@@ -79,7 +79,7 @@ export function resolveString(template: string, context: VariableContext): strin
     if (value === undefined) {
       throw new Error(`Unresolved variable: {{${trimmed}}}`);
     }
-    return String(value);
+    return typeof value === 'object' ? JSON.stringify(value) : String(value);
   });
 }
 
