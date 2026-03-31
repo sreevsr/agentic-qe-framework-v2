@@ -151,9 +151,17 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
   const { verb } = step.action;
   const timeout = ctx.config.timeouts.action;
 
+  // Inject step-level _fingerprint into any target so the resolver can use it.
+  // Plan stores _fingerprint at step level, but resolver expects it on target.
+  const fp = step._fingerprint;
+  function withFingerprint(target: any): any {
+    if (!target || !fp) return target;
+    return { ...target, _fingerprint: target._fingerprint || fp };
+  }
+
   switch (verb) {
     case 'click': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.click({ timeout });
       // Dismiss popups after click (might trigger a modal)
       const popupResult = await dismissPopups(ctx.page);
@@ -161,7 +169,7 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     }
 
     case 'fill': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.fill(step.action.value, { timeout });
       return { status: 'pass', duration: 0, evidence: `Filled "${step.action.value}" via ${strategy}` };
     }
@@ -182,13 +190,13 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     }
 
     case 'select': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.selectOption(step.action.value, { timeout });
       return { status: 'pass', duration: 0, evidence: `Selected "${step.action.value}" via ${strategy}` };
     }
 
     case 'hover': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.hover({ timeout });
       return { status: 'pass', duration: 0, evidence: `Hovered: ${strategy}` };
     }
@@ -199,19 +207,19 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     }
 
     case 'check': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.check({ timeout });
       return { status: 'pass', duration: 0, evidence: `Checked: ${strategy}` };
     }
 
     case 'uncheck': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.uncheck({ timeout });
       return { status: 'pass', duration: 0, evidence: `Unchecked: ${strategy}` };
     }
 
     case 'type': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.pressSequentially(step.action.value, { delay: step.action.delay || 50 });
       return { status: 'pass', duration: 0, evidence: `Typed "${step.action.value}" via ${strategy}` };
     }
@@ -224,7 +232,7 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     }
 
     case 'upload': {
-      const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       const files = step.action.files.map((f: string) => path.resolve(f));
       await locator.setInputFiles(files);
       return { status: 'pass', duration: 0, evidence: `Uploaded ${files.length} file(s) via ${strategy}` };
