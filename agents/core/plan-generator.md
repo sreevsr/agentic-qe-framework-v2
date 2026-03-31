@@ -76,25 +76,6 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
    Print the report to the user and save to output/reports/plan-generator-report-{scenario}.md
 ```
 
-### CRITICAL: Locator Verification — Why This Matters
-
-**MCP Playwright uses a ref-based system to click elements. The ref is a direct pointer to the
-DOM node — it ALWAYS works. But the replay engine uses Playwright's locator API (getByRole,
-getByText, locator CSS). These APIs SEARCH the DOM and can match wrong/hidden elements.**
-
-Common failures if you skip verification:
-- `getByText('Users')` matches 3 elements (sidebar, breadcrumb, heading) → strict mode error
-- `getByRole('link', { name: 'Users' })` matches 0 because element is `<span>` not `<a>`
-- `locator('a[href="#/Users"]')` matches 3 (responsive duplicates) — index 0 is hidden
-
-**You MUST verify the locator after each MCP action using `browser_run_code`.**
-If the locator matches more than 1 element, refine it:
-1. Add `nth` with the index of the visible one
-2. Use a more specific CSS selector (add class, parent, or data attribute)
-3. Use `within` to scope to a container
-
-**NEVER record a locator you haven't verified.** A plan with unverified locators will fail on replay.
-
 ### CRITICAL: Save-First Rule
 
 **Write the plan JSON file as soon as step exploration is complete (after step 7).**
@@ -159,15 +140,6 @@ MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. 
 | `link "Users"` | `<span class="MuiTypography-root">Users</span>` | NO | `text: "Users"` |
 | `button "Save"` | `<div class="custom-btn" onclick="...">Save</div>` | NO | `text: "Save"` |
 | `link "Dashboard"` | `<li class="nav-item"><span>Dashboard</span></li>` | NO | `text: "Dashboard"` |
-
-**After clicking an element via MCP, VERIFY the actual DOM by using `browser_run_code` to check the tag:**
-```javascript
-async (page) => {
-  const el = page.getByText('Users').first();
-  const tag = await el.evaluate(e => e.tagName.toLowerCase());
-  return tag; // "span" — NOT a link!
-}
-```
 
 **When you find an element in the accessibility tree, record it like this:**
 
