@@ -5,19 +5,35 @@
     "source": "scenarios/web/automationexercise-trial.md",
     "sourceHash": "sha256:a946e7c2b1442dcd7ed3628c6b54fae1918b5e5ed6996df3eb6982f2a4999447",
     "type": "web",
-    "tags": ["e2e", "regression", "P1", "signup", "cart", "checkout", "payment", "invoice"]
+    "tags": [
+      "e2e",
+      "regression",
+      "P1",
+      "signup",
+      "cart",
+      "checkout",
+      "payment",
+      "invoice"
+    ]
   },
-  "generatedAt": "2026-03-31T11:21:52Z",
-  "generatedBy": "plan-generator-manual/1.0",
+  "generatedAt": "2026-03-31T13:35:00Z",
+  "generatedBy": "plan-generator/copilot",
   "planHash": "sha256:pending",
   "environment": {
     "baseUrl": "{{ENV.BASE_URL}}",
-    "variables": ["BASE_URL", "SIGNUP_PASSWORD", "CARD_NUMBER", "CARD_CVC", "CARD_EXP_MONTH", "CARD_EXP_YEAR"]
+    "variables": [
+      "BASE_URL",
+      "SIGNUP_PASSWORD",
+      "CARD_NUMBER",
+      "CARD_CVC",
+      "CARD_EXP_MONTH",
+      "CARD_EXP_YEAR"
+    ]
   },
   "pacing": {
     "globalDelayMs": 0,
-    "postNavWaitMs": 0,
-    "postNavWaitStrategy": "none"
+    "postNavWaitMs": 500,
+    "postNavWaitStrategy": "domcontentloaded"
   },
   "dataSources": {},
   "setup": [],
@@ -27,7 +43,9 @@
       "section": "Signup Flow",
       "description": "Navigate to BASE_URL",
       "type": "NAVIGATE",
-      "action": { "url": "{{ENV.BASE_URL}}" }
+      "action": {
+        "url": "{{ENV.BASE_URL}}"
+      }
     },
     {
       "id": 2,
@@ -38,26 +56,45 @@
         "verb": "click",
         "target": {
           "role": "link",
-          "name": "Signup / Login",
-          "fallbacks": [{ "text": "Signup / Login" }]
+          "nameContains": "Signup / Login",
+          "fallbacks": [
+            {
+              "text": "Signup / Login"
+            },
+            {
+              "css": "a[href='/login']"
+            }
+          ]
         }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Signup / Login",
+        "pageUrl": "/"
       }
     },
     {
       "id": 3,
       "section": "Signup Flow",
-      "description": "Enter name in signup form",
+      "description": "Enter name in New User Signup form",
       "type": "ACTION",
       "action": {
         "verb": "fill",
-        "target": { "role": "textbox", "name": "Name" },
+        "target": {
+          "role": "textbox",
+          "name": "Name"
+        },
         "value": "QA Demo"
+      },
+      "_fingerprint": {
+        "tag": "input",
+        "pageUrl": "/login"
       }
     },
     {
       "id": 4,
       "section": "Signup Flow",
-      "description": "Enter email in signup form",
+      "description": "Enter unique email in New User Signup form",
       "type": "ACTION",
       "action": {
         "verb": "fill",
@@ -65,23 +102,40 @@
           "role": "textbox",
           "name": "Email Address",
           "nth": 1,
-          "fallbacks": [{ "placeholder": "Email Address" }]
+          "fallbacks": [
+            {
+              "css": "form:has(button:text-is('Signup')) input[placeholder='Email Address']"
+            }
+          ]
         },
         "value": "qademo_{{_runtime.runId}}@testmail.com"
+      },
+      "_fingerprint": {
+        "tag": "input",
+        "pageUrl": "/login"
       }
     },
     {
       "id": 5,
       "section": "Signup Flow",
-      "description": "Click Signup button",
+      "description": "Click Signup button (scenario calls this 'Next')",
       "type": "ACTION",
       "action": {
         "verb": "click",
         "target": {
           "role": "button",
           "name": "Signup",
-          "fallbacks": [{ "text": "Signup" }]
+          "fallbacks": [
+            {
+              "text": "Signup"
+            }
+          ]
         }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Signup",
+        "pageUrl": "/login"
       }
     },
     {
@@ -101,8 +155,20 @@
       "type": "ACTION",
       "action": {
         "verb": "fill",
-        "target": { "role": "textbox", "name": "Password *" },
+        "target": {
+          "role": "textbox",
+          "name": "Password *",
+          "fallbacks": [
+            {
+              "css": "#password"
+            }
+          ]
+        },
         "value": "{{ENV.SIGNUP_PASSWORD}}"
+      },
+      "_fingerprint": {
+        "tag": "input",
+        "pageUrl": "/signup"
       }
     },
     {
@@ -112,7 +178,15 @@
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "role": "radio", "name": "Mr." }
+        "target": {
+          "role": "radio",
+          "name": "Mr."
+        }
+      },
+      "_fingerprint": {
+        "tag": "input",
+        "text": "Mr.",
+        "pageUrl": "/signup"
       }
     },
     {
@@ -123,10 +197,51 @@
       "action": {
         "verb": "fill_form",
         "fields": [
-          { "target": { "role": "combobox", "nth": 0 }, "value": "1", "verb": "select" },
-          { "target": { "role": "combobox", "nth": 1 }, "value": "February", "verb": "select" },
-          { "target": { "role": "combobox", "nth": 2 }, "value": "1999", "verb": "select" }
+          {
+            "target": {
+              "css": "#days",
+              "fallbacks": [
+                {
+                  "role": "combobox",
+                  "nth": 0
+                }
+              ]
+            },
+            "value": "1",
+            "verb": "select"
+          },
+          {
+            "target": {
+              "css": "#months",
+              "fallbacks": [
+                {
+                  "role": "combobox",
+                  "nth": 1
+                }
+              ]
+            },
+            "value": "February",
+            "verb": "select"
+          },
+          {
+            "target": {
+              "css": "#years",
+              "fallbacks": [
+                {
+                  "role": "combobox",
+                  "nth": 2
+                }
+              ]
+            },
+            "value": "1999",
+            "verb": "select"
+          }
         ]
+      },
+      "_fingerprint": {
+        "tag": "select",
+        "text": "Date of Birth",
+        "pageUrl": "/signup"
       }
     },
     {
@@ -137,28 +252,106 @@
       "action": {
         "verb": "fill_form",
         "fields": [
-          { "target": { "role": "textbox", "name": "First name *" }, "value": "QA" },
-          { "target": { "role": "textbox", "name": "Last name *" }, "value": "Demo" },
-          { "target": { "role": "textbox", "name": "Address * (Street address, P.O. Box, Company name, etc.)" }, "value": "Brigade Sparkle, Vishweshwar Nagar" },
-          { "target": { "role": "textbox", "name": "State *" }, "value": "Karnataka" },
-          { "target": { "role": "textbox", "name": "City * Zipcode *" }, "value": "Mysore" },
-          { "target": { "css": "#zipcode" }, "value": "570008" },
-          { "target": { "role": "textbox", "name": "Mobile Number *" }, "value": "9876543210" }
+          {
+            "target": {
+              "role": "textbox",
+              "name": "First name *"
+            },
+            "value": "QA"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "Last name *"
+            },
+            "value": "Demo"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "Address * (Street address, P.O. Box, Company name, etc.)"
+            },
+            "value": "Brigade Sparkle, Vishweshwar Nagar"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "State *"
+            },
+            "value": "Karnataka"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "City * Zipcode *"
+            },
+            "value": "Mysore"
+          },
+          {
+            "target": {
+              "css": "#zipcode"
+            },
+            "value": "570008"
+          },
+          {
+            "target": {
+              "role": "textbox",
+              "name": "Mobile Number *"
+            },
+            "value": "9876543210"
+          }
         ]
+      },
+      "_fingerprint": {
+        "tag": "form",
+        "text": "Address Information",
+        "pageUrl": "/signup"
       }
     },
     {
       "id": 11,
       "section": "Signup Flow",
-      "description": "Click Create Account",
+      "description": "Select Country India",
       "type": "ACTION",
       "action": {
-        "verb": "click",
-        "target": { "role": "button", "name": "Create Account" }
+        "verb": "select",
+        "target": {
+          "role": "combobox",
+          "name": "Country *",
+          "fallbacks": [
+            {
+              "css": "#country"
+            }
+          ]
+        },
+        "value": "India"
+      },
+      "_fingerprint": {
+        "tag": "select",
+        "text": "Country",
+        "pageUrl": "/signup"
       }
     },
     {
       "id": 12,
+      "section": "Signup Flow",
+      "description": "Click Create Account",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Create Account"
+        }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Create Account",
+        "pageUrl": "/signup"
+      }
+    },
+    {
+      "id": 13,
       "section": "Signup Flow",
       "description": "VERIFY: ACCOUNT CREATED! message",
       "type": "VERIFY",
@@ -168,347 +361,737 @@
       }
     },
     {
-      "id": 13,
+      "id": 14,
       "section": "Signup Flow",
       "description": "SCREENSHOT: account-created",
       "type": "SCREENSHOT",
-      "action": { "name": "account-created", "fullPage": false }
-    },
-    {
-      "id": 14,
-      "section": "Signup Flow",
-      "description": "Navigate past account-created page (ad may block Continue)",
-      "type": "NAVIGATE",
-      "action": { "url": "{{ENV.BASE_URL}}" }
+      "action": {
+        "name": "account-created",
+        "fullPage": false
+      }
     },
     {
       "id": 15,
-      "section": "Shopping Flow",
-      "description": "Navigate to Products page",
+      "section": "Signup Flow",
+      "description": "Navigate past account-created page (ad may block Continue link)",
       "type": "NAVIGATE",
-      "action": { "url": "{{ENV.BASE_URL}}products" }
+      "action": {
+        "url": "{{ENV.BASE_URL}}"
+      }
     },
     {
       "id": 16,
       "section": "Shopping Flow",
-      "description": "CAPTURE: Blue Top price",
-      "type": "CAPTURE",
+      "description": "Navigate to Products page",
+      "type": "NAVIGATE",
       "action": {
-        "target": { "css": ".productinfo:has(p:text-is('Blue Top')) h2" },
-        "extract": "textContent",
-        "captureAs": "blueTopPrice"
+        "url": "{{ENV.BASE_URL}}products"
       }
     },
     {
       "id": 17,
       "section": "Shopping Flow",
-      "description": "REPORT: Blue Top price",
-      "type": "REPORT",
-      "action": { "message": "Blue Top price = {{blueTopPrice}}" }
+      "description": "CAPTURE: Blue Top price",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".productinfo:has(p:text-is('Blue Top')) h2",
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Blue Top')) h2"
+            }
+          ]
+        },
+        "extract": "textContent",
+        "captureAs": "blueTopPrice"
+      }
     },
     {
       "id": 18,
       "section": "Shopping Flow",
-      "description": "Add Blue Top to cart",
-      "type": "ACTION",
+      "description": "REPORT: Blue Top price",
+      "type": "REPORT",
       "action": {
-        "verb": "click",
-        "target": { "css": "a[data-product-id='1']", "nth": 0 }
+        "message": "Blue Top price = {{blueTopPrice}}"
       }
     },
     {
       "id": 19,
       "section": "Shopping Flow",
-      "description": "Click Continue Shopping",
+      "description": "Add Blue Top to cart",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "role": "button", "name": "Continue Shopping" }
+        "target": {
+          "css": "a[data-product-id='1']",
+          "nth": 0,
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Blue Top')) .single-products .btn"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Add to cart",
+        "nearbyText": [
+          "Blue Top",
+          "Rs. 500"
+        ],
+        "pageUrl": "/products"
       }
     },
     {
       "id": 20,
       "section": "Shopping Flow",
-      "description": "CAPTURE: Men Tshirt price",
-      "type": "CAPTURE",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
       "action": {
-        "target": { "css": ".productinfo:has(p:text-is('Men Tshirt')) h2" },
-        "extract": "textContent",
-        "captureAs": "menTshirtPrice"
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Continue Shopping"
+        }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Continue Shopping",
+        "pageUrl": "/products"
       }
     },
     {
       "id": 21,
       "section": "Shopping Flow",
-      "description": "REPORT: Men Tshirt price",
-      "type": "REPORT",
-      "action": { "message": "Men Tshirt price = {{menTshirtPrice}}" }
+      "description": "CAPTURE: Men Tshirt price",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".productinfo:has(p:text-is('Men Tshirt')) h2",
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Men Tshirt')) h2"
+            }
+          ]
+        },
+        "extract": "textContent",
+        "captureAs": "menTshirtPrice"
+      }
     },
     {
       "id": 22,
       "section": "Shopping Flow",
-      "description": "Add Men Tshirt to cart",
-      "type": "ACTION",
+      "description": "REPORT: Men Tshirt price",
+      "type": "REPORT",
       "action": {
-        "verb": "click",
-        "target": { "css": "a[data-product-id='2']", "nth": 0 }
+        "message": "Men Tshirt price = {{menTshirtPrice}}"
       }
     },
     {
       "id": 23,
       "section": "Shopping Flow",
-      "description": "Click Continue Shopping",
+      "description": "Add Men Tshirt to cart",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "role": "button", "name": "Continue Shopping" }
+        "target": {
+          "css": "a[data-product-id='2']",
+          "nth": 0,
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Men Tshirt')) .single-products .btn"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Add to cart",
+        "nearbyText": [
+          "Men Tshirt",
+          "Rs. 400"
+        ],
+        "pageUrl": "/products"
       }
     },
     {
       "id": 24,
       "section": "Shopping Flow",
-      "description": "CAPTURE: Fancy Green Top price",
-      "type": "CAPTURE",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
       "action": {
-        "target": { "css": ".productinfo:has(p:text-is('Fancy Green Top')) h2" },
-        "extract": "textContent",
-        "captureAs": "fancyGreenTopPrice"
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Continue Shopping"
+        }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Continue Shopping",
+        "pageUrl": "/products"
       }
     },
     {
       "id": 25,
       "section": "Shopping Flow",
-      "description": "REPORT: Fancy Green Top price",
-      "type": "REPORT",
-      "action": { "message": "Fancy Green Top price = {{fancyGreenTopPrice}}" }
+      "description": "CAPTURE: Fancy Green Top price",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".productinfo:has(p:text-is('Fancy Green Top')) h2",
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Fancy Green Top')) h2"
+            }
+          ]
+        },
+        "extract": "textContent",
+        "captureAs": "fancyGreenTopPrice"
+      }
     },
     {
       "id": 26,
       "section": "Shopping Flow",
-      "description": "Add Fancy Green Top to cart",
-      "type": "ACTION",
+      "description": "REPORT: Fancy Green Top price",
+      "type": "REPORT",
       "action": {
-        "verb": "click",
-        "target": { "css": "a[data-product-id='8']", "nth": 0 }
+        "message": "Fancy Green Top price = {{fancyGreenTopPrice}}"
       }
     },
     {
       "id": 27,
       "section": "Shopping Flow",
-      "description": "Click Continue Shopping",
+      "description": "Add Fancy Green Top to cart",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "role": "button", "name": "Continue Shopping" }
+        "target": {
+          "css": "a[data-product-id='8']",
+          "nth": 0,
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Fancy Green Top')) .single-products .btn"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Add to cart",
+        "nearbyText": [
+          "Fancy Green Top",
+          "Rs. 700"
+        ],
+        "pageUrl": "/products"
       }
     },
     {
       "id": 28,
       "section": "Shopping Flow",
-      "description": "CAPTURE: Frozen Tops For Kids price",
-      "type": "CAPTURE",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
       "action": {
-        "target": { "css": ".productinfo:has(p:text-is('Frozen Tops For Kids')) h2" },
-        "extract": "textContent",
-        "captureAs": "frozenTopPrice"
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Continue Shopping"
+        }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Continue Shopping",
+        "pageUrl": "/products"
       }
     },
     {
       "id": 29,
       "section": "Shopping Flow",
-      "description": "REPORT: Frozen Tops For Kids price",
-      "type": "REPORT",
-      "action": { "message": "Frozen Tops For Kids price = {{frozenTopPrice}}" }
+      "description": "CAPTURE: Frozen Tops For Kids price",
+      "type": "CAPTURE",
+      "action": {
+        "target": {
+          "css": ".productinfo:has(p:text-is('Frozen Tops For Kids')) h2",
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Frozen Tops For Kids')) h2"
+            }
+          ]
+        },
+        "extract": "textContent",
+        "captureAs": "frozenTopPrice"
+      }
     },
     {
       "id": 30,
+      "section": "Shopping Flow",
+      "description": "REPORT: Frozen Tops For Kids price",
+      "type": "REPORT",
+      "action": {
+        "message": "Frozen Tops For Kids price = {{frozenTopPrice}}"
+      }
+    },
+    {
+      "id": 31,
       "section": "Shopping Flow",
       "description": "Add Frozen Tops For Kids to cart",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "css": "a[data-product-id='13']", "nth": 0 }
+        "target": {
+          "css": "a[data-product-id='13']",
+          "nth": 0,
+          "fallbacks": [
+            {
+              "css": ".product-image-wrapper:has(p:text-is('Frozen Tops For Kids')) .single-products .btn"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Add to cart",
+        "nearbyText": [
+          "Frozen Tops For Kids",
+          "Rs. 278"
+        ],
+        "pageUrl": "/products"
       }
     },
     {
-      "id": 31,
+      "id": 32,
       "section": "Cart Verification",
-      "description": "Navigate to Cart page",
+      "description": "Navigate to Cart page (also dismisses Add-to-Cart modal if open)",
       "type": "NAVIGATE",
-      "action": { "url": "{{ENV.BASE_URL}}view_cart" }
+      "action": {
+        "url": "{{ENV.BASE_URL}}view_cart"
+      }
     },
     {
-      "id": 32,
+      "id": 33,
       "section": "Cart Verification",
       "description": "VERIFY: Blue Top is in cart",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Blue Top",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 33,
+      "id": 34,
       "section": "Cart Verification",
       "description": "VERIFY: Men Tshirt is in cart",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Men Tshirt",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 34,
+      "id": 35,
       "section": "Cart Verification",
       "description": "VERIFY: Fancy Green Top is in cart",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Fancy Green Top",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 35,
+      "id": 36,
       "section": "Cart Verification",
       "description": "VERIFY: Frozen Tops For Kids is in cart",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Frozen Tops For Kids",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 36,
+      "id": 37,
+      "section": "Cart Verification",
+      "description": "VERIFY: Blue Top price in cart matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{blueTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/1']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 38,
+      "section": "Cart Verification",
+      "description": "VERIFY: Men Tshirt price in cart matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{menTshirtPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/2']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 39,
+      "section": "Cart Verification",
+      "description": "VERIFY: Fancy Green Top price in cart matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{fancyGreenTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/8']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 40,
+      "section": "Cart Verification",
+      "description": "VERIFY: Frozen Tops For Kids price in cart matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{frozenTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/13']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 41,
       "section": "Cart Verification",
       "description": "SCREENSHOT: cart-with-all-items",
       "type": "SCREENSHOT",
-      "action": { "name": "cart-with-all-items", "fullPage": true }
+      "action": {
+        "name": "cart-with-all-items",
+        "fullPage": true
+      }
     },
     {
-      "id": 37,
+      "id": 42,
       "section": "Checkout",
       "description": "Click Proceed To Checkout",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "text": "Proceed To Checkout" }
+        "target": {
+          "text": "Proceed To Checkout",
+          "fallbacks": [
+            {
+              "css": ".btn.btn-default.check_out"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Proceed To Checkout",
+        "pageUrl": "/view_cart"
       }
     },
     {
-      "id": 38,
+      "id": 43,
       "section": "Checkout",
       "description": "VERIFY: Delivery address name contains QA Demo",
       "type": "VERIFY",
       "action": {
         "assertion": "textContains",
-        "target": { "role": "list", "nth": 0 },
+        "target": {
+          "css": "#address_delivery"
+        },
         "expected": "QA Demo"
       }
     },
     {
-      "id": 39,
+      "id": 44,
       "section": "Checkout",
       "description": "VERIFY: Billing address contains street",
       "type": "VERIFY",
       "action": {
         "assertion": "textContains",
-        "target": { "css": "#address_invoice" },
+        "target": {
+          "css": "#address_invoice"
+        },
         "expected": "Brigade Sparkle"
       }
     },
     {
-      "id": 40,
+      "id": 45,
       "section": "Checkout",
-      "description": "VERIFY: Billing address contains city/state/zip",
+      "description": "VERIFY: Billing address contains city, state, and zip",
       "type": "VERIFY",
       "action": {
         "assertion": "allOf",
         "conditions": [
-          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "Mysore" },
-          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "Karnataka" },
-          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "570008" }
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_invoice"
+            },
+            "expected": "Mysore"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_invoice"
+            },
+            "expected": "Karnataka"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_invoice"
+            },
+            "expected": "570008"
+          }
         ]
       }
     },
     {
-      "id": 41,
+      "id": 46,
+      "section": "Checkout",
+      "description": "VERIFY: Delivery address matches billing (same name, street, city, state, zip)",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "allOf",
+        "conditions": [
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_delivery"
+            },
+            "expected": "QA Demo"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_delivery"
+            },
+            "expected": "Brigade Sparkle"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_delivery"
+            },
+            "expected": "Mysore"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_delivery"
+            },
+            "expected": "Karnataka"
+          },
+          {
+            "assertion": "textContains",
+            "target": {
+              "css": "#address_delivery"
+            },
+            "expected": "570008"
+          }
+        ]
+      }
+    },
+    {
+      "id": 47,
       "section": "Order Review",
       "description": "VERIFY: Blue Top in order review",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Blue Top",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 42,
+      "id": 48,
       "section": "Order Review",
       "description": "VERIFY: Men Tshirt in order review",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Men Tshirt",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 43,
+      "id": 49,
       "section": "Order Review",
       "description": "VERIFY: Fancy Green Top in order review",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Fancy Green Top",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 44,
+      "id": 50,
       "section": "Order Review",
       "description": "VERIFY: Frozen Tops For Kids in order review",
       "type": "VERIFY",
       "action": {
         "assertion": "textVisible",
         "expected": "Frozen Tops For Kids",
-        "scope": { "role": "table" }
+        "scope": {
+          "role": "table"
+        }
       }
     },
     {
-      "id": 45,
+      "id": 51,
       "section": "Order Review",
-      "description": "CAPTURE: Total price",
+      "description": "VERIFY: Blue Top price in order review matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{blueTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/1']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 52,
+      "section": "Order Review",
+      "description": "VERIFY: Men Tshirt price in order review matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{menTshirtPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/2']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 53,
+      "section": "Order Review",
+      "description": "VERIFY: Fancy Green Top price in order review matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{fancyGreenTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/8']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 54,
+      "section": "Order Review",
+      "description": "VERIFY: Frozen Tops For Kids price in order review matches captured price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "expected": "{{frozenTopPrice}}",
+        "scope": {
+          "css": "tr:has(h4 a[href='/product_details/13']) td.cart_price"
+        }
+      }
+    },
+    {
+      "id": 55,
+      "section": "Order Review",
+      "description": "CALCULATE: expected total = sum of all 4 product prices",
+      "type": "CALCULATE",
+      "action": {
+        "expression": "{{blueTopPrice|parsePrice}} + {{menTshirtPrice|parsePrice}} + {{fancyGreenTopPrice|parsePrice}} + {{frozenTopPrice|parsePrice}}",
+        "captureAs": "expectedTotal",
+        "resultFormat": "Rs. {value}"
+      }
+    },
+    {
+      "id": 56,
+      "section": "Order Review",
+      "description": "CAPTURE: Total price from order review",
       "type": "CAPTURE",
       "action": {
-        "target": { "css": ".cart_total_price", "nth": 4 },
+        "target": {
+          "css": ".cart_total_price",
+          "nth": 4,
+          "fallbacks": [
+            {
+              "css": "tr.cart_total td.cart_total_price p"
+            },
+            {
+              "css": "tr:has(h4:text-is('Total Amount')) td.cart_total_price p"
+            }
+          ]
+        },
         "extract": "textContent",
         "captureAs": "totalPrice"
       }
     },
     {
-      "id": 46,
+      "id": 57,
       "section": "Order Review",
-      "description": "REPORT: Total price",
-      "type": "REPORT",
-      "action": { "message": "Total price = {{totalPrice}}" }
-    },
-    {
-      "id": 47,
-      "section": "Place Order",
-      "description": "Enter delivery note",
-      "type": "ACTION",
+      "description": "VERIFY: Total price matches expected total",
+      "type": "VERIFY",
       "action": {
-        "verb": "fill",
-        "target": { "css": "textarea" },
-        "value": "Delivery only on weekends from 9AM to 6PM"
+        "assertion": "valueEquals",
+        "expected": "{{expectedTotal}}",
+        "variable": "totalPrice"
       }
     },
     {
-      "id": 48,
+      "id": 58,
+      "section": "Order Review",
+      "description": "REPORT: Total price",
+      "type": "REPORT",
+      "action": {
+        "message": "Total price = {{totalPrice}}"
+      }
+    },
+    {
+      "id": 59,
+      "section": "Place Order",
+      "description": "Enter delivery note in comment textarea",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "css": "textarea[name='message']",
+          "fallbacks": [
+            {
+              "css": "textarea"
+            },
+            {
+              "role": "textbox",
+              "nth": 0
+            }
+          ]
+        },
+        "value": "Delivery only on weekends from 9AM to 6PM"
+      },
+      "_fingerprint": {
+        "tag": "textarea",
+        "pageUrl": "/checkout"
+      }
+    },
+    {
+      "id": 60,
       "section": "Place Order",
       "description": "Click Place Order",
       "type": "ACTION",
@@ -517,38 +1100,111 @@
         "target": {
           "role": "link",
           "name": "Place Order",
-          "fallbacks": [{ "text": "Place Order" }]
+          "fallbacks": [
+            {
+              "css": "a[href='/payment']"
+            },
+            {
+              "text": "Place Order"
+            }
+          ]
         }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Place Order",
+        "pageUrl": "/checkout"
       }
     },
     {
-      "id": 49,
+      "id": 61,
       "section": "Payment",
       "description": "Fill payment details",
       "type": "ACTION",
       "action": {
         "verb": "fill_form",
         "fields": [
-          { "target": { "css": "input[name='name_on_card']" }, "value": "QA Demo" },
-          { "target": { "css": "input[name='card_number']" }, "value": "{{ENV.CARD_NUMBER}}" },
-          { "target": { "css": "input[name='cvc']", "fallbacks": [{ "placeholder": "ex. 311" }] }, "value": "{{ENV.CARD_CVC}}" },
-          { "target": { "css": "input[name='expiry_month']", "fallbacks": [{ "placeholder": "MM" }] }, "value": "{{ENV.CARD_EXP_MONTH}}" },
-          { "target": { "css": "input[name='expiry_year']", "fallbacks": [{ "placeholder": "YYYY" }] }, "value": "{{ENV.CARD_EXP_YEAR}}" }
+          {
+            "target": {
+              "css": "input[name='name_on_card']"
+            },
+            "value": "QA Demo"
+          },
+          {
+            "target": {
+              "css": "input[name='card_number']"
+            },
+            "value": "{{ENV.CARD_NUMBER}}"
+          },
+          {
+            "target": {
+              "css": "input[name='cvc']",
+              "fallbacks": [
+                {
+                  "placeholder": "ex. 311"
+                }
+              ]
+            },
+            "value": "{{ENV.CARD_CVC}}"
+          },
+          {
+            "target": {
+              "css": "input[name='expiry_month']",
+              "fallbacks": [
+                {
+                  "placeholder": "MM"
+                }
+              ]
+            },
+            "value": "{{ENV.CARD_EXP_MONTH}}"
+          },
+          {
+            "target": {
+              "css": "input[name='expiry_year']",
+              "fallbacks": [
+                {
+                  "placeholder": "YYYY"
+                }
+              ]
+            },
+            "value": "{{ENV.CARD_EXP_YEAR}}"
+          }
         ]
+      },
+      "_fingerprint": {
+        "tag": "form",
+        "text": "Payment",
+        "pageUrl": "/payment"
       }
     },
     {
-      "id": 50,
+      "id": 62,
       "section": "Payment",
       "description": "Click Pay and Confirm Order",
       "type": "ACTION",
       "action": {
         "verb": "click",
-        "target": { "role": "button", "name": "Pay and Confirm Order" }
+        "target": {
+          "role": "button",
+          "name": "Pay and Confirm Order",
+          "fallbacks": [
+            {
+              "css": "#submit"
+            },
+            {
+              "text": "Pay and Confirm Order"
+            }
+          ]
+        }
+      },
+      "_fingerprint": {
+        "tag": "button",
+        "text": "Pay and Confirm Order",
+        "pageUrl": "/payment"
       }
     },
     {
-      "id": 51,
+      "id": 63,
       "section": "Order Confirmation",
       "description": "VERIFY: Order confirmation message",
       "type": "VERIFY",
@@ -558,44 +1214,84 @@
       }
     },
     {
-      "id": 52,
+      "id": 64,
       "section": "Order Confirmation",
       "description": "SCREENSHOT: order-confirmed",
       "type": "SCREENSHOT",
-      "action": { "name": "order-confirmed", "fullPage": false }
+      "action": {
+        "name": "order-confirmed",
+        "fullPage": false
+      }
     },
     {
-      "id": 53,
+      "id": 65,
       "section": "Order Confirmation",
       "description": "Download Invoice",
       "type": "ACTION",
       "action": {
         "verb": "download",
-        "trigger": { "role": "link", "name": "Download Invoice" },
+        "trigger": {
+          "role": "link",
+          "name": "Download Invoice",
+          "fallbacks": [
+            {
+              "css": "a[href*='download_invoice']"
+            }
+          ]
+        },
         "saveAs": "invoice",
         "timeout": 10000
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Download Invoice",
+        "pageUrl": "/payment_done"
       }
     },
     {
-      "id": 54,
+      "id": 66,
       "section": "Order Confirmation",
-      "description": "VERIFY: Invoice contains QA Demo",
+      "description": "VERIFY: Invoice file downloaded successfully",
       "type": "VERIFY",
       "action": {
-        "assertion": "fileContains",
-        "expected": "QA Demo",
+        "assertion": "fileExists",
         "path": "{{_downloads.invoice}}"
       }
     },
     {
-      "id": 55,
+      "id": 67,
+      "section": "Order Confirmation",
+      "description": "VERIFY: Downloaded invoice contains QA Demo",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "fileContains",
+        "path": "{{_downloads.invoice}}",
+        "expected": "QA Demo"
+      }
+    },
+    {
+      "id": 68,
+      "section": "Order Confirmation",
+      "description": "VERIFY: Downloaded invoice total matches captured total price",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "fileContains",
+        "path": "{{_downloads.invoice}}",
+        "expected": "{{totalPrice|parsePrice}}"
+      }
+    },
+    {
+      "id": 69,
       "section": "Order Confirmation",
       "description": "SCREENSHOT: invoice-verified",
       "type": "SCREENSHOT",
-      "action": { "name": "invoice-verified", "fullPage": false }
+      "action": {
+        "name": "invoice-verified",
+        "fullPage": false
+      }
     },
     {
-      "id": 56,
+      "id": 70,
       "section": "Logout",
       "description": "Click Logout",
       "type": "ACTION",
@@ -603,13 +1299,25 @@
         "verb": "click",
         "target": {
           "role": "link",
-          "name": "Logout",
-          "fallbacks": [{ "text": "Logout" }]
+          "nameContains": "Logout",
+          "fallbacks": [
+            {
+              "css": "a[href='/logout']"
+            },
+            {
+              "text": "Logout"
+            }
+          ]
         }
+      },
+      "_fingerprint": {
+        "tag": "a",
+        "text": "Logout",
+        "pageUrl": "/payment_done"
       }
     },
     {
-      "id": 57,
+      "id": 71,
       "section": "Logout",
       "description": "VERIFY: Redirected to login page",
       "type": "VERIFY",

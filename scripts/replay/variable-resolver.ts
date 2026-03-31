@@ -66,20 +66,44 @@ export function buildContext(
 }
 
 /**
+ * Apply a pipe filter to a resolved string value.
+ * Supported pipes:
+ *   parsePrice — strip currency prefix/suffix, return numeric string (e.g. "Rs. 500" → "500")
+ */
+function applyPipe(value: string, pipe: string): string {
+  switch (pipe) {
+    case 'parsePrice':
+      // Strip leading currency symbols/prefixes (e.g. "Rs. ", "$", "€") and trailing non-digits
+      return value.replace(/^[^0-9]+/, '').replace(/[^0-9.]+$/, '').trim();
+    default:
+      throw new Error(`Unknown pipe filter: "${pipe}"`);
+  }
+}
+
+/**
  * Resolve all {{variable}} references in a string.
+ * Supports pipe filters: {{variable|pipeName}}
  * Throws if a variable cannot be resolved.
  */
 export function resolveString(template: string, context: VariableContext): string {
   if (!template || typeof template !== 'string') return template;
   if (!template.includes('{{')) return template;
 
-  return template.replace(/\{\{([^}]+)\}\}/g, (match, varPath) => {
-    const trimmed = varPath.trim();
-    const value = getNestedValue(context, trimmed);
+  return template.replace(/\{\{([^}]+)\}\}/g, (match, varExpr) => {
+    const trimmed = varExpr.trim();
+
+    // Parse optional pipe filter: "variablePath|pipeName"
+    const pipeIdx = trimmed.indexOf('|');
+    const varPath = pipeIdx !== -1 ? trimmed.substring(0, pipeIdx).trim() : trimmed;
+    const pipeName = pipeIdx !== -1 ? trimmed.substring(pipeIdx + 1).trim() : null;
+
+    const value = getNestedValue(context, varPath);
     if (value === undefined) {
       throw new Error(`Unresolved variable: {{${trimmed}}}`);
     }
-    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+    const resolved = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    return pipeName ? applyPipe(resolved, pipeName) : resolved;
   });
 }
 

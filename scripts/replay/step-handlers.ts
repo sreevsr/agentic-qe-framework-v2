@@ -475,7 +475,10 @@ async function handleCalculate(step: Step, ctx: HandlerContext): Promise<StepRes
 
   let finalValue = String(result);
   if (resultFormat) {
-    finalValue = resultFormat.replace('{{result}}', String(result));
+    // Support both {value} and {result} single-brace placeholders (not processed by resolveDeep)
+    finalValue = resultFormat
+      .replace('{value}', String(result))
+      .replace('{result}', String(result));
   }
 
   setCapturedVariable(ctx.variables, captureAs, finalValue);
