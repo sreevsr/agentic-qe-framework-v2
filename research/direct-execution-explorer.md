@@ -340,3 +340,101 @@ The Explorer doesn't know or care about the UI framework. It sees the **accessib
 - PinATA: 60% correct verdicts, 94% specificity
 - Skyvern: 85.85% on WebVoyager
 - Our Explorer: 100% accuracy, 8 min / 28 steps (needs 10-20x speedup)
+
+---
+
+## Phase 1 Results (2026-03-31)
+
+### Execution Summary
+
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Scenario | automationexercise-trial (77 steps) | automationexercise-trial (77 steps) |
+| Pass rate | 100% | **100% (77/77)** |
+| Time | <60s | **335s (5m 35s)** — missed target |
+| Time (excl browser install) | <60s | **~245s (~4 min)** — still missed |
+| Self-heals | N/A | 1 (download handling) |
+| Snapshots taken | ~67 (predicted) | **~10 (batched)** |
+| Screenshots | 4 | 4 |
+
+### What Worked
+
+1. **100% pass rate** — every step executed correctly, including complex flows (signup, shopping, checkout, payment, invoice download, logout)
+2. **Snapshot batching** — Products page snapshot read once, used for 20 steps (4 products × 5 steps each). Checkout snapshot read once, used for 14 VERIFY steps.
+3. **fill_form batching** — 7 address fields filled in 1 MCP call. 5 payment fields filled in 1 MCP call.
+4. **Self-healing worked** — Download step failed with `require()` in browser context, self-healed with `saveAs()` approach on attempt 2.
+5. **No instruction bloat** — Agent read scenario + .env only. No quality-gates.md, no guardrails.md, no type-registry.md.
+
+### What Didn't Work (Why We Missed the 60s Target)
+
+**The bottleneck is NOT LLM reasoning. It's MCP round-trip latency.**
+
+| Bottleneck | Impact | Why |
+|-----------|--------|-----|
+| MCP tool call latency | ~3-5s per call × ~30 calls = ~90-150s | Each tool call is a network round-trip to the MCP server |
+| Snapshot token consumption | ~10K tokens per Products page snapshot | Accessibility tree includes ALL 34 products with ALL their refs |
+| Sequential execution | Cannot pipeline click+snapshot | MCP protocol is request-response, not streaming |
+| Conversational overhead | LLM receives full snapshot, processes it, formulates next action | Even when the action is obvious (click "Submit"), the LLM still processes the full snapshot |
+
+**The 60s target is physically impossible with MCP as the browser interface.** Even if LLM reasoning were instant, 30 MCP round-trips at 3-5s each = 90-150s minimum.
+
+### Comparison Table
+
+| Metric | Playwright Spec | v2 Explorer | Direct Executor |
+|--------|----------------|-------------|-----------------|
+| Time | 14s | ~8 min | 5m 35s |
+| Pass rate | 100% | 100% | 100% |
+| Output | Test results | enriched.md | PASS/FAIL report |
+| LLM calls | 0 | ~56 | ~30 |
+| Snapshots | 0 | ~56 | ~10 |
+| Self-heals | 0 | 0 | 1 |
+| Files read before start | 0 | 8+ | 2 (scenario + .env) |
+| Code generated | Pre-written | No | No |
+
+### Key Insights
+
+1. **MCP is the bottleneck, not the LLM.** The LLM identified and executed every action correctly on the first attempt (except download). The time is spent waiting for MCP responses.
+
+2. **Snapshot batching is the biggest optimization.** Instead of taking 67 snapshots (as predicted by the classifier), we took ~10. Reading one snapshot and processing multiple steps from it saved 57 × ~3s = ~170s.
+
+3. **The 60s target requires a different execution model.** MCP request-response cannot achieve it. Options:
+   - **Code generation + Playwright direct execution** — generate a script, run it natively (what v2 Builder does)
+   - **CDP direct access** — bypass MCP, talk to Chrome DevTools Protocol directly (what Stagehand does)
+   - **Hybrid** — LLM generates Playwright code snippets on-the-fly, executes them natively (no MCP round-trips)
+
+4. **The "no code" vision has a speed ceiling.** As long as every browser action requires an LLM decision, we're bounded by LLM inference time + communication latency. The 14s Playwright spec is fast because it's pre-compiled — no decisions at runtime.
+
+### Revised Strategy
+
+The Phase 1 POC proves the concept works (100% accuracy, self-healing, batched snapshots) but reveals that the 3x speed target (42s) requires a fundamentally different execution path. Three candidate approaches for Phase 2:
+
+**Approach A: Hybrid Code Generation**
+- LLM reads scenario + first snapshot → generates a Playwright script
+- Script runs natively (14s-class speed)
+- If script fails → LLM reads error + snapshot → patches the script
+- Autoresearch loop: generate → run → fix → run
+
+**Approach B: Pre-compiled Action Plans**
+- Step classifier + first snapshot → deterministic action plan (element refs + actions)
+- Execute plan via MCP without LLM per step
+- Only invoke LLM for VERIFY steps (assertions need judgment)
+- Estimated: ~30s for actions + ~30s for verifications = ~60s
+
+**Approach C: CDP Direct Access**
+- Replace MCP with direct CDP connection
+- Eliminates MCP protocol overhead
+- Still needs LLM for element identification
+- Similar to Stagehand's approach
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `scripts/step-classifier.js` | Zero-LLM step classification (keyword matching) |
+| `agents/core/direct-executor.md` | Lean agent instructions for Direct Execution Explorer |
+| `agents/report-templates/direct-executor-report.md` | PASS/FAIL report template |
+| `output/reports/direct-executor-report-automationexercise-trial.md` | Phase 1 execution report |
+| `output/screenshots/account-created.png` | Screenshot evidence |
+| `output/screenshots/cart-with-all-items.png` | Screenshot evidence |
+| `output/screenshots/order-confirmed.png` | Screenshot evidence |
+| `output/screenshots/invoice-verified.png` | Screenshot evidence |

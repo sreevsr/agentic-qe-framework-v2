@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agentic-qe/execution-plan/1.0",
+  "title": "Execution Plan",
+  "description": "Declarative test execution plan for the Agentic QE Framework replay engine",
+  "type": "object",
+  "required": ["schema", "scenario", "generatedAt", "generatedBy", "planHash", "environment", "steps"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "agentic-qe/execution-plan/1.0"
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["name", "source", "sourceHash", "type", "tags"],
+      "properties": {
+        "name": { "type": "string", "description": "Scenario identifier" },
+        "source": { "type": "string", "description": "Path to source scenario .md" },
+        "sourceHash": { "type": "string", "description": "SHA-256 of scenario .md for cache invalidation" },
+        "type": { "type": "string", "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"] },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "generatedBy": { "type": "string" },
+    "planHash": { "type": "string", "description": "SHA-256 of the steps array for cache invalidation" },
+    "environment": {
+      "type": "object",
+      "required": ["baseUrl", "variables"],
+      "properties": {
+        "baseUrl": { "type": "string" },
+        "variables": { "type": "array", "items": { "type": "string" }, "description": "Required ENV variable names" }
+      }
+    },
+    "pacing": {
+      "type": "object",
+      "description": "Application-specific pacing — how fast the replay engine should go. Declared by the plan generator based on observed app responsiveness.",
+      "properties": {
+        "globalDelayMs": { "type": "integer", "minimum": 0, "default": 0, "description": "Delay between every step (ms). 0 = as fast as Playwright allows." },
+        "postNavWaitMs": { "type": "integer", "minimum": 0, "default": 0, "description": "Wait after page navigations (ms). Use 0 for fast apps." },
+        "postNavWaitStrategy": { "type": "string", "enum": ["none", "networkidle", "domcontentloaded", "load"], "default": "none", "description": "Wait strategy after navigation." }
+      }
+    },
+    "dataSources": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/dataSource"
+      }
+    },
+    "setup": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "minItems": 1
+    },
+    "teardown": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "dataSource": {
+      "type": "object",
+      "required": ["file", "format"],
+      "properties": {
+        "file": { "type": "string" },
+        "format": { "type": "string", "enum": ["json", "csv", "excel"] },
+        "sheet": { "type": "string", "description": "Excel sheet name (required for excel format)" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "description": "Element targeting descriptor — resolved by the Element Resolver in priority order",
+      "properties": {
+        "role": { "type": "string", "description": "ARIA role (button, link, textbox, combobox, etc.)" },
+        "name": { "type": "string", "description": "Accessible name (exact match)" },
+        "nameContains": { "type": "string", "description": "Accessible name (partial match)" },
+        "text": { "type": "string", "description": "Visible text content" },
+        "testId": { "type": "string", "description": "data-testid attribute" },
+        "label": { "type": "string", "description": "Associated label text" },
+        "placeholder": { "type": "string", "description": "Placeholder text" },
+        "within": { "$ref": "#/$defs/target", "description": "Scoping container" },
+        "frame": {
+          "oneOf": [
+            { "type": "string", "const": "main" },
+            { "type": "object", "properties": {
+              "name": { "type": "string" },
+              "chain": { "type": "array", "items": { "type": "string" } }
+            }}
+          ],
+          "description": "iframe context"
+        },
+        "nth": { "type": "integer", "minimum": 0, "description": "Index when multiple matches (0-based)" },
+        "fallbacks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/target" },
+          "description": "Alternative targeting strategies tried in order"
+        }
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "description": "Healer-only metadata — ignored by replay engine. Records element state at plan generation time.",
+      "properties": {
+        "tag": { "type": "string", "description": "HTML tag name" },
+        "text": { "type": "string", "description": "Visible text at generation time" },
+        "classes": { "type": "array", "items": { "type": "string" } },
+        "boundingBox": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+          }
+        },
+        "nearbyText": { "type": "array", "items": { "type": "string" }, "description": "Text of sibling/nearby elements" },
+        "pageUrl": { "type": "string", "description": "URL when element was found" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "description", "type", "action"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "section": { "type": "string" },
+        "description": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "NAVIGATE", "ACTION", "VERIFY", "VERIFY_SOFT",
+            "CAPTURE", "CALCULATE", "SCREENSHOT", "REPORT",
+            "API_CALL", "DB_QUERY", "WRITE_DATA", "SKILL",
+            "WAIT", "FOR_EACH", "CONDITIONAL"
+          ]
+        },
+        "action": { "type": "object", "description": "Type-specific payload" },
+        "onFailure": {
+          "type": "string",
+          "enum": ["continue", "stop", "heal"],
+          "default": "continue"
+        },
+        "waitAfter": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Per-step delay (ms) after this step completes. Overrides global pacing for this step. Use for steps that trigger async rendering."
+        },
+        "_fingerprint": {
+          "$ref": "#/$defs/fingerprint",
+          "description": "Healer-only metadata — replay engine MUST ignore this field"
+        }
+      }
+    }
+  }
+}

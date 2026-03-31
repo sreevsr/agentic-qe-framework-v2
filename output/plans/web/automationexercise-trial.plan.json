@@ -1,0 +1,623 @@
+{
+  "schema": "agentic-qe/execution-plan/1.0",
+  "scenario": {
+    "name": "automationexercise-trial",
+    "source": "scenarios/web/automationexercise-trial.md",
+    "sourceHash": "sha256:a946e7c2b1442dcd7ed3628c6b54fae1918b5e5ed6996df3eb6982f2a4999447",
+    "type": "web",
+    "tags": ["e2e", "regression", "P1", "signup", "cart", "checkout", "payment", "invoice"]
+  },
+  "generatedAt": "2026-03-31T11:21:52Z",
+  "generatedBy": "plan-generator-manual/1.0",
+  "planHash": "sha256:pending",
+  "environment": {
+    "baseUrl": "{{ENV.BASE_URL}}",
+    "variables": ["BASE_URL", "SIGNUP_PASSWORD", "CARD_NUMBER", "CARD_CVC", "CARD_EXP_MONTH", "CARD_EXP_YEAR"]
+  },
+  "pacing": {
+    "globalDelayMs": 0,
+    "postNavWaitMs": 0,
+    "postNavWaitStrategy": "none"
+  },
+  "dataSources": {},
+  "setup": [],
+  "steps": [
+    {
+      "id": 1,
+      "section": "Signup Flow",
+      "description": "Navigate to BASE_URL",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}" }
+    },
+    {
+      "id": 2,
+      "section": "Signup Flow",
+      "description": "Click Signup / Login link",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "link",
+          "name": "Signup / Login",
+          "fallbacks": [{ "text": "Signup / Login" }]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "section": "Signup Flow",
+      "description": "Enter name in signup form",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": { "role": "textbox", "name": "Name" },
+        "value": "QA Demo"
+      }
+    },
+    {
+      "id": 4,
+      "section": "Signup Flow",
+      "description": "Enter email in signup form",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": {
+          "role": "textbox",
+          "name": "Email Address",
+          "nth": 1,
+          "fallbacks": [{ "placeholder": "Email Address" }]
+        },
+        "value": "qademo_{{_runtime.runId}}@testmail.com"
+      }
+    },
+    {
+      "id": 5,
+      "section": "Signup Flow",
+      "description": "Click Signup button",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "button",
+          "name": "Signup",
+          "fallbacks": [{ "text": "Signup" }]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "section": "Signup Flow",
+      "description": "VERIFY: Account information form is displayed",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Enter Account Information"
+      }
+    },
+    {
+      "id": 7,
+      "section": "Signup Flow",
+      "description": "Enter password",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": { "role": "textbox", "name": "Password *" },
+        "value": "{{ENV.SIGNUP_PASSWORD}}"
+      }
+    },
+    {
+      "id": 8,
+      "section": "Signup Flow",
+      "description": "Select title Mr",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "radio", "name": "Mr." }
+      }
+    },
+    {
+      "id": 9,
+      "section": "Signup Flow",
+      "description": "Select date of birth: Day 1, Month February, Year 1999",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          { "target": { "role": "combobox", "nth": 0 }, "value": "1", "verb": "select" },
+          { "target": { "role": "combobox", "nth": 1 }, "value": "February", "verb": "select" },
+          { "target": { "role": "combobox", "nth": 2 }, "value": "1999", "verb": "select" }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "section": "Signup Flow",
+      "description": "Fill name, address, and contact info",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          { "target": { "role": "textbox", "name": "First name *" }, "value": "QA" },
+          { "target": { "role": "textbox", "name": "Last name *" }, "value": "Demo" },
+          { "target": { "role": "textbox", "name": "Address * (Street address, P.O. Box, Company name, etc.)" }, "value": "Brigade Sparkle, Vishweshwar Nagar" },
+          { "target": { "role": "textbox", "name": "State *" }, "value": "Karnataka" },
+          { "target": { "role": "textbox", "name": "City * Zipcode *" }, "value": "Mysore" },
+          { "target": { "css": "#zipcode" }, "value": "570008" },
+          { "target": { "role": "textbox", "name": "Mobile Number *" }, "value": "9876543210" }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "section": "Signup Flow",
+      "description": "Click Create Account",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Create Account" }
+      }
+    },
+    {
+      "id": 12,
+      "section": "Signup Flow",
+      "description": "VERIFY: ACCOUNT CREATED! message",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Account Created!"
+      }
+    },
+    {
+      "id": 13,
+      "section": "Signup Flow",
+      "description": "SCREENSHOT: account-created",
+      "type": "SCREENSHOT",
+      "action": { "name": "account-created", "fullPage": false }
+    },
+    {
+      "id": 14,
+      "section": "Signup Flow",
+      "description": "Navigate past account-created page (ad may block Continue)",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}" }
+    },
+    {
+      "id": 15,
+      "section": "Shopping Flow",
+      "description": "Navigate to Products page",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}products" }
+    },
+    {
+      "id": 16,
+      "section": "Shopping Flow",
+      "description": "CAPTURE: Blue Top price",
+      "type": "CAPTURE",
+      "action": {
+        "target": { "css": ".productinfo:has(p:text-is('Blue Top')) h2" },
+        "extract": "textContent",
+        "captureAs": "blueTopPrice"
+      }
+    },
+    {
+      "id": 17,
+      "section": "Shopping Flow",
+      "description": "REPORT: Blue Top price",
+      "type": "REPORT",
+      "action": { "message": "Blue Top price = {{blueTopPrice}}" }
+    },
+    {
+      "id": 18,
+      "section": "Shopping Flow",
+      "description": "Add Blue Top to cart",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "css": "a[data-product-id='1']", "nth": 0 }
+      }
+    },
+    {
+      "id": 19,
+      "section": "Shopping Flow",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Continue Shopping" }
+      }
+    },
+    {
+      "id": 20,
+      "section": "Shopping Flow",
+      "description": "CAPTURE: Men Tshirt price",
+      "type": "CAPTURE",
+      "action": {
+        "target": { "css": ".productinfo:has(p:text-is('Men Tshirt')) h2" },
+        "extract": "textContent",
+        "captureAs": "menTshirtPrice"
+      }
+    },
+    {
+      "id": 21,
+      "section": "Shopping Flow",
+      "description": "REPORT: Men Tshirt price",
+      "type": "REPORT",
+      "action": { "message": "Men Tshirt price = {{menTshirtPrice}}" }
+    },
+    {
+      "id": 22,
+      "section": "Shopping Flow",
+      "description": "Add Men Tshirt to cart",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "css": "a[data-product-id='2']", "nth": 0 }
+      }
+    },
+    {
+      "id": 23,
+      "section": "Shopping Flow",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Continue Shopping" }
+      }
+    },
+    {
+      "id": 24,
+      "section": "Shopping Flow",
+      "description": "CAPTURE: Fancy Green Top price",
+      "type": "CAPTURE",
+      "action": {
+        "target": { "css": ".productinfo:has(p:text-is('Fancy Green Top')) h2" },
+        "extract": "textContent",
+        "captureAs": "fancyGreenTopPrice"
+      }
+    },
+    {
+      "id": 25,
+      "section": "Shopping Flow",
+      "description": "REPORT: Fancy Green Top price",
+      "type": "REPORT",
+      "action": { "message": "Fancy Green Top price = {{fancyGreenTopPrice}}" }
+    },
+    {
+      "id": 26,
+      "section": "Shopping Flow",
+      "description": "Add Fancy Green Top to cart",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "css": "a[data-product-id='8']", "nth": 0 }
+      }
+    },
+    {
+      "id": 27,
+      "section": "Shopping Flow",
+      "description": "Click Continue Shopping",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Continue Shopping" }
+      }
+    },
+    {
+      "id": 28,
+      "section": "Shopping Flow",
+      "description": "CAPTURE: Frozen Tops For Kids price",
+      "type": "CAPTURE",
+      "action": {
+        "target": { "css": ".productinfo:has(p:text-is('Frozen Tops For Kids')) h2" },
+        "extract": "textContent",
+        "captureAs": "frozenTopPrice"
+      }
+    },
+    {
+      "id": 29,
+      "section": "Shopping Flow",
+      "description": "REPORT: Frozen Tops For Kids price",
+      "type": "REPORT",
+      "action": { "message": "Frozen Tops For Kids price = {{frozenTopPrice}}" }
+    },
+    {
+      "id": 30,
+      "section": "Shopping Flow",
+      "description": "Add Frozen Tops For Kids to cart",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "css": "a[data-product-id='13']", "nth": 0 }
+      }
+    },
+    {
+      "id": 31,
+      "section": "Cart Verification",
+      "description": "Navigate to Cart page",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}view_cart" }
+    },
+    {
+      "id": 32,
+      "section": "Cart Verification",
+      "description": "VERIFY: Blue Top is in cart",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Blue Top",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 33,
+      "section": "Cart Verification",
+      "description": "VERIFY: Men Tshirt is in cart",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Men Tshirt",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 34,
+      "section": "Cart Verification",
+      "description": "VERIFY: Fancy Green Top is in cart",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Fancy Green Top",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 35,
+      "section": "Cart Verification",
+      "description": "VERIFY: Frozen Tops For Kids is in cart",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Frozen Tops For Kids",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 36,
+      "section": "Cart Verification",
+      "description": "SCREENSHOT: cart-with-all-items",
+      "type": "SCREENSHOT",
+      "action": { "name": "cart-with-all-items", "fullPage": true }
+    },
+    {
+      "id": 37,
+      "section": "Checkout",
+      "description": "Click Proceed To Checkout",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "text": "Proceed To Checkout" }
+      }
+    },
+    {
+      "id": 38,
+      "section": "Checkout",
+      "description": "VERIFY: Delivery address name contains QA Demo",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "target": { "role": "list", "nth": 0 },
+        "expected": "QA Demo"
+      }
+    },
+    {
+      "id": 39,
+      "section": "Checkout",
+      "description": "VERIFY: Billing address contains street",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textContains",
+        "target": { "css": "#address_invoice" },
+        "expected": "Brigade Sparkle"
+      }
+    },
+    {
+      "id": 40,
+      "section": "Checkout",
+      "description": "VERIFY: Billing address contains city/state/zip",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "allOf",
+        "conditions": [
+          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "Mysore" },
+          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "Karnataka" },
+          { "assertion": "textContains", "target": { "css": "#address_invoice" }, "expected": "570008" }
+        ]
+      }
+    },
+    {
+      "id": 41,
+      "section": "Order Review",
+      "description": "VERIFY: Blue Top in order review",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Blue Top",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 42,
+      "section": "Order Review",
+      "description": "VERIFY: Men Tshirt in order review",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Men Tshirt",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 43,
+      "section": "Order Review",
+      "description": "VERIFY: Fancy Green Top in order review",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Fancy Green Top",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 44,
+      "section": "Order Review",
+      "description": "VERIFY: Frozen Tops For Kids in order review",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Frozen Tops For Kids",
+        "scope": { "role": "table" }
+      }
+    },
+    {
+      "id": 45,
+      "section": "Order Review",
+      "description": "CAPTURE: Total price",
+      "type": "CAPTURE",
+      "action": {
+        "target": { "css": ".cart_total_price", "nth": 4 },
+        "extract": "textContent",
+        "captureAs": "totalPrice"
+      }
+    },
+    {
+      "id": 46,
+      "section": "Order Review",
+      "description": "REPORT: Total price",
+      "type": "REPORT",
+      "action": { "message": "Total price = {{totalPrice}}" }
+    },
+    {
+      "id": 47,
+      "section": "Place Order",
+      "description": "Enter delivery note",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill",
+        "target": { "css": "textarea" },
+        "value": "Delivery only on weekends from 9AM to 6PM"
+      }
+    },
+    {
+      "id": 48,
+      "section": "Place Order",
+      "description": "Click Place Order",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "link",
+          "name": "Place Order",
+          "fallbacks": [{ "text": "Place Order" }]
+        }
+      }
+    },
+    {
+      "id": 49,
+      "section": "Payment",
+      "description": "Fill payment details",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          { "target": { "css": "input[name='name_on_card']" }, "value": "QA Demo" },
+          { "target": { "css": "input[name='card_number']" }, "value": "{{ENV.CARD_NUMBER}}" },
+          { "target": { "css": "input[name='cvc']", "fallbacks": [{ "placeholder": "ex. 311" }] }, "value": "{{ENV.CARD_CVC}}" },
+          { "target": { "css": "input[name='expiry_month']", "fallbacks": [{ "placeholder": "MM" }] }, "value": "{{ENV.CARD_EXP_MONTH}}" },
+          { "target": { "css": "input[name='expiry_year']", "fallbacks": [{ "placeholder": "YYYY" }] }, "value": "{{ENV.CARD_EXP_YEAR}}" }
+        ]
+      }
+    },
+    {
+      "id": 50,
+      "section": "Payment",
+      "description": "Click Pay and Confirm Order",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": { "role": "button", "name": "Pay and Confirm Order" }
+      }
+    },
+    {
+      "id": 51,
+      "section": "Order Confirmation",
+      "description": "VERIFY: Order confirmation message",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "textVisible",
+        "expected": "Congratulations! Your order has been confirmed!"
+      }
+    },
+    {
+      "id": 52,
+      "section": "Order Confirmation",
+      "description": "SCREENSHOT: order-confirmed",
+      "type": "SCREENSHOT",
+      "action": { "name": "order-confirmed", "fullPage": false }
+    },
+    {
+      "id": 53,
+      "section": "Order Confirmation",
+      "description": "Download Invoice",
+      "type": "ACTION",
+      "action": {
+        "verb": "download",
+        "trigger": { "role": "link", "name": "Download Invoice" },
+        "saveAs": "invoice",
+        "timeout": 10000
+      }
+    },
+    {
+      "id": 54,
+      "section": "Order Confirmation",
+      "description": "VERIFY: Invoice contains QA Demo",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "fileContains",
+        "expected": "QA Demo",
+        "path": "{{_downloads.invoice}}"
+      }
+    },
+    {
+      "id": 55,
+      "section": "Order Confirmation",
+      "description": "SCREENSHOT: invoice-verified",
+      "type": "SCREENSHOT",
+      "action": { "name": "invoice-verified", "fullPage": false }
+    },
+    {
+      "id": 56,
+      "section": "Logout",
+      "description": "Click Logout",
+      "type": "ACTION",
+      "action": {
+        "verb": "click",
+        "target": {
+          "role": "link",
+          "name": "Logout",
+          "fallbacks": [{ "text": "Logout" }]
+        }
+      }
+    },
+    {
+      "id": 57,
+      "section": "Logout",
+      "description": "VERIFY: Redirected to login page",
+      "type": "VERIFY",
+      "action": {
+        "assertion": "urlContains",
+        "expected": "/login"
+      }
+    }
+  ],
+  "teardown": []
+}
