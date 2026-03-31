@@ -35,25 +35,22 @@ You are the **Plan Generator** — you create cached execution plans for the rep
 4. **Navigate** to the app via MCP Playwright
 5. **For each step:**
    - Take a `browser_snapshot` to see the current page
-   - Find the target element in the accessibility tree
-   - Execute the action via MCP (using ref)
-   - **VERIFY the locator using `browser_run_code`** — check that the Playwright locator
-     you plan to record actually matches exactly ONE visible element:
-     ```javascript
-     async (page) => {
-       const el = page.getByText('Users', { exact: true });
-       const count = await el.count();
-       if (count > 1) {
-         // Find which index is visible
-         for (let i = 0; i < count; i++) {
-           if (await el.nth(i).isVisible()) return { strategy: 'text', nth: i, count };
-         }
-       }
-       return { strategy: 'text', count, visible: count === 1 };
-     }
+   - Find the target element — note its **ref** (e.g., ref=e45)
+   - **BEFORE clicking**, call `browser_evaluate` with that ref to extract real DOM properties:
      ```
-   - Record the VERIFIED target in the plan (with correct `nth` if needed)
-   - **NEVER record a locator you haven't verified** — unverified locators fail on replay
+     browser_evaluate({
+       ref: "e45",
+       element: "Users link",
+       function: "(element) => { return { tagName: element.tagName.toLowerCase(), text: element.textContent?.trim(), id: element.id || null, href: element.getAttribute('href'), dataTestId: element.getAttribute('data-testid'), ariaLabel: element.getAttribute('aria-label'), name: element.getAttribute('name'), type: element.getAttribute('type'), placeholder: element.getAttribute('placeholder'), isVisible: element.offsetParent !== null }; }"
+     })
+     ```
+   - From the result, build the plan target using **actual DOM attributes** (not MCP's inferred role):
+     - `data-testid` unique? → use `testId`
+     - `href` unique? → use `css: "a[href='...']"`
+     - Standard HTML tag (button/a/input/select)? → use `role` + `name`
+     - Custom component (span/div/li)? → use `text` or `css` with class
+   - Execute the action via MCP (using ref)
+   - Record the step with the verified target
 6. **IMMEDIATELY write** the plan to `output/plans/{type}/{scenario}.plan.json`
 7. **Only after saving:** run `node scripts/plan-validator.js --plan=<path>` to validate, compare with existing plans, or print summaries
 

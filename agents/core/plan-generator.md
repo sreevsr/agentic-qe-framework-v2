@@ -40,51 +40,34 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
 5. Open browser: navigate to BASE_URL
 6. FOR EACH classified step:
    a. If step needs a snapshot → take browser_snapshot
-   b. Find the target element in the accessibility tree
-   c. Execute the action via MCP (click/fill/select using the ref)
-   d. AFTER the MCP action succeeds, VERIFY THE LOCATOR using browser_run_code:
-      Run this code to find the correct Playwright locator for the element:
-      ```javascript
-      async (page) => {
-        // Try multiple locator strategies and return what works
-        const strategies = [];
+   b. Find the target element in the accessibility tree — note its ref (e.g., ref=e45)
+   c. BEFORE clicking, extract the element's real DOM properties using browser_evaluate
+      with the SAME ref. This is ONE call that gives you the correct locator:
 
-        // Strategy 1: getByText (most reliable for custom components)
-        const byText = page.getByText('ELEMENT_TEXT', { exact: true });
-        const textCount = await byText.count();
-        const textVisible = textCount === 1 ? await byText.isVisible().catch(() => false) : false;
-        strategies.push({ type: 'text', value: 'ELEMENT_TEXT', count: textCount, visible: textVisible });
-
-        // Strategy 2: getByRole
-        const byRole = page.getByRole('ROLE', { name: 'ELEMENT_TEXT' });
-        const roleCount = await byRole.count();
-        const roleVisible = roleCount === 1 ? await byRole.isVisible().catch(() => false) : false;
-        strategies.push({ type: 'role', value: 'ROLE + ELEMENT_TEXT', count: roleCount, visible: roleVisible });
-
-        // Strategy 3: CSS with href/data attributes (if applicable)
-        // const byCss = page.locator('CSS_SELECTOR');
-        // strategies.push(...)
-
-        // Strategy 4: If multiple matches, find which nth is visible
-        if (textCount > 1) {
-          for (let i = 0; i < textCount; i++) {
-            if (await byText.nth(i).isVisible().catch(() => false)) {
-              strategies.push({ type: 'text+nth', value: 'ELEMENT_TEXT', nth: i, visible: true });
-              break;
-            }
-          }
-        }
-
-        return strategies;
-      }
       ```
-      Use the result to record the TARGET:
-      - If a strategy has count=1 and visible=true → use it as PRIMARY
-      - If count>1 → use the nth of the visible one
-      - If no single match → use CSS with specific attributes (href, data-testid, class)
-   e. Record the FINGERPRINT (healer metadata):
-      - tag, text, classes, boundingBox, nearbyText, pageUrl
-   f. Write the step to the plan steps array
+      browser_evaluate({
+        ref: "e45",
+        element: "Users link",
+        function: "(element) => { const result = { tagName: element.tagName.toLowerCase(), text: element.textContent?.trim(), id: element.id || null, href: element.getAttribute('href'), dataTestId: element.getAttribute('data-testid'), ariaLabel: element.getAttribute('aria-label'), name: element.getAttribute('name'), type: element.getAttribute('type'), placeholder: element.getAttribute('placeholder'), isVisible: element.offsetParent !== null }; const strategies = {}; if (result.text) { let exactTextMatches = 0; document.querySelectorAll('*').forEach(el => { if (el.textContent?.trim() === result.text && el.offsetParent !== null) exactTextMatches++; }); strategies.textExact = exactTextMatches; } if (result.href) { const byHref = document.querySelectorAll('[href=\"' + result.href + '\"]'); strategies.href = { total: byHref.length, visible: Array.from(byHref).filter(el => el.offsetParent !== null).length }; } if (result.dataTestId) { strategies.testId = document.querySelectorAll('[data-testid=\"' + result.dataTestId + '\"]').length; } if (result.id) { strategies.idCount = document.querySelectorAll('#' + result.id).length; } return { element: result, strategies }; }"
+      })
+      ```
+
+   d. From the result, build the target for the plan using this priority:
+      1. `data-testid` (if unique) → `{ "testId": "value" }`
+      2. `id` (if unique and not dynamic) → `{ "css": "#stableId" }`
+      3. `href` (if unique visible) → `{ "css": "a[href='value']" }`
+      4. Standard HTML + unique text → `{ "role": "button", "name": "text" }` (only for button/a/input/select/h1-h6)
+      5. Text (if unique visible) → `{ "text": "value" }`
+      6. Text + nth (if multiple visible) → `{ "text": "value", "nth": N }`
+      7. CSS class + text → `{ "css": "span.ClassName:has-text('value')" }`
+
+      **NEVER use role for custom components** (span, div, li with click handlers).
+      **ALWAYS include fallbacks** — at least 2 alternative strategies.
+
+   e. Execute the action via MCP (click/fill/select using the ref)
+   f. Verify it worked (post-action snapshot if needed)
+   g. Record the FINGERPRINT from the browser_evaluate result (tag, text, href, etc.)
+   h. Write the step to the plan steps array
 7. Compute planHash: SHA-256 of JSON.stringify(steps)
 8. **SAVE THE PLAN JSON FILE IMMEDIATELY** — do NOT defer this.
    Save to: output/plans/{type}/{scenario-name}.plan.json
