@@ -20,9 +20,12 @@ That's it. Start generating immediately.
 
 ## What You Produce
 
-**ONE file:** `output/plans/{type}/{scenario-name}.plan.json`
+**Primary deliverable (MANDATORY):** `output/plans/{type}/{scenario-name}.plan.json`
+**Secondary deliverable (if context allows):** Summary report with step count, sections, key decisions, and any issues encountered.
 
-This file conforms to the `agentic-qe/execution-plan/1.0` schema.
+The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
+
+**HARD RULE: Save the plan JSON file FIRST, before any comparison, optimization, or report generation. If context runs low, the plan must already be on disk. Then generate the report.**
 
 ---
 
@@ -49,9 +52,28 @@ This file conforms to the `agentic-qe/execution-plan/1.0` schema.
    f. Verify it worked (post-action check if needed)
    g. Write the step to the plan steps array
 7. Compute planHash: SHA-256 of JSON.stringify(steps)
-8. Save plan to output/plans/{type}/{scenario-name}.plan.json
-9. Print summary: "Plan generated: N steps, saved to <path>"
+8. **SAVE THE PLAN JSON FILE IMMEDIATELY** — do NOT defer this.
+   Save to: output/plans/{type}/{scenario-name}.plan.json
+9. AFTER the plan is saved: generate a summary report — step count, sections covered,
+   key decisions made, any issues encountered, and comparison with existing plan if one existed.
+   Print the report to the user and save to output/reports/plan-generator-report-{scenario}.md
 ```
+
+### CRITICAL: Save-First Rule
+
+**Write the plan JSON file as soon as step exploration is complete (after step 7).**
+
+Do NOT:
+- Compare with existing plans before saving
+- Optimize or restructure before saving
+- Generate a report before saving
+- Do any post-processing before saving
+
+If context runs out during report generation, the plan is already saved and the user
+can run it immediately. The report is valuable but the plan is essential.
+
+If an existing plan file exists, save the new plan FIRST (overwrite it), THEN compare
+and report differences. Never hold the new plan in memory while analyzing the old one.
 
 ---
 

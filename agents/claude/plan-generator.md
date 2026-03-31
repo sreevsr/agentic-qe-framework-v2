@@ -39,8 +39,10 @@ You are the **Plan Generator** — you create cached execution plans for the rep
    - Record the target with `role + name + fallbacks`
    - Execute the action via MCP
    - Record the step in the plan JSON
-6. **Write** the plan to `output/plans/{type}/{scenario}.plan.json`
-7. **Run** `node scripts/plan-validator.js --plan=<path>` to validate
+6. **IMMEDIATELY write** the plan to `output/plans/{type}/{scenario}.plan.json`
+7. **Only after saving:** run `node scripts/plan-validator.js --plan=<path>` to validate, compare with existing plans, or print summaries
+
+**CRITICAL: The plan JSON is the primary deliverable. Save it FIRST before any comparison, optimization, or reporting. Then generate a summary report (step count, sections, key decisions, issues). If context runs low, the plan must already be on disk.**
 
 ## Element Targeting — What to Record
 
