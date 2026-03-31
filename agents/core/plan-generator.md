@@ -41,16 +41,22 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
 6. FOR EACH classified step:
    a. If step needs a snapshot → take browser_snapshot
    b. Find the target element in the accessibility tree — note its ref (e.g., ref=e45)
-   c. BEFORE clicking, extract the element's real DOM properties using browser_evaluate
-      with the SAME ref. This is ONE call that gives you the correct locator:
+   c. BEFORE clicking, extract the element's real DOM properties AND a rich fingerprint
+      using browser_evaluate with the SAME ref. This is ONE call that gives you both
+      the correct locator AND the fingerprint for self-healing during replay:
 
       ```
       browser_evaluate({
         ref: "e45",
         element: "Users link",
-        function: "(element) => { const result = { tagName: element.tagName.toLowerCase(), text: element.textContent?.trim(), id: element.id || null, href: element.getAttribute('href'), dataTestId: element.getAttribute('data-testid'), ariaLabel: element.getAttribute('aria-label'), name: element.getAttribute('name'), type: element.getAttribute('type'), placeholder: element.getAttribute('placeholder'), isVisible: element.offsetParent !== null }; const strategies = {}; if (result.text) { let exactTextMatches = 0; document.querySelectorAll('*').forEach(el => { if (el.textContent?.trim() === result.text && el.offsetParent !== null) exactTextMatches++; }); strategies.textExact = exactTextMatches; } if (result.href) { const byHref = document.querySelectorAll('[href=\"' + result.href + '\"]'); strategies.href = { total: byHref.length, visible: Array.from(byHref).filter(el => el.offsetParent !== null).length }; } if (result.dataTestId) { strategies.testId = document.querySelectorAll('[data-testid=\"' + result.dataTestId + '\"]').length; } if (result.id) { strategies.idCount = document.querySelectorAll('#' + result.id).length; } return { element: result, strategies }; }"
+        function: "(element) => { function getUniqueCssSelector(el) { if (el.id) { var esc = CSS.escape(el.id); if (document.querySelectorAll('#' + esc).length === 1) return '#' + esc; } var tid = el.getAttribute('data-testid') || el.getAttribute('data-test-id'); if (tid) { var s = '[data-testid=\"' + CSS.escape(tid) + '\"]'; if (document.querySelectorAll(s).length === 1) return s; } var parts = []; var cur = el; while (cur && cur !== document.documentElement) { var seg = cur.tagName.toLowerCase(); if (cur.id && cur !== el) { var e2 = CSS.escape(cur.id); if (document.querySelectorAll('#' + e2).length === 1) { parts.unshift('#' + e2); break; } } var par = cur.parentElement; if (par) { var sibs = Array.from(par.children).filter(function(s) { return s.tagName === cur.tagName; }); if (sibs.length > 1) seg += ':nth-of-type(' + (sibs.indexOf(cur) + 1) + ')'; } parts.unshift(seg); cur = par; var cand = parts.join(' > '); try { if (document.querySelectorAll(cand).length === 1) return cand; } catch(e) {} } return parts.join(' > '); } var rect = element.getBoundingClientRect(); var parent = element.parentElement; var sibIdx = 0; if (parent) { var sibs = Array.from(parent.children).filter(function(s) { return s.tagName === element.tagName; }); sibIdx = sibs.indexOf(element); } var nearestId = undefined; var p = element.parentElement; while (p && p !== document.documentElement) { if (p.id) { nearestId = '#' + p.id; break; } p = p.parentElement; } var directText = Array.from(element.childNodes).filter(function(n) { return n.nodeType === Node.TEXT_NODE; }).map(function(n) { return (n.textContent || '').trim(); }).filter(Boolean).join(' ').trim(); var text = directText || (element.textContent || '').trim().substring(0, 100); var href = element.getAttribute('href'); var hrefPath = undefined; if (href) { try { hrefPath = new URL(href, location.origin).pathname; } catch(e) { hrefPath = href; } } var strategies = {}; if (text) { var exactCount = 0; document.querySelectorAll('*').forEach(function(el) { if (el.textContent && el.textContent.trim() === text && el.offsetParent !== null) exactCount++; }); strategies.textExact = exactCount; } if (href) { var byHref = document.querySelectorAll('[href=\"' + href + '\"]'); strategies.href = { total: byHref.length, visible: Array.from(byHref).filter(function(el) { return el.offsetParent !== null; }).length }; } var tid2 = element.getAttribute('data-testid'); if (tid2) strategies.testId = document.querySelectorAll('[data-testid=\"' + tid2 + '\"]').length; if (element.id) strategies.idCount = document.querySelectorAll('#' + element.id).length; return { element: { tagName: element.tagName.toLowerCase(), text: text, id: element.id || null, href: href, hrefPath: hrefPath, dataTestId: element.getAttribute('data-testid'), ariaLabel: element.getAttribute('aria-label'), name: element.getAttribute('name'), type: element.getAttribute('type'), placeholder: element.getAttribute('placeholder'), title: element.getAttribute('title'), role: element.getAttribute('role'), isVisible: element.offsetParent !== null }, strategies: strategies, fingerprint: { tag: element.tagName.toLowerCase(), id: element.id || undefined, testId: element.getAttribute('data-testid') || element.getAttribute('data-test-id') || undefined, text: text || undefined, ariaLabel: element.getAttribute('aria-label') || undefined, placeholder: element.getAttribute('placeholder') || undefined, name: element.getAttribute('name') || undefined, title: element.getAttribute('title') || undefined, href: hrefPath, role: element.getAttribute('role') || undefined, inputType: element.tagName === 'INPUT' ? (element.type || 'text') : undefined, cssPath: getUniqueCssSelector(element), nearestIdAncestor: nearestId, parentTag: parent ? parent.tagName.toLowerCase() : undefined, siblingIndex: sibIdx, rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }, visible: element.offsetParent !== null } }; }"
       })
       ```
+
+      The result now contains THREE objects:
+      - `element` — DOM properties for building the target locator (same as before)
+      - `strategies` — match counts for disambiguation (same as before)
+      - `fingerprint` — rich multi-signal fingerprint for replay self-healing (NEW)
 
    d. From the result, build the target for the plan using this priority:
       1. `data-testid` (if unique) → `{ "testId": "value" }`
@@ -66,7 +72,7 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
 
    e. Execute the action via MCP (click/fill/select using the ref)
    f. Verify it worked (post-action snapshot if needed)
-   g. Record the FINGERPRINT from the browser_evaluate result (tag, text, href, etc.)
+   g. Record the FINGERPRINT: copy the `fingerprint` object from browser_evaluate result directly into `_fingerprint`
    h. Write the step to the plan steps array
 7. Compute planHash: SHA-256 of JSON.stringify(steps)
 8. **SAVE THE PLAN JSON FILE IMMEDIATELY** — do NOT defer this.
@@ -148,7 +154,7 @@ MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. 
 - button "Create Account" [ref=e121] [cursor=pointer]
 ```
 
-**You record (text FIRST, role as fallback):**
+**You record (text FIRST, role as fallback, rich fingerprint from browser_evaluate):**
 ```json
 {
   "target": {
@@ -161,7 +167,12 @@ MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. 
   "_fingerprint": {
     "tag": "button",
     "text": "Create Account",
-    "pageUrl": "/signup"
+    "cssPath": "#signup-form > div > button",
+    "nearestIdAncestor": "#signup-form",
+    "parentTag": "div",
+    "siblingIndex": 0,
+    "rect": { "x": 340, "y": 520, "w": 120, "h": 40 },
+    "visible": true
   }
 }
 ```
@@ -183,27 +194,36 @@ MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. 
 
 ## Fingerprint Recording
 
-For EVERY action step, record a `_fingerprint` object. The replay engine ignores this — it's for the Phase 3 healer:
+For EVERY action step, record the `fingerprint` object from the `browser_evaluate` result directly as `_fingerprint`. This enables the replay engine's self-healing resolver to find elements even when selectors break (MUI duplicates, responsive variants, DOM restructuring).
+
+**Copy the fingerprint object verbatim from browser_evaluate result:**
 
 ```json
 {
   "_fingerprint": {
-    "tag": "button",
-    "text": "Submit",
-    "classes": ["btn", "btn-primary"],
-    "boundingBox": {"x": 340, "y": 520, "width": 120, "height": 40},
-    "nearbyText": ["Cancel", "Terms and Conditions"],
-    "pageUrl": "/checkout"
+    "tag": "a",
+    "text": "Users",
+    "href": "/users/#/UserPhotoSearch",
+    "ariaLabel": null,
+    "role": null,
+    "cssPath": "#sidebar > nav > ul > li:nth-of-type(3) > a",
+    "nearestIdAncestor": "#sidebar",
+    "parentTag": "li",
+    "siblingIndex": 0,
+    "rect": { "x": 12, "y": 180, "w": 200, "h": 40 },
+    "visible": true
   }
 }
 ```
 
-**How to get fingerprint data from the snapshot:**
-- `tag`: The element type in the snapshot (button, link, textbox, etc.)
-- `text`: The visible text from the snapshot
-- `pageUrl`: Current page URL
-- `nearbyText`: Text of sibling elements in the snapshot (parent's other children)
-- `boundingBox` and `classes`: Omit if not available from the snapshot (MCP accessibility snapshots don't include these — they'll be available when we add OmniParser in Phase 3)
+**CRITICAL fields for self-healing (must be present):**
+- `cssPath` — unique CSS selector path (disambiguates duplicates)
+- `rect` — bounding box position (validates correct instance)
+- `siblingIndex` — position among same-tag siblings
+- `nearestIdAncestor` — closest parent with ID (structural anchor)
+- `text` and `ariaLabel` — semantic identity
+
+**DO NOT invent fingerprints from the snapshot.** Always use the `fingerprint` object returned by `browser_evaluate` — it has accurate data from the actual DOM element.
 
 ---
 

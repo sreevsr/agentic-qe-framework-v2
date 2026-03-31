@@ -36,21 +36,17 @@ You are the **Plan Generator** — you create cached execution plans for the rep
 5. **For each step:**
    - Take a `browser_snapshot` to see the current page
    - Find the target element — note its **ref** (e.g., ref=e45)
-   - **BEFORE clicking**, call `browser_evaluate` with that ref to extract real DOM properties:
-     ```
-     browser_evaluate({
-       ref: "e45",
-       element: "Users link",
-       function: "(element) => { return { tagName: element.tagName.toLowerCase(), text: element.textContent?.trim(), id: element.id || null, href: element.getAttribute('href'), dataTestId: element.getAttribute('data-testid'), ariaLabel: element.getAttribute('aria-label'), name: element.getAttribute('name'), type: element.getAttribute('type'), placeholder: element.getAttribute('placeholder'), isVisible: element.offsetParent !== null }; }"
-     })
-     ```
-   - From the result, build the plan target using **actual DOM attributes** (not MCP's inferred role):
+   - **BEFORE clicking**, call `browser_evaluate` with that ref to extract DOM properties + rich fingerprint.
+     The function is defined in `agents/core/plan-generator.md` section "Generation Flow" step 6c — use that exact function.
+     It returns `{ element, strategies, fingerprint }`.
+   - From `element` + `strategies`, build the plan target using **actual DOM attributes** (not MCP's inferred role):
      - `data-testid` unique? → use `testId`
      - `href` unique? → use `css: "a[href='...']"`
      - Standard HTML tag (button/a/input/select)? → use `role` + `name`
      - Custom component (span/div/li)? → use `text` or `css` with class
    - Execute the action via MCP (using ref)
-   - Record the step with the verified target
+   - Copy the `fingerprint` object from browser_evaluate result directly into `_fingerprint`
+   - Record the step with the target + `_fingerprint`
 6. **IMMEDIATELY write** the plan to `output/plans/{type}/{scenario}.plan.json`
 7. **Only after saving:** run `node scripts/plan-validator.js --plan=<path>` to validate, compare with existing plans, or print summaries
 
