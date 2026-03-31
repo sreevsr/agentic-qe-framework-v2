@@ -36,9 +36,24 @@ You are the **Plan Generator** — you create cached execution plans for the rep
 5. **For each step:**
    - Take a `browser_snapshot` to see the current page
    - Find the target element in the accessibility tree
-   - Record the target with `role + name + fallbacks`
-   - Execute the action via MCP
-   - Record the step in the plan JSON
+   - Execute the action via MCP (using ref)
+   - **VERIFY the locator using `browser_run_code`** — check that the Playwright locator
+     you plan to record actually matches exactly ONE visible element:
+     ```javascript
+     async (page) => {
+       const el = page.getByText('Users', { exact: true });
+       const count = await el.count();
+       if (count > 1) {
+         // Find which index is visible
+         for (let i = 0; i < count; i++) {
+           if (await el.nth(i).isVisible()) return { strategy: 'text', nth: i, count };
+         }
+       }
+       return { strategy: 'text', count, visible: count === 1 };
+     }
+     ```
+   - Record the VERIFIED target in the plan (with correct `nth` if needed)
+   - **NEVER record a locator you haven't verified** — unverified locators fail on replay
 6. **IMMEDIATELY write** the plan to `output/plans/{type}/{scenario}.plan.json`
 7. **Only after saving:** run `node scripts/plan-validator.js --plan=<path>` to validate, compare with existing plans, or print summaries
 
@@ -48,15 +63,26 @@ You are the **Plan Generator** — you create cached execution plans for the rep
 
 For each element you interact with, record multiple targeting strategies:
 
+**CRITICAL: MCP's accessibility tree infers roles that may NOT match the actual DOM.** A `<span>` with a click handler shows as `link "Users"` in MCP but `getByRole('link')` will NOT find it. **Always use `text` as the PRIMARY target for visible text. Use `role` only as fallback for standard HTML elements (`<button>`, `<a>`, `<input>`, `<select>`, `<h1-h6>`).**
+
 ```json
 {
   "target": {
-    "role": "button",
-    "name": "Submit",
+    "text": "Submit",
     "fallbacks": [
-      { "text": "Submit" },
-      { "testId": "submit-btn" }
+      { "role": "button", "name": "Submit" },
+      { "css": "button:has-text('Submit')" }
     ]
+  }
+}
+```
+
+For form fields (these ARE standard HTML — role is reliable):
+```json
+{
+  "target": {
+    "role": "textbox",
+    "name": "Email"
   }
 }
 ```

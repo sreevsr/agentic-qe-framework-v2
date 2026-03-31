@@ -41,16 +41,50 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
 6. FOR EACH classified step:
    a. If step needs a snapshot → take browser_snapshot
    b. Find the target element in the accessibility tree
-   c. Record the TARGET with multiple strategies:
-      - Primary: role + name (from ARIA)
-      - Fallback 1: text content
-      - Fallback 2: testId (if data-testid exists)
-      - Fallback 3: label/placeholder (if applicable)
-   d. Record the FINGERPRINT (healer metadata):
+   c. Execute the action via MCP (click/fill/select using the ref)
+   d. AFTER the MCP action succeeds, VERIFY THE LOCATOR using browser_run_code:
+      Run this code to find the correct Playwright locator for the element:
+      ```javascript
+      async (page) => {
+        // Try multiple locator strategies and return what works
+        const strategies = [];
+
+        // Strategy 1: getByText (most reliable for custom components)
+        const byText = page.getByText('ELEMENT_TEXT', { exact: true });
+        const textCount = await byText.count();
+        const textVisible = textCount === 1 ? await byText.isVisible().catch(() => false) : false;
+        strategies.push({ type: 'text', value: 'ELEMENT_TEXT', count: textCount, visible: textVisible });
+
+        // Strategy 2: getByRole
+        const byRole = page.getByRole('ROLE', { name: 'ELEMENT_TEXT' });
+        const roleCount = await byRole.count();
+        const roleVisible = roleCount === 1 ? await byRole.isVisible().catch(() => false) : false;
+        strategies.push({ type: 'role', value: 'ROLE + ELEMENT_TEXT', count: roleCount, visible: roleVisible });
+
+        // Strategy 3: CSS with href/data attributes (if applicable)
+        // const byCss = page.locator('CSS_SELECTOR');
+        // strategies.push(...)
+
+        // Strategy 4: If multiple matches, find which nth is visible
+        if (textCount > 1) {
+          for (let i = 0; i < textCount; i++) {
+            if (await byText.nth(i).isVisible().catch(() => false)) {
+              strategies.push({ type: 'text+nth', value: 'ELEMENT_TEXT', nth: i, visible: true });
+              break;
+            }
+          }
+        }
+
+        return strategies;
+      }
+      ```
+      Use the result to record the TARGET:
+      - If a strategy has count=1 and visible=true → use it as PRIMARY
+      - If count>1 → use the nth of the visible one
+      - If no single match → use CSS with specific attributes (href, data-testid, class)
+   e. Record the FINGERPRINT (healer metadata):
       - tag, text, classes, boundingBox, nearbyText, pageUrl
-   e. Execute the action via MCP
-   f. Verify it worked (post-action check if needed)
-   g. Write the step to the plan steps array
+   f. Write the step to the plan steps array
 7. Compute planHash: SHA-256 of JSON.stringify(steps)
 8. **SAVE THE PLAN JSON FILE IMMEDIATELY** — do NOT defer this.
    Save to: output/plans/{type}/{scenario-name}.plan.json
@@ -58,6 +92,25 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
    key decisions made, any issues encountered, and comparison with existing plan if one existed.
    Print the report to the user and save to output/reports/plan-generator-report-{scenario}.md
 ```
+
+### CRITICAL: Locator Verification — Why This Matters
+
+**MCP Playwright uses a ref-based system to click elements. The ref is a direct pointer to the
+DOM node — it ALWAYS works. But the replay engine uses Playwright's locator API (getByRole,
+getByText, locator CSS). These APIs SEARCH the DOM and can match wrong/hidden elements.**
+
+Common failures if you skip verification:
+- `getByText('Users')` matches 3 elements (sidebar, breadcrumb, heading) → strict mode error
+- `getByRole('link', { name: 'Users' })` matches 0 because element is `<span>` not `<a>`
+- `locator('a[href="#/Users"]')` matches 3 (responsive duplicates) — index 0 is hidden
+
+**You MUST verify the locator after each MCP action using `browser_run_code`.**
+If the locator matches more than 1 element, refine it:
+1. Add `nth` with the index of the visible one
+2. Use a more specific CSS selector (add class, parent, or data attribute)
+3. Use `within` to scope to a container
+
+**NEVER record a locator you haven't verified.** A plan with unverified locators will fail on replay.
 
 ### CRITICAL: Save-First Rule
 
@@ -99,22 +152,55 @@ Use the step-classifier output to map each step:
 
 ## Target Discovery
 
-When you find an element in the accessibility tree, record it with multiple strategies:
+**CRITICAL: MCP's accessibility tree infers roles that may not match the actual DOM.**
+
+MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. But Playwright's `getByRole('link')` will NOT find it because it's not an `<a>` tag. This causes the #1 replay failure: **plan records a role the element doesn't actually have.**
+
+**RULE: Always use `text` as the PRIMARY target for elements with visible text. Use `role` only as a fallback, and only for standard HTML elements (button, link, textbox, heading, radio, checkbox, combobox, table, row, cell).**
+
+**Standard HTML elements where role is reliable:**
+
+| MCP shows | Actual HTML | `role` works? |
+|---|---|---|
+| `button "Submit"` | `<button>Submit</button>` | YES — use `role: "button"` |
+| `textbox "Email"` | `<input type="text">` | YES — use `role: "textbox"` |
+| `link "Home"` | `<a href="/home">Home</a>` | YES — use `role: "link"` |
+| `heading "Dashboard"` | `<h1>Dashboard</h1>` | YES — use `role: "heading"` |
+| `radio "Male"` | `<input type="radio">` | YES — use `role: "radio"` |
+| `combobox "Country"` | `<select>` | YES — use `role: "combobox"` |
+
+**Custom components where role is UNRELIABLE (common in React/MUI/Fluent UI/Ant Design):**
+
+| MCP shows | Actual HTML | `role` works? | Use instead |
+|---|---|---|---|
+| `link "Users"` | `<span class="MuiTypography-root">Users</span>` | NO | `text: "Users"` |
+| `button "Save"` | `<div class="custom-btn" onclick="...">Save</div>` | NO | `text: "Save"` |
+| `link "Dashboard"` | `<li class="nav-item"><span>Dashboard</span></li>` | NO | `text: "Dashboard"` |
+
+**After clicking an element via MCP, VERIFY the actual DOM by using `browser_run_code` to check the tag:**
+```javascript
+async (page) => {
+  const el = page.getByText('Users').first();
+  const tag = await el.evaluate(e => e.tagName.toLowerCase());
+  return tag; // "span" — NOT a link!
+}
+```
+
+**When you find an element in the accessibility tree, record it like this:**
 
 **From the snapshot, you see:**
 ```yaml
 - button "Create Account" [ref=e121] [cursor=pointer]
 ```
 
-**You record:**
+**You record (text FIRST, role as fallback):**
 ```json
 {
   "target": {
-    "role": "button",
-    "name": "Create Account",
+    "text": "Create Account",
     "fallbacks": [
-      {"text": "Create Account"},
-      {"role": "button", "nameContains": "Create"}
+      {"role": "button", "name": "Create Account"},
+      {"css": "button:has-text('Create Account')"}
     ]
   },
   "_fingerprint": {
@@ -125,16 +211,15 @@ When you find an element in the accessibility tree, record it with multiple stra
 }
 ```
 
-**For ambiguous elements** (e.g., multiple "Add to cart" buttons), record scoping:
+**For ambiguous elements** (e.g., multiple "Add to cart" buttons), use scoping or CSS:
 ```json
 {
   "target": {
-    "role": "generic",
-    "nameContains": "Add to cart",
-    "within": {
-      "role": "generic",
-      "nameContains": "Blue Top"
-    }
+    "css": "a[data-product-id='1']",
+    "nth": 0,
+    "fallbacks": [
+      {"text": "Add to cart", "within": {"text": "Blue Top"}}
+    ]
   }
 }
 ```
