@@ -110,16 +110,21 @@ If a locator file doesn't exist for a page section, note it. You can still gener
 
 ### Step 3.6: Check for Incremental Update — MANDATORY
 
-**HARD STOP: Before generating ANY code, check if output files already exist for this scenario.**
+**HARD STOP: Before generating ANY code, check if `output/reports/builder-instructions.json` exists.**
 
-Run the scenario-diff script:
-```bash
-node scripts/scenario-diff.js --scenario={enriched.md path} --spec={existing spec path}
-```
+The Orchestrator (or user) runs `node scripts/builder-incremental.js` BEFORE invoking you. This script produces `output/reports/builder-instructions.json` which tells you exactly what to do.
 
-**If the spec file does NOT exist:** This is a fresh generation. Proceed to Section 4 (generate everything from scratch).
+**Read `output/reports/builder-instructions.json` FIRST. It contains a `mode` field:**
 
-**If the spec file ALREADY exists:** Read the changeset JSON output (`output/reports/scenario-changeset.json`). It contains:
+| Mode | Meaning | Your Action |
+|------|---------|-------------|
+| `FULL` | No existing spec — first generation | Proceed to Section 4, generate everything from scratch |
+| `NO_CHANGES` | Scenario matches existing spec | **STOP. Do nothing. Report: "No changes detected."** |
+| `INCREMENTAL` | Some steps changed | Read the `partialEnrichedFile` — it contains ONLY the changed steps. Modify ONLY those steps in the existing spec. |
+
+**If `builder-instructions.json` does NOT exist:** Run the script yourself: `node scripts/builder-incremental.js --scenario={name} --type={type}`. If that fails, fall back to full generation.
+
+**For INCREMENTAL mode:** The instructions file contains:
 - `unchanged` — steps that haven't changed → **KEEP existing code — DO NOT regenerate**
 - `modified` — steps whose text changed → **UPDATE the corresponding test.step() block and page object method**
 - `added` — new steps not in the existing spec → **ADD new test.step() blocks and page object methods**

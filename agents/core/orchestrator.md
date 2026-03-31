@@ -176,11 +176,20 @@ Save enriched scenario to: scenarios/{type}/{scenario}.enriched.md
 
 **The Builder reads the enriched.md and Scout locator JSONs to generate all code files. It does NOT open a browser.**
 
-Delegate to **QE Builder** with:
+**Step 1b-pre: Run incremental check script BEFORE invoking Builder:**
+```bash
+node scripts/builder-incremental.js --scenario={scenario} --type={type} [--folder={folder}]
+```
+This produces `output/reports/builder-instructions.json` which tells the Builder whether to do FULL, INCREMENTAL, or NO_CHANGES generation. The Builder reads this file FIRST.
+
+**If mode is NO_CHANGES:** Skip the Builder entirely. Proceed to Stage 2.
+
+**Step 1b-main: Delegate to QE Builder:**
 ```
 Read agents/core/builder.md for your instructions.
 Read agents/core/code-generation-rules.md for code patterns.
 Read agents/report-templates/builder-report.md for the MANDATORY report format.
+Read output/reports/builder-instructions.json FIRST — it tells you FULL vs INCREMENTAL mode.
 
 SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}

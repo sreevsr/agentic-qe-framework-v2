@@ -124,6 +124,7 @@ Without Playwright MCP configured, the Explorer/Builder CANNOT explore web/hybri
 | Classify failures | `node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json` | CI/CD failure triage |
 | Swagger parser | `node scripts/swagger-parser.js --spec=path/to/spec.json` | Parse OpenAPI specs |
 | Scenario diff | `node scripts/scenario-diff.js --scenario=path --spec=path` | Detect changes for incremental updates |
+| Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Pre-Builder: determines FULL/INCREMENTAL/NO_CHANGES mode, creates partial enriched.md |
 | Collect metrics | `node scripts/metrics-collector.js --run-type=pipeline` | Aggregate observability data |
 | Eval summary | `node scripts/eval-summary.js --scenario=X` | Agent evaluation summary |
 | Rehash skills | `node scripts/rehash-skills.js` | Update skill content hashes for drift detection |
