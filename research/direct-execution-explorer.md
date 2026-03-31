@@ -296,7 +296,7 @@ The Explorer doesn't know or care about the UI framework. It sees the **accessib
 ### Phase 4: Enterprise Validation (2 weeks)
 **Goal:** Works on real customer apps.
 
-- Test on: devunify (Fluent UI + MUI), epicview (Power Apps), automationexercise (Bootstrap)
+- Test on: enterprise Power Apps portals, Fluent UI + MUI apps, automationexercise (Bootstrap)
 - Handle: SAP, Salesforce, custom enterprise UIs
 - Handle: SSO/Kerberos/LDAP auth flows
 - Measure: success rate across different UI frameworks
