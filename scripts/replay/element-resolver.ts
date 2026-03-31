@@ -1,14 +1,15 @@
 /**
  * element-resolver.ts — Translates plan target objects into Playwright Locator instances.
  *
- * Resolution priority:
- *   1. role + name         → page.getByRole(role, { name })
- *   2. role + nameContains → page.getByRole(role, { name: /pattern/i })
- *   3. label               → page.getByLabel(label)
- *   4. placeholder         → page.getByPlaceholder(placeholder)
- *   5. testId              → page.getByTestId(testId)
- *   6. text                → page.getByText(text)
- *   7. fallbacks[n]        → try each in order
+ * Resolution priority (text-first — safer for custom components):
+ *   1. text                → page.getByText(text) — works on ANY element with visible text
+ *   2. role + name         → page.getByRole(role, { name }) — only reliable for standard HTML
+ *   3. role + nameContains → page.getByRole(role, { name: /pattern/i })
+ *   4. label               → page.getByLabel(label)
+ *   5. placeholder         → page.getByPlaceholder(placeholder)
+ *   6. testId              → page.getByTestId(testId)
+ *   7. css                 → page.locator(css)
+ *   8. fallbacks[n]        → try each in order
  *
  * Scoping:
  *   - within → narrows to a container locator
@@ -17,6 +18,8 @@
  */
 
 import { Page, Locator, FrameLocator } from 'playwright';
+import { ElementFingerprint } from './page-scanner';
+import { resolveByFingerprint } from './fingerprint-resolver';
 
 export interface Target {
   role?: string;
@@ -32,6 +35,8 @@ export interface Target {
   frame?: string | { name?: string; chain?: string[] };
   nth?: number;
   fallbacks?: Target[];
+  /** Multi-signal fingerprint from page-scanner (enables self-healing). */
+  _fingerprint?: ElementFingerprint;
 }
 
 export interface ResolveResult {
@@ -72,10 +77,15 @@ export function resolveTarget(page: Page, target: Target): ResolveResult {
     strategy += `within(${container.strategy}) → `;
   }
 
-  // Primary resolution
+  // Primary resolution — text-first for reliability with custom components
+  // (MCP accessibility tree infers roles that may not match actual DOM)
   let locator: Locator;
 
-  if (target.role && target.name) {
+  if (target.text) {
+    // Text matching works on ANY element — most reliable for custom components
+    locator = (context as any).getByText(target.text);
+    strategy += `text:"${target.text}"`;
+  } else if (target.role && target.name) {
     locator = getByRole(context, target.role, { name: target.name, exact: false });
     strategy += `role:${target.role}[name="${target.name}"]`;
   } else if (target.role && target.nameContains) {
@@ -96,9 +106,6 @@ export function resolveTarget(page: Page, target: Target): ResolveResult {
   } else if (target.css) {
     locator = (context as any).locator(target.css);
     strategy += `css:"${target.css}"`;
-  } else if (target.text) {
-    locator = (context as any).getByText(target.text);
-    strategy += `text:"${target.text}"`;
   } else {
     throw new Error(`Target has no resolvable properties: ${JSON.stringify(target)}`);
   }
@@ -120,14 +127,37 @@ export function resolveTarget(page: Page, target: Target): ResolveResult {
 
 /**
  * Resolve a target with fallback attempts.
- * Tries the primary target first, then each fallback in order.
- * Returns the first locator that finds a visible element.
+ *
+ * Resolution order:
+ *   1. Fingerprint (if _fingerprint present) — multi-signal self-healing
+ *   2. Primary target (role/text/label/css)
+ *   3. Explicit fallbacks[]
+ *   4. Last resort: return primary locator (will timeout on interaction)
  */
 export async function resolveWithFallbacks(
   page: Page,
   target: Target,
   timeout: number = 3000,
 ): Promise<ResolveResult> {
+  // --- Fingerprint resolution (Tier 1 + Tier 2 self-healing) ---
+  if (target._fingerprint) {
+    try {
+      const match = await resolveByFingerprint(page, target._fingerprint, timeout);
+      if (match) {
+        return {
+          locator: match.locator,
+          strategy: match.healed
+            ? `🔧 ${match.strategy}`
+            : match.strategy,
+        };
+      }
+    } catch {
+      // Fingerprint resolution failed, fall through to legacy resolution
+    }
+  }
+
+  // --- Legacy resolution (existing behavior for plans without fingerprints) ---
+
   // Try primary
   try {
     const primary = resolveTarget(page, target);
