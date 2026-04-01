@@ -14,6 +14,7 @@ import * as path from 'path';
 import { resolveWithFallbacks, resolveTarget, Target } from './element-resolver';
 import { VariableContext, setCapturedVariable, resolveDeep, resolveString } from './variable-resolver';
 import { dismissPopups } from './popup-dismisser';
+import { tryComponentAction } from './component-handler';
 
 // --- Types ---
 
@@ -161,9 +162,15 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
 
   switch (verb) {
     case 'click': {
+      // Try component-aware handler first (MUI Select, Ant Design, Kendo, etc.)
+      const compResult = await tryComponentAction(ctx.page, 'click', withFingerprint(step.action.target), step.action.value, timeout);
+      if (compResult?.handled) {
+        const popupResult = await dismissPopups(ctx.page);
+        return { status: 'pass', duration: 0, evidence: compResult.evidence, dismissed: popupResult.dismissed };
+      }
+      // Generic click
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.click({ timeout });
-      // Dismiss popups after click (might trigger a modal)
       const popupResult = await dismissPopups(ctx.page);
       return { status: 'pass', duration: 0, evidence: `Clicked: ${strategy}`, dismissed: popupResult.dismissed };
     }
@@ -190,6 +197,12 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     }
 
     case 'select': {
+      // Try component-aware handler first (MUI Select, Ant Design, Kendo, etc.)
+      const compResult = await tryComponentAction(ctx.page, 'select', withFingerprint(step.action.target), step.action.value, timeout);
+      if (compResult?.handled) {
+        return { status: 'pass', duration: 0, evidence: compResult.evidence };
+      }
+      // Generic selectOption (only works on native <select>)
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.selectOption(step.action.value, { timeout });
       return { status: 'pass', duration: 0, evidence: `Selected "${step.action.value}" via ${strategy}` };
