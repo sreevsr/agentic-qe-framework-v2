@@ -2,7 +2,7 @@
 
 ## Identity
 
-You are a **QE automation agent** running inside GitHub Copilot Chat in agent mode. You are part of the Agentic QE Framework v2 — an enterprise-grade system that generates production-quality Playwright test automation code.
+You are a **QE automation agent** running inside GitHub Copilot Chat in agent mode. You are part of the Agentic QE Framework v3 — an enterprise-grade system that generates and executes plan-based test automation without writing code.
 
 **When invoked, execute immediately. DO NOT explain how to run the pipeline. DO NOT offer options. DO NOT ask what the user wants to do. Read your instructions and DO your job.**
 
@@ -18,50 +18,78 @@ Your instructions come from:
 3. **DO NOT resume from partial prior output.** Start clean every time.
 4. Each agent has a specific job. Do that job. DO NOT improvise.
 
-## Architecture
+## Architecture — v3 Pipeline
 
 ```
-Pipeline: [Enrichment Agent] → Explorer/Builder → Executor → Reviewer → [Healer]
+Pipeline: Pre-Checks → Enrichment → Plan Generator → Replay → Heal → Reviewer → Report
 ```
 
-## Agent Roster
+- **Enrichment Agent** structures natural language / Swagger into `.enriched.md` scenarios
+- **Plan Generator** explores the app via MCP browser and produces `plan.json` with rich fingerprints
+- **Replay Engine** (terminal command, not an agent) executes the plan deterministically — zero LLM cost
+- **Plan Healer** surgically fixes failing plan steps, classifies deterministic vs MCP
+- **Plan Reviewer** audits plan quality, step traceability, evidence completeness
+- **Orchestrator** coordinates the full pipeline end-to-end
+
+## Agent Roster — v3 Pipeline
 
 | Invoke as | File | Job |
 |-----------|------|-----|
 | `@QE Orchestrator` | `.github/agents/orchestrator.agent.md` | **One-command pipeline** — coordinates all agents in sequence |
-| `@QE Explorer` | `.github/agents/explorer-builder.agent.md` | Explore app via chunked execution, verify interactions in live browser, write test code |
-| `@QE Executor` | `.github/agents/executor.agent.md` | Run tests, fix timing issues (max 3 cycles) |
-| `@QE Enricher` | `.github/agents/enrichment-agent.agent.md` | Convert natural language / Swagger to structured scenario .md |
-| `@QE Reviewer` | `.github/agents/reviewer.agent.md` | Audit code quality, produce scorecard (9 dimensions) |
-| `@QE Healer` | `.github/agents/healer.agent.md` | Fix code quality issues when Reviewer verdict is NEEDS FIXES |
+| `@QE Enricher` | `.github/agents/enrichment-agent.agent.md` | Structure NL / Swagger into .enriched.md scenario files |
+| `@QE Plan Generator` | `.github/agents/plan-generator.agent.md` | Explore app via MCP, produce plan.json with fingerprints |
+| `@QE Plan Healer` | `.github/agents/plan-healer.agent.md` | Surgically fix failing plan steps |
+| `@QE Plan Reviewer` | `.github/agents/plan-reviewer.agent.md` | 1:1 step mapping, plan quality audit, quality score |
+
+## Legacy Agents (v2 code-generation pipeline)
+
+These agents are still available for the v2 code-generation pipeline. Use only if explicitly working with generated Playwright spec files and page objects.
+
+| Invoke as | File | Job |
+|-----------|------|-----|
+| `@QE Explorer` | `.github/agents/explorer.agent.md` | Verify flow in live browser, produce enriched.md |
+| `@QE Builder` | `.github/agents/builder.agent.md` | Generate code from locator JSONs + enriched.md |
+| `@QE Executor` | `.github/agents/executor.agent.md` | Run tests, fix timing issues |
+| `@QE Reviewer` | `.github/agents/reviewer.agent.md` | 9-dimension code quality audit (legacy) |
+| `@QE Healer` | `.github/agents/healer.agent.md` | Fix code quality issues (legacy) |
 
 ## Key Framework Concepts
 
-- **Scenario files** (`scenarios/web/`, `scenarios/api/`, `scenarios/hybrid/`) are the input — test scenarios in plain English with structured keywords
-- **Output** goes into `output/` — **ONE shared Playwright project** for all scenarios, NOT one per scenario. Page objects are REUSED across scenarios.
-- **Folder parameter** is optional — organizes output by app/feature. Without: `output/tests/web/scenario.spec.ts`. With folder: `output/tests/web/my-app/scenario.spec.ts`
-- **Skills** (`skills/`) define agent capabilities — read `skills/registry.md`. Three levels: registry (always loaded) → instructions (on activation) → resources (on demand)
-- **App-contexts** (`scenarios/app-contexts/`) store learned application patterns across runs. Explorer/Builder reads them BEFORE exploring and writes them AFTER. This is the self-improving mechanism.
-- **Chunked execution** — The Explorer/Builder uses chunked execution by default. Scenarios are partitioned into chunks of max 15 steps (configurable via `framework-config.json`). For scenarios > 15 steps, subagents (`step-explorer`) handle each chunk with a fresh context window while sharing the same MCP browser/Appium session. This prevents context pressure from causing the LLM to shortcut exploration.
-- **`## API Behavior: mock`** in a scenario header means the API is non-persistent; agents may adapt tests for non-persistence. No header or `live` = ALL guardrails fully enforced with ZERO exceptions. NEVER infer API behavior from the URL.
-- **Shared test data** (`output/test-data/shared/`) — cross-scenario reference data. **NEVER overwrite or delete** — other scenarios depend on these files.
-- **Helper files** (`output/pages/*.helpers.ts`) are team-maintained companion files. The `USE_HELPER:` keyword invokes helper methods. **NEVER create, modify, or delete** `*.helpers.ts` files from any agent — they are team-owned. If helpers exist, import the helpers class (not the base class).
-- **Scripts** in `scripts/` are deterministic utilities that save tokens. **MUST** use them instead of doing the work manually (precheck, test-results-parser, failure-classifier, etc.).
+- **Scenario files** (`scenarios/web/`, `scenarios/api/`, `scenarios/mobile/`) are the input — test scenarios written by users
+- **Enriched files** (`scenarios/{type}/{name}.enriched.md`) are produced by the Enrichment Agent — user's original .md is NEVER modified
+- **Plan JSON files** (`output/plans/{type}/{name}.plan.json`) are the executable test plans — produced by the Plan Generator, replayed deterministically
+- **Shared flows** (`shared-flows/{name}.plan-fragment.json`) are reusable plan fragments (login, setup, cleanup) included via the `INCLUDE` step type
+- **App-contexts** (`scenarios/app-contexts/`) store learned application patterns — Plan Generator creates/appends, Healer appends learnings
+- **Component handler** auto-detects MUI/Ant Design/Kendo/Fluent UI and uses library-specific interaction recipes during replay
+- **Fingerprint resolver** provides multi-signal self-healing (15+ signals: text, name, cssPath, rect, siblingIndex) when selectors break
+- **Allure results** (`output/test-results/allure-results/`) produced automatically after every replay for CI dashboard integration
+- **Skills** (`skills/`) define specialized capabilities — `skills/replay/*.skill.js` for component interactions (pie charts, MUI Select, etc.)
 
-- **Pipeline summary reports** MUST include: pipeline results table, final verdict, files generated, test execution summary, quality metrics. ALL fields MUST have actual data — NO placeholders.
+## Replay Engine Commands
+
+```bash
+# Run a plan
+npx tsx scripts/replay-engine.ts --plan=output/plans/web/scenario.plan.json --headed
+
+# Dry-run (validate without browser)
+npx tsx scripts/replay-engine.ts --plan=output/plans/web/scenario.plan.json --dry-run
+
+# Generate HTML report from Allure results
+npx tsx scripts/replay/allure-html-viewer.ts
+```
 
 ## File Ownership — HARD BOUNDARIES
 
 | Files | Owner | Agent Access |
 |-------|-------|-------------|
-| `scenarios/*.md` | User/Tester | Read ONLY |
-| `output/pages/*.helpers.ts` | Team | Read ONLY — **NEVER modify** |
-| `output/test-data/shared/` | Team | Read ONLY — **NEVER modify** |
-| `output/core/*` | Framework | Read ONLY (managed by setup.js) |
-| `output/pages/*.ts` | Explorer/Builder | Create/modify |
-| `output/locators/*.json` | Explorer/Builder | Create/modify |
-| `output/tests/**/*.spec.ts` | Explorer/Builder | Create/modify |
-| `scenarios/app-contexts/*.md` | Explorer/Builder | Read/write |
+| `scenarios/*.md` | User/Tester | **Read ONLY** — NEVER modify |
+| `scenarios/*.enriched.md` | Enrichment Agent | Create/overwrite per run |
+| `output/plans/**/*.plan.json` | Plan Generator / Healer | Create/modify |
+| `shared-flows/*.plan-fragment.json` | Team | Read ONLY (used via INCLUDE) |
+| `scenarios/app-contexts/*.md` | Plan Generator / Healer | Create/append |
+| `output/core/*` | Framework (setup.js) | Read ONLY |
+| `output/.env` | User | Read ONLY |
+| `skills/replay/*.skill.js` | Framework | Read ONLY |
 
 ## Platform Compatibility
 

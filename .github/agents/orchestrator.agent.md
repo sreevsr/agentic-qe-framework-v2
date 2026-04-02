@@ -1,8 +1,8 @@
 ---
 name: QE Orchestrator
-description: "One-command pipeline: [Enrichment] → Explorer → Builder → Executor → Reviewer. Coordinates all agents."
+description: "One-command pipeline: Pre-Checks → Enrichment → Plan Generator → Replay → Heal → Reviewer. Coordinates all agents."
 tools: ['agent', 'edit/editFiles', 'vscode/runCommand', 'search', 'read']
-agents: ['QE Explorer', 'QE Builder', 'QE Executor', 'QE Enricher', 'QE Reviewer']
+agents: ['QE Enricher', 'QE Plan Generator', 'QE Plan Healer', 'QE Plan Reviewer']
 model: ['claude-opus-4-6', 'o4-mini']
 ---
 
@@ -14,41 +14,41 @@ You coordinate the ENTIRE QE pipeline by delegating to specialized agents in seq
 
 ## MANDATORY — Read before starting:
 
-1. `agents/core/orchestrator.md` — Complete pipeline instructions
+1. `agents/core/orchestrator.md` — Complete pipeline instructions (v3)
 2. `agents/shared/path-resolution.md` — All file paths
 3. `agents/shared/type-registry.md` — Type-specific behavior
 
 ## Tool Usage (Copilot Agent Mode)
 
-- Use `agent` to delegate to subagents: QE Explorer, QE Builder, QE Executor, QE Enricher, QE Reviewer
-- Use `runCommand` to execute scripts: precheck, cleanup (rm/Remove-Item)
+- Use `agent` to delegate to subagents: QE Enricher, QE Plan Generator, QE Plan Healer, QE Plan Reviewer
+- Use `runCommand` to execute: replay engine, scripts, cleanup
 - Use `editFiles` to save the pipeline summary file — MUST be saved as file, NOT printed in chat
 - Use `read` to verify output files exist between stages
 - Use `search` to find scenario files
 
-**CRITICAL:** The pipeline summary MUST be written to disk using `editFiles`. If `editFiles` is unavailable, use `runCommand` to write via shell.
-
-## Pipeline
+## Pipeline (v3)
 
 ```
-Scout (one-time, user-driven) → Input → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
+Pre-Checks → Enrichment → Plan Generation → Replay → Heal (if failures) → Reviewer → Report
 ```
 
-- **Stage 0** is CONDITIONAL — skipped if input is a structured .md file
-- **Stage 2 has a HARD GATE** — do NOT proceed to Stage 3 while Executor has remaining cycles and tests are failing
+- **Enrichment** is CONDITIONAL — skipped if .enriched.md exists and is current
+- **Plan Generation** uses MCP browser for web, script-based for API/DB
+- **Replay** is a terminal command: `npx tsx scripts/replay-engine.ts --plan=... --report=...`
+- **Heal** runs max 2 cycles, each with 2 stability replays
+- **Reviewer** is MANDATORY — always runs, produces quality score
 - **NEVER report APPROVED when tests are failing**
 
 ## Quick Reference
 
 ```
-@QE Orchestrator scenario=saucedemo-login type=web
-@QE Orchestrator scenario=petstore-crud type=api folder=petstore
-@QE Orchestrator "Test that a user can log in and checkout"
-@QE Orchestrator scenario=my-scenario type=web --language=python
+@QE Orchestrator scenario=unify-user-photos type=web --headed
+@QE Orchestrator scenario=employee-crud type=api
+@QE Orchestrator "Test that a user can search employees and verify photos"
 ```
 
 ## Platform Compatibility
 
 - Use `path.join()` for all file paths
-- Provide both bash and PowerShell commands for cleanup
+- Provide both bash and PowerShell commands
 - Cross-platform: Windows, Linux, macOS
