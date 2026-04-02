@@ -15,6 +15,7 @@ import { resolveWithFallbacks, resolveTarget, Target } from './element-resolver'
 import { VariableContext, setCapturedVariable, resolveDeep, resolveString } from './variable-resolver';
 import { dismissPopups } from './popup-dismisser';
 import { tryComponentAction } from './component-handler';
+import { validatePathWithinProject, validateArithmeticExpression, validateSkillName, maskSensitiveValue } from './security';
 
 // --- Types ---
 
@@ -178,7 +179,8 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     case 'fill': {
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
       await locator.fill(step.action.value, { timeout });
-      return { status: 'pass', duration: 0, evidence: `Filled "${step.action.value}" via ${strategy}` };
+      const maskedVal = maskSensitiveValue(step.description || '', step.action.value);
+      return { status: 'pass', duration: 0, evidence: `Filled "${maskedVal}" via ${strategy}` };
     }
 
     case 'fill_form': {
@@ -372,7 +374,7 @@ async function executeAssertion(step: Step, ctx: HandlerContext, soft: boolean):
       }
 
       case 'fileExists': {
-        const filePath = step.action.path;
+        const filePath = validatePathWithinProject(step.action.path, 'fileExists assertion');
         if (!fs.existsSync(filePath)) {
           throw new Error(`File not found: ${filePath}`);
         }
@@ -380,10 +382,10 @@ async function executeAssertion(step: Step, ctx: HandlerContext, soft: boolean):
       }
 
       case 'fileContains': {
-        const filePath = step.action.path;
+        const filePath = validatePathWithinProject(step.action.path, 'fileContains assertion');
         const content = fs.readFileSync(filePath, 'utf-8');
         if (!content.includes(step.action.expected)) {
-          throw new Error(`File "${filePath}" does not contain "${step.action.expected}". Content: ${content.substring(0, 200)}`);
+          throw new Error(`File does not contain "${step.action.expected}"`);
         }
         return { status: 'pass', duration: 0, evidence: `File contains "${step.action.expected}"` };
       }
@@ -484,12 +486,8 @@ async function handleCalculate(step: Step, ctx: HandlerContext): Promise<StepRes
   // Resolve variables in the expression
   const resolvedExpr = resolveString(expression, ctx.variables);
 
-  // Validate: only allow arithmetic expressions (numbers, operators, parens, decimals, whitespace)
-  // Reject anything that could be code injection (letters, brackets, semicolons, etc.)
-  const SAFE_ARITHMETIC = /^[\d\s+\-*/().,%]+$/;
-  if (!SAFE_ARITHMETIC.test(resolvedExpr)) {
-    throw new Error(`CALCULATE expression contains unsafe characters: "${resolvedExpr}". Only numbers, +, -, *, /, (, ), ., % are allowed.`);
-  }
+  // Defense-in-depth: validate expression is safe arithmetic before evaluating
+  validateArithmeticExpression(resolvedExpr);
 
   // Evaluate the validated arithmetic expression
   const result = new Function(`return (${resolvedExpr})`)();
@@ -695,7 +693,7 @@ async function handleDbQuery(step: Step, ctx: HandlerContext): Promise<StepResul
 
 async function handleWriteData(step: Step, ctx: HandlerContext): Promise<StepResult> {
   const { format, file, data, mode, row } = step.action;
-  const filepath = path.resolve(file);
+  const filepath = validatePathWithinProject(file, 'WRITE_DATA');
   fs.mkdirSync(path.dirname(filepath), { recursive: true });
 
   switch (format) {
@@ -735,8 +733,9 @@ async function handleWriteData(step: Step, ctx: HandlerContext): Promise<StepRes
 async function handleSkill(step: Step, ctx: HandlerContext): Promise<StepResult> {
   const { skill, params, captureAs } = step.action;
 
-  // Load skill module dynamically — try .js first, then .ts
+  // Load skill module dynamically — validate name first to prevent path traversal
   const skillName = skill.split('/')[0];
+  validateSkillName(skillName);
   const jsPath = path.resolve('skills', 'replay', `${skillName}.skill.js`);
   const tsPath = path.resolve('skills', 'replay', `${skillName}.skill.ts`);
   const resolvedPath = fs.existsSync(jsPath) ? jsPath : fs.existsSync(tsPath) ? tsPath : null;

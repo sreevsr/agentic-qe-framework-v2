@@ -93,7 +93,7 @@ function generateHtml(results: AllureResult[]): string {
           <span class="step-time">${stepDuration}s</span>
           ${evidence ? `<div class="step-evidence">${escapeHtml(evidence)}</div>` : ''}
           ${error ? `<div class="step-error">${escapeHtml(error)}</div>` : ''}
-          ${stepScreenshots.length > 0 ? `<div class="step-screenshot"><img src="file://${stepScreenshots[0].source}" alt="failure screenshot" onerror="this.parentElement.innerHTML='Screenshot: ${escapeHtml(stepScreenshots[0].source)}'" /></div>` : ''}
+          ${stepScreenshots.length > 0 ? `<div class="step-screenshot"><img src="file://${stepScreenshots[0].source}" alt="failure screenshot" onerror="this.style.display='none';this.parentElement.querySelector('.fallback').style.display='block'" /><span class="fallback" style="display:none">Screenshot: ${escapeHtml(stepScreenshots[0].source)}</span></div>` : ''}
         </div>`;
     }).join('\n');
 

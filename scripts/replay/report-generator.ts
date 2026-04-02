@@ -111,8 +111,10 @@ export function generateMarkdownReport(results: ReplayResults): string {
     md += `\n## Captured Variables\n\n`;
     md += `| Variable | Value |\n`;
     md += `|----------|-------|\n`;
+    const SENSITIVE_KEYS = ['password', 'token', 'secret', 'cvc', 'cvv', 'card', 'key', 'auth', 'credential'];
     for (const [key, value] of capturedEntries) {
-      const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      const isSensitive = SENSITIVE_KEYS.some(s => key.toLowerCase().includes(s));
+      const displayValue = isSensitive ? '***' : (typeof value === 'object' ? JSON.stringify(value) : String(value));
       md += `| ${key} | ${displayValue.substring(0, 100)} |\n`;
     }
   }

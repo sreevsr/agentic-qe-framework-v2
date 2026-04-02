@@ -102,10 +102,11 @@
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i];
     var rect = el.getBoundingClientRect();
-    // offsetParent is null for position:fixed elements AND hidden elements.
-    // Check computed style to distinguish: fixed elements are visible, display:none are not.
-    var isFixed = window.getComputedStyle(el).position === "fixed";
-    var visible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && (el.offsetParent !== null || isFixed);
+    // offsetParent is null for both hidden elements AND position:fixed elements.
+    // Only call getComputedStyle (expensive) when offsetParent is null to distinguish.
+    var hasSize = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0;
+    var isFixed = el.offsetParent === null && hasSize ? window.getComputedStyle(el).position === "fixed" : false;
+    var visible = hasSize && (el.offsetParent !== null || isFixed);
     if (!visible) continue;
 
     var centerX = rect.left + rect.width / 2;

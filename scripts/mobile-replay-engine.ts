@@ -147,7 +147,17 @@ async function createMcpBridge(): Promise<(tool: string, params: Record<string, 
   const callMcp = async (tool: string, params: Record<string, any>): Promise<any> => {
     const id = ++requestId;
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const timerId = setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error(`MCP tool call "${tool}" timed out after 30s`));
+        }
+      }, 30000);
+
+      pending.set(id, {
+        resolve: (val: any) => { clearTimeout(timerId); resolve(val); },
+        reject: (err: any) => { clearTimeout(timerId); reject(err); },
+      });
 
       const request = JSON.stringify({
         jsonrpc: '2.0',
@@ -157,14 +167,6 @@ async function createMcpBridge(): Promise<(tool: string, params: Record<string, 
       }) + '\n';
 
       mcpProcess.stdin!.write(request);
-
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        if (pending.has(id)) {
-          pending.delete(id);
-          reject(new Error(`MCP tool call "${tool}" timed out after 30s`));
-        }
-      }, 30000);
     });
   };
 
@@ -204,18 +206,31 @@ async function createMcpBridge(): Promise<(tool: string, params: Record<string, 
 
 // --- Shared Flow Resolution (same as web replay engine) ---
 
-function resolveIncludes(steps: any[]): any[] {
+const MAX_INCLUDE_DEPTH = 5;
+const mobileProjectRoot = path.resolve(__dirname, '..');
+
+function resolveIncludes(steps: any[], depth: number = 0, visited: Set<string> = new Set()): any[] {
+  if (depth > MAX_INCLUDE_DEPTH) {
+    console.warn(`  Warning: INCLUDE depth limit reached`);
+    return steps;
+  }
   const resolved: any[] = [];
   for (const step of steps) {
     if (step.type === 'INCLUDE') {
       const flowPath = path.resolve(step.action.flow);
+      if (!flowPath.startsWith(mobileProjectRoot)) {
+        console.warn(`  Warning: INCLUDE path traversal blocked: ${step.action.flow}`);
+        resolved.push({ ...step, type: 'REPORT', action: { message: `INCLUDE blocked: ${step.action.flow}` } });
+        continue;
+      }
+      if (visited.has(flowPath)) {
+        console.warn(`  Warning: Circular INCLUDE: ${step.action.flow}`);
+        resolved.push({ ...step, type: 'REPORT', action: { message: `INCLUDE circular: ${step.action.flow}` } });
+        continue;
+      }
       if (!fs.existsSync(flowPath)) {
         console.warn(`  Warning: Shared flow not found: ${flowPath}`);
-        resolved.push({
-          ...step,
-          type: 'REPORT',
-          action: { message: `INCLUDE skipped — flow not found: ${step.action.flow}` },
-        });
+        resolved.push({ ...step, type: 'REPORT', action: { message: `INCLUDE not found: ${step.action.flow}` } });
         continue;
       }
       try {
@@ -223,7 +238,8 @@ function resolveIncludes(steps: any[]): any[] {
         const fragmentSteps = fragment.steps || fragment;
         if (Array.isArray(fragmentSteps)) {
           console.log(`  Inlined shared flow: ${step.action.flow} (${fragmentSteps.length} steps)`);
-          resolved.push(...resolveIncludes(fragmentSteps));
+          visited.add(flowPath);
+          resolved.push(...resolveIncludes(fragmentSteps, depth + 1, visited));
         }
       } catch (err: any) {
         console.warn(`  Warning: Failed to parse shared flow: ${err.message}`);
@@ -251,7 +267,13 @@ async function main() {
     console.error(`Plan file not found: ${planPath}`);
     process.exit(1);
   }
-  const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+  let plan: any;
+  try {
+    plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+  } catch (err: any) {
+    console.error(`Failed to parse plan JSON: ${err.message}`);
+    process.exit(1);
+  }
 
   // Resolve INCLUDEs
   plan.steps = resolveIncludes(plan.steps);
@@ -315,6 +337,7 @@ async function main() {
   let callMcp: (tool: string, params: Record<string, any>) => Promise<any>;
   try {
     callMcp = await createMcpBridge();
+    mcpCleanupFn = (callMcp as any).cleanup || null;
     console.log('  Appium MCP: connected\n');
   } catch (err: any) {
     console.error(`  FAIL: Cannot connect to Appium MCP server: ${err.message}`);
@@ -502,7 +525,14 @@ async function main() {
   process.exit(failed > 0 ? 1 : 0);
 }
 
+// Ensure MCP cleanup on any exit
+let mcpCleanupFn: (() => void) | null = null;
+process.on('exit', () => { if (mcpCleanupFn) mcpCleanupFn(); });
+process.on('SIGINT', () => { if (mcpCleanupFn) mcpCleanupFn(); process.exit(130); });
+process.on('SIGTERM', () => { if (mcpCleanupFn) mcpCleanupFn(); process.exit(143); });
+
 main().catch((err) => {
   console.error('Fatal error:', err.message);
+  if (mcpCleanupFn) mcpCleanupFn();
   process.exit(2);
 });

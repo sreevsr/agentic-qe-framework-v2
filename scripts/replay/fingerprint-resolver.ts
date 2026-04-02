@@ -132,9 +132,13 @@ async function trySelfHeal(
   fp: ElementFingerprint,
   timeout: number,
 ): Promise<FingerprintMatch | null> {
-  const argsJson = JSON.stringify({ fingerprint: fp, maxCandidates: MAX_CANDIDATES });
+  // Pass args as a serialized JSON string embedded safely via page.evaluate
+  // The BROWSER_CANDIDATE_SCAN_SCRIPT is an IIFE that takes args — we call it with JSON.parse
+  const argsStr = JSON.stringify({ fingerprint: fp, maxCandidates: MAX_CANDIDATES });
+  // Escape for safe embedding in a JS string literal (handle backslashes and quotes)
+  const safeArgs = argsStr.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const candidates: CandidateElement[] = await page.evaluate(
-    `(${BROWSER_CANDIDATE_SCAN_SCRIPT})(${argsJson})`
+    `(${BROWSER_CANDIDATE_SCAN_SCRIPT})(JSON.parse('${safeArgs}'))`
   ) as any;
 
   if (!candidates || candidates.length === 0) return null;

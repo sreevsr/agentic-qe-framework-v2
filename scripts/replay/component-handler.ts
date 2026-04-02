@@ -60,8 +60,9 @@ export async function tryComponentAction(
   // Detect what component this is
   let detection: any;
   try {
+    const safeSelector = JSON.stringify({ selector }).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     detection = await page.evaluate(
-      `(${DETECTOR_SCRIPT})(${JSON.stringify({ selector })})`,
+      `(${DETECTOR_SCRIPT})(JSON.parse('${safeSelector}'))`,
     );
   } catch {
     return null;

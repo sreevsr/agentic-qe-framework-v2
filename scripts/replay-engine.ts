@@ -168,12 +168,34 @@ function parseCsv(content: string): Record<string, string>[] {
  * Resolve INCLUDE steps by inlining the referenced plan fragment.
  * INCLUDE steps reference a shared flow file (e.g., shared-flows/login.plan-fragment.json).
  * The fragment's steps are inserted in place of the INCLUDE step.
+ *
+ * Security: validates flow paths are within the project directory.
+ * Safety: depth limit prevents infinite recursion from circular includes.
  */
-function resolveIncludes(steps: any[]): any[] {
+const MAX_INCLUDE_DEPTH = 5;
+const projectRoot = path.resolve(__dirname, '..');
+
+function resolveIncludes(steps: any[], depth: number = 0, visited: Set<string> = new Set()): any[] {
+  if (depth > MAX_INCLUDE_DEPTH) {
+    console.warn(`  Warning: INCLUDE depth limit (${MAX_INCLUDE_DEPTH}) reached — stopping recursion`);
+    return steps;
+  }
   const resolved: any[] = [];
   for (const step of steps) {
     if (step.type === 'INCLUDE') {
       const flowPath = path.resolve(step.action.flow);
+      // Security: prevent path traversal
+      if (!flowPath.startsWith(projectRoot)) {
+        console.warn(`  Warning: INCLUDE path traversal blocked: ${step.action.flow}`);
+        resolved.push({ ...step, type: 'REPORT', action: { message: `INCLUDE blocked — path outside project: ${step.action.flow}` } });
+        continue;
+      }
+      // Safety: detect circular includes
+      if (visited.has(flowPath)) {
+        console.warn(`  Warning: Circular INCLUDE detected: ${step.action.flow}`);
+        resolved.push({ ...step, type: 'REPORT', action: { message: `INCLUDE skipped — circular reference: ${step.action.flow}` } });
+        continue;
+      }
       if (!fs.existsSync(flowPath)) {
         console.warn(`  Warning: Shared flow not found: ${flowPath} — skipping INCLUDE`);
         resolved.push({
@@ -188,8 +210,8 @@ function resolveIncludes(steps: any[]): any[] {
         const fragmentSteps = fragment.steps || fragment;
         if (Array.isArray(fragmentSteps)) {
           console.log(`  Inlined shared flow: ${step.action.flow} (${fragmentSteps.length} steps)`);
-          // Recursively resolve nested INCLUDEs
-          const innerResolved = resolveIncludes(fragmentSteps);
+          visited.add(flowPath);
+          const innerResolved = resolveIncludes(fragmentSteps, depth + 1, visited);
           resolved.push(...innerResolved);
         } else {
           console.warn(`  Warning: Shared flow has no steps array: ${flowPath}`);
@@ -222,7 +244,14 @@ async function main() {
     console.error(`Plan file not found: ${planPath}`);
     process.exit(1);
   }
-  const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+  let plan: any;
+  try {
+    plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+  } catch (err: any) {
+    console.error(`Failed to parse plan JSON: ${err.message}`);
+    console.error(`File: ${planPath}`);
+    process.exit(1);
+  }
 
   // Resolve INCLUDE steps (shared flows) — inline plan fragments before execution
   plan.steps = resolveIncludes(plan.steps);
@@ -572,7 +601,15 @@ async function main() {
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
+  // Attempt to kill any orphaned browser processes
+  try {
+    const { execSync } = require('child_process');
+    // Best-effort cleanup — won't crash if no process found
+    if (process.platform === 'win32') {
+      execSync('taskkill /F /IM chromium.exe /T 2>nul', { stdio: 'ignore' }).toString();
+    }
+  } catch { /* ignore cleanup errors */ }
   process.exit(2);
 });

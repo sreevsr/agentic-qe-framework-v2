@@ -61,8 +61,9 @@
         seen.add(el);
         var rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) continue;
-        var isFixed = window.getComputedStyle(el).position === "fixed";
-        var visible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && (el.offsetParent !== null || isFixed);
+        var hasSize = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0;
+        var isFixed = el.offsetParent === null && hasSize ? window.getComputedStyle(el).position === "fixed" : false;
+        var visible = hasSize && (el.offsetParent !== null || isFixed);
 
         var directText = Array.from(el.childNodes)
           .filter(function(n) { return n.nodeType === Node.TEXT_NODE; })
