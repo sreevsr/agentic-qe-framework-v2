@@ -14,8 +14,8 @@ You are the **Orchestrator** (`@QE Orchestrator` in Copilot). You coordinate the
 
 | Claude Code Tool | Use For |
 |-----------------|---------|
-| **Agent** | Delegate to subagents: Explorer, Builder, Executor, Enricher, Reviewer |
-| **Bash** | Run scripts (precheck, cleanup), verify file existence |
+| **Agent** | Delegate to subagents: Enricher, Plan Generator, Plan Healer, Reviewer |
+| **Bash** | Run replay engine, run scripts (plan-validator, cleanup), verify file existence |
 | **Write** | Save pipeline summary to output/reports/ |
 | **Read** | Read agent reports to extract data for pipeline summary |
 | **Grep/Glob** | Find scenario files, verify output |
@@ -26,18 +26,36 @@ You are the **Orchestrator** (`@QE Orchestrator` in Copilot). You coordinate the
 
 ```
 Agent tool call:
-  prompt: "Read agents/core/explorer.md for instructions.
-           SCENARIO_NAME=saucedemo-login SCENARIO_TYPE=web
-           Scenario file: scenarios/web/saucedemo-login.md
-           Save report to: output/reports/explorer-report-saucedemo-login.md"
+  prompt: "Read agents/core/plan-generator.md for instructions.
+           SCENARIO_NAME=unify-user-photos SCENARIO_TYPE=web
+           Enriched scenario: scenarios/web/unify-user-photos.enriched.md
+           App-context: scenarios/app-contexts/unify.md
+           Save plan to: output/plans/web/unify-user-photos.plan.json
+           Save report to: output/reports/plan-generator-report-unify-user-photos.md"
 ```
 
 **MUST include instruction file reads in EVERY subagent prompt** — subagents do NOT inherit your context.
 
-## Pipeline
+## Pipeline (v3)
 
 ```
-Scout (one-time) → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
+Pre-Checks → Enrichment → Plan Generation → Replay → Heal (if needed) → Reviewer → Summary
+```
+
+| Stage | Agent/Tool | Output |
+|-------|-----------|--------|
+| Pre-Checks | Bash (validate .env, check existing plan) | go/no-go |
+| Enrichment | QE Enricher subagent | .enriched.md |
+| Plan Generation | QE Plan Generator subagent (web) or script (api/db) | plan.json |
+| Replay | Bash: `npx tsx scripts/replay-engine.ts --plan=... --report=...` | replay-report.md |
+| Heal | QE Plan Healer subagent + 2x Bash replay | healer-report.md + updated plan.json |
+| Reviewer | QE Reviewer subagent | review-scorecard.md |
+| Summary | Write tool | pipeline-summary.md |
+
+## Replay Engine Command
+
+```bash
+npx tsx scripts/replay-engine.ts --plan=output/plans/{type}/{scenario}.plan.json --report=output/reports/replay-report-{scenario}.md --report-format=markdown [--headed] [--browser=chromium]
 ```
 
 ## Platform Compatibility

@@ -1,73 +1,92 @@
 {
   "$schema": "contracts/manifest.schema.json",
   "name": "orchestrator",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "protocolVersion": "1.0.0",
-  "description": "Pipeline coordinator — invokes Enrichment, Explorer, Builder, Executor, and Reviewer in sequence. Verifies Scout locator JSONs exist before starting. One-command test generation and validation.",
+  "description": "Pipeline coordinator — invokes Enrichment, Plan Generator, Replay Engine, Plan Healer, and Reviewer in sequence. Produces plan JSON from scenario, replays deterministically with component-aware self-healing, heals failures surgically.",
   "provider": {
     "organization": "Agentic QE Framework",
     "repository": "agentic-qe-framework-v2"
   },
-  "tags": ["pipeline", "orchestration", "coordinator", "end-to-end"],
+  "tags": ["pipeline", "orchestration", "coordinator", "end-to-end", "plan-based", "self-healing"],
   "coreInstructions": ["agents/core/orchestrator.md"],
   "documentationUrl": "agents/core/orchestrator.md",
   "input": {
     "scenario": {
       "type": "string",
       "required": true,
-      "description": "Scenario name (without extension) or natural language description"
+      "description": "Scenario name (without extension), file path, natural language description, or Swagger spec path"
     },
     "type": {
       "type": "string",
-      "enum": ["web", "api", "hybrid", "mobile", "mobile-hybrid"],
+      "enum": ["web", "api", "hybrid", "mobile", "db"],
       "default": "web",
-      "description": "Scenario type"
+      "description": "Scenario type — determines executor (Playwright, fetch, Appium, DB driver)"
     },
     "folder": {
       "type": "string",
       "required": false,
       "description": "Optional subfolder for organization"
     },
-    "language": {
+    "browser": {
       "type": "string",
-      "enum": ["typescript", "javascript", "python"],
-      "default": "typescript",
-      "description": "Target language — read from output/.language if not specified"
+      "enum": ["chromium", "firefox", "webkit"],
+      "default": "chromium",
+      "description": "Browser for replay (web/hybrid only)"
+    },
+    "headed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Run browser in headed mode (visible)"
     }
   },
   "output": {
+    "plan": {
+      "type": "file",
+      "format": "json",
+      "location": "output/plans/{type}/[{folder}/]{scenario}.plan.json",
+      "description": "Execution plan — deterministic replay without LLM"
+    },
     "pipelineSummary": {
       "type": "file",
       "format": "markdown",
       "location": "output/reports/[{folder}/]pipeline-summary-{scenario}.md",
       "description": "Comprehensive pipeline summary with all stages, metrics, and verdict"
     },
+    "allureResults": {
+      "type": "file",
+      "format": "json",
+      "location": "output/test-results/allure-results/{scenario}-result.json",
+      "description": "Allure-compatible test results for CI dashboard integration"
+    },
     "verdict": {
       "type": "string",
-      "enum": ["APPROVED", "APPROVED WITH CAVEATS", "NEEDS FIXES", "TESTS FAILING", "INCOMPLETE"],
+      "enum": ["APPROVED", "APPROVED WITH CAVEATS", "HEALED", "HEALED WITH CAVEATS", "TESTS FAILING", "INCOMPLETE"],
       "description": "Final pipeline verdict"
     }
   },
   "delegatesTo": [
     "enrichment-agent",
-    "explorer",
-    "builder",
-    "executor",
-    "reviewer",
-    "healer"
+    "plan-generator",
+    "plan-healer",
+    "reviewer"
+  ],
+  "terminalCommands": [
+    "npx tsx scripts/replay-engine.ts --plan={plan} --report={report} [--headed] [--browser={browser}]"
   ],
   "security": {
-    "requiredEnvVars": ["BASE_URL", "TEST_USERNAME", "TEST_PASSWORD"],
-    "optionalEnvVars": ["SSO_EMAIL", "SSO_PASSWORD", "API_BASE_URL", "API_TOKEN"],
+    "requiredEnvVars": ["BASE_URL"],
+    "optionalEnvVars": ["TEST_USERNAME", "TEST_PASSWORD", "SSO_EMAIL", "SSO_PASSWORD", "API_BASE_URL", "API_TOKEN", "ANTHROPIC_API_KEY"],
     "requiresMcp": true,
     "mcpServers": ["playwright"],
-    "note": "Orchestrator delegates to agents that need MCP — does not use MCP directly"
+    "note": "MCP required for Plan Generator (web/mobile exploration) and executor:mcp steps. Not needed for API/DB scenarios or deterministic replay."
   },
   "platforms": ["windows", "linux", "macos"],
   "examples": [
-    "@QE Orchestrator scenario=saucedemo-login type=web",
-    "@QE Orchestrator scenario=petstore-crud type=api folder=petstore",
-    "@QE Orchestrator \"Test that a user can log in, add items to cart, and checkout\"",
-    "@QE Orchestrator scenario=epic-table type=web --language=python"
+    "@QE Orchestrator scenario=unify-user-photos type=web --headed",
+    "@QE Orchestrator scenario=employee-crud type=api",
+    "@QE Orchestrator scenario=employee-search type=web folder=unify",
+    "@QE Orchestrator \"Test that a user can search for employees with photos and verify their details\"",
+    "@QE Orchestrator scenario=specs/employee-api.yaml type=api"
   ]
 }

@@ -162,6 +162,50 @@ function parseCsv(content: string): Record<string, string>[] {
   });
 }
 
+// --- Shared Flow Resolution ---
+
+/**
+ * Resolve INCLUDE steps by inlining the referenced plan fragment.
+ * INCLUDE steps reference a shared flow file (e.g., shared-flows/login.plan-fragment.json).
+ * The fragment's steps are inserted in place of the INCLUDE step.
+ */
+function resolveIncludes(steps: any[]): any[] {
+  const resolved: any[] = [];
+  for (const step of steps) {
+    if (step.type === 'INCLUDE') {
+      const flowPath = path.resolve(step.action.flow);
+      if (!fs.existsSync(flowPath)) {
+        console.warn(`  Warning: Shared flow not found: ${flowPath} — skipping INCLUDE`);
+        resolved.push({
+          ...step,
+          type: 'REPORT',
+          action: { message: `INCLUDE skipped — flow file not found: ${step.action.flow}` },
+        });
+        continue;
+      }
+      try {
+        const fragment = JSON.parse(fs.readFileSync(flowPath, 'utf-8'));
+        const fragmentSteps = fragment.steps || fragment;
+        if (Array.isArray(fragmentSteps)) {
+          console.log(`  Inlined shared flow: ${step.action.flow} (${fragmentSteps.length} steps)`);
+          // Recursively resolve nested INCLUDEs
+          const innerResolved = resolveIncludes(fragmentSteps);
+          resolved.push(...innerResolved);
+        } else {
+          console.warn(`  Warning: Shared flow has no steps array: ${flowPath}`);
+          resolved.push(step);
+        }
+      } catch (err: any) {
+        console.warn(`  Warning: Failed to parse shared flow ${flowPath}: ${err.message}`);
+        resolved.push(step);
+      }
+    } else {
+      resolved.push(step);
+    }
+  }
+  return resolved;
+}
+
 // --- Main ---
 
 async function main() {
@@ -179,6 +223,12 @@ async function main() {
     process.exit(1);
   }
   const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+
+  // Resolve INCLUDE steps (shared flows) — inline plan fragments before execution
+  plan.steps = resolveIncludes(plan.steps);
+  if (plan.setup) plan.setup = resolveIncludes(plan.setup);
+  if (plan.teardown) plan.teardown = resolveIncludes(plan.teardown);
+
   console.log(`  Scenario: ${plan.scenario.name}`);
   console.log(`  Steps: ${plan.steps.length}`);
   console.log(`  Type: ${plan.scenario.type}`);

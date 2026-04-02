@@ -42,16 +42,29 @@
 
 ---
 
+## Plan Paths (v3 Pipeline)
+
+| File Type | Pattern |
+|-----------|---------|
+| Execution plan | `output/plans/{type}/[{folder}/]{scenario}.plan.json` |
+| Shared flow fragments | `shared-flows/{flow-name}.plan-fragment.json` |
+
+---
+
 ## Report Paths
 
 | Report | Pattern |
 |--------|---------|
-| Explorer report | `output/reports/[{folder}/]explorer-report-{scenario}.md` |
-| Executor report | `output/reports/[{folder}/]executor-report-{scenario}.md` |
+| Replay report | `output/reports/[{folder}/]replay-report-{scenario}.md` |
+| Healer report | `output/reports/[{folder}/]healer-report-{scenario}.md` |
 | Review scorecard | `output/reports/[{folder}/]review-scorecard-{scenario}.md` |
-| Precheck report | `output/reports/[{folder}/]precheck-report-{scenario}.json` |
 | Enrichment report | `output/reports/[{folder}/]enrichment-report-{scenario}.md` |
+| Plan generator report | `output/reports/[{folder}/]plan-generator-report-{scenario}.md` |
 | Pipeline summary | `output/reports/[{folder}/]pipeline-summary-{scenario}.md` |
+| Allure results | `output/test-results/allure-results/{scenario}-result.json` |
+| Explorer report (legacy) | `output/reports/[{folder}/]explorer-report-{scenario}.md` |
+| Executor report (legacy) | `output/reports/[{folder}/]executor-report-{scenario}.md` |
+| Precheck report (legacy) | `output/reports/[{folder}/]precheck-report-{scenario}.json` |
 | Failure analysis | `output/reports/failure-analysis.json` |
 | Defect tracking summary | `output/reports/defect-tracking-summary.json` |
 
@@ -130,13 +143,19 @@
 
 ---
 
-## Test Execution Command
+## Test Execution Commands
 
+### v3 Pipeline — Replay Engine (plan-based, no generated code)
+```bash
+npx tsx scripts/replay-engine.ts --plan=output/plans/{type}/[{folder}/]{scenario}.plan.json [--headed] [--browser=chromium] [--report=output/reports/replay-report-{scenario}.md]
+```
+
+### Legacy Pipeline — Playwright Test (code-based, generated spec files)
 ```bash
 cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome --reporter=json,list
 ```
 
-**MUST specify the exact spec file.** NEVER run `npx playwright test` without a file path — it executes ALL tests.
+**MUST specify the exact spec/plan file.** NEVER run without a file path — it executes ALL tests.
 
 ---
 
