@@ -307,12 +307,22 @@ async function main() {
     viewport = { width: 1280, height: 720 }; // Default
   }
 
+  // Video recording directory (always record — retain on failure, delete on pass)
+  const videoDir = path.resolve('output', 'test-results', 'videos');
+  fs.mkdirSync(videoDir, { recursive: true });
+
   const contextOptions: any = {
     ...getPopupSuppressingContextOptions(),
     viewport,
+    recordVideo: { dir: videoDir, size: viewport || { width: 1280, height: 720 } },
   };
   const browserContext: BrowserContext = await browser.newContext(contextOptions);
   const page: Page = await browserContext.newPage();
+
+  // Start tracing (captures DOM snapshots, network, console — viewable in Playwright Trace Viewer)
+  const traceDir = path.resolve('output', 'test-results', 'traces');
+  fs.mkdirSync(traceDir, { recursive: true });
+  await browserContext.tracing.start({ screenshots: true, snapshots: true, sources: false });
 
   const viewportLabel = args.viewport ? `${args.viewport.width}x${args.viewport.height}`
     : args.fullscreen ? 'fullscreen' : '1280x720';
@@ -467,9 +477,42 @@ async function main() {
     }
   }
 
-  // 7. Close browser
+  // 7. Stop tracing and close browser
+  const hasFailures = stepResults.some(s => s.status === 'fail');
+  const tracePath = path.join(traceDir, `${plan.scenario.name}-trace.zip`);
+
+  if (hasFailures) {
+    // Save trace on failure — viewable via: npx playwright show-trace <path>
+    await browserContext.tracing.stop({ path: tracePath });
+    console.log(`  Trace saved (failure): ${tracePath}`);
+    console.log(`  View trace: npx playwright show-trace ${tracePath}`);
+  } else {
+    // Discard trace on pass
+    await browserContext.tracing.stop().catch(() => {});
+  }
+
+  // Get video path before closing (closing the context finalizes the video file)
+  const videoPath = page.video() ? await page.video()!.path().catch(() => null) : null;
+
   await page.close();
   await browserContext.close();
+
+  // Handle video: keep on failure, delete on pass
+  let finalVideoPath: string | null = null;
+  if (videoPath && fs.existsSync(videoPath)) {
+    if (hasFailures) {
+      const videoFilename = `${plan.scenario.name}-video.webm`;
+      finalVideoPath = path.join(videoDir, videoFilename);
+      if (videoPath !== finalVideoPath) {
+        fs.renameSync(videoPath, finalVideoPath);
+      }
+      console.log(`  Video saved (failure): ${finalVideoPath}`);
+    } else {
+      // Clean up video on pass
+      fs.unlinkSync(videoPath);
+    }
+  }
+
   await browser.close();
 
   // 8. Generate report
@@ -499,6 +542,8 @@ async function main() {
     capturedVariables: capturedForReport,
     screenshots,
     popupDismissals: allDismissals,
+    tracePath: hasFailures && fs.existsSync(tracePath) ? tracePath : undefined,
+    videoPath: hasFailures && finalVideoPath && fs.existsSync(finalVideoPath) ? finalVideoPath : undefined,
   };
 
   const reportPath = args.report

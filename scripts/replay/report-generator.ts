@@ -16,6 +16,10 @@ export interface ReplayResults {
   capturedVariables: Record<string, any>;
   screenshots: { name: string; step: number; file: string }[];
   popupDismissals: string[];
+  /** Path to Playwright trace zip (only on failure) */
+  tracePath?: string;
+  /** Path to video recording (only on failure) */
+  videoPath?: string;
 }
 
 export interface StepReportEntry {
@@ -120,6 +124,18 @@ export function generateMarkdownReport(results: ReplayResults): string {
     md += `|------|------|------|\n`;
     for (const ss of results.screenshots) {
       md += `| ${ss.name} | ${ss.step} | ${ss.file} |\n`;
+    }
+  }
+
+  // Failure Artifacts (trace, video)
+  if (results.tracePath || results.videoPath) {
+    md += `\n## Failure Artifacts\n\n`;
+    if (results.tracePath) {
+      md += `- **Trace:** ${results.tracePath}\n`;
+      md += `  - View: \`npx playwright show-trace ${results.tracePath}\`\n`;
+    }
+    if (results.videoPath) {
+      md += `- **Video:** ${results.videoPath}\n`;
     }
   }
 
@@ -290,11 +306,15 @@ export function generateAllureResult(results: ReplayResults, tags: string[] = []
       { name: 'failed', value: String(failed) },
     ],
     steps: allureSteps,
-    attachments: results.screenshots.map(ss => ({
-      name: ss.name,
-      source: ss.file,
-      type: 'image/png',
-    })),
+    attachments: [
+      ...results.screenshots.map(ss => ({
+        name: ss.name,
+        source: ss.file,
+        type: 'image/png',
+      })),
+      ...(results.tracePath ? [{ name: 'trace', source: results.tracePath, type: 'application/zip' }] : []),
+      ...(results.videoPath ? [{ name: 'video', source: results.videoPath, type: 'video/webm' }] : []),
+    ],
   };
 }
 

@@ -113,6 +113,12 @@ function generateHtml(results: AllureResult[]): string {
         </div>
         <div class="test-steps">
           ${stepsHtml}
+          ${r.attachments?.some(a => a.type === 'application/zip' || a.type === 'video/webm') ? `
+          <div class="test-artifacts">
+            <strong>Failure Artifacts:</strong>
+            ${r.attachments.filter(a => a.type === 'application/zip').map(a => `<span class="artifact">Trace: <code>${escapeHtml(a.source)}</code></span>`).join('')}
+            ${r.attachments.filter(a => a.type === 'video/webm').map(a => `<span class="artifact">Video: <code>${escapeHtml(a.source)}</code></span>`).join('')}
+          </div>` : ''}
         </div>
       </div>`;
   }).join('\n');
@@ -165,6 +171,10 @@ function generateHtml(results: AllureResult[]): string {
     .severity-critical { background: #fed7aa; color: #9a3412; }
     .severity-normal { background: #e0e7ff; color: #3730a3; }
     .severity-minor { background: #f0fdf4; color: #166534; }
+    .test-artifacts { margin-top: 8px; padding: 8px 12px; background: #fff7ed; border-radius: 4px; font-size: 0.85rem; }
+    .test-artifacts strong { display: block; margin-bottom: 4px; }
+    .artifact { display: block; margin: 2px 0; }
+    .artifact code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 0.8rem; }
     .footer { margin-top: 24px; text-align: center; color: #aaa; font-size: 0.8rem; }
   </style>
 </head>
