@@ -222,17 +222,25 @@ Save report to: {PLAN_GEN_REPORT}
 
 ### STAGE 4: Replay
 
-**Run the replay engine:**
+**Select the replay engine based on scenario type:**
+
+| Type | Replay Engine | Command |
+|------|--------------|---------|
+| `web`, `hybrid` | `scripts/replay-engine.ts` | `npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}` |
+| `mobile` | `scripts/mobile-replay-engine.ts` | `npx tsx scripts/mobile-replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}` |
+| `api`, `db` | `scripts/replay-engine.ts` | Same as web (API/DB steps use fetch, no browser) |
+
+**Web replay:**
 ```bash
 npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --headed --report={REPLAY_REPORT} --report-format=markdown
 ```
 
-For headless CI:
+**Mobile replay:**
 ```bash
-npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT} --report-format=markdown
+npx tsx scripts/mobile-replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT} --report-format=markdown
 ```
 
-**Additional options** (pass through from user if specified):
+**Additional options for web** (pass through from user if specified):
 - `--browser=chromium|firefox|webkit`
 - `--viewport=WxH`
 - `--fullscreen`
@@ -282,13 +290,18 @@ CRITICAL: Do NOT modify passing steps. Only fix failing ones.
 CRITICAL: For each MCP-flagged step, include executorReason explaining why deterministic won't work.
 ```
 
-**Post-Heal: Run full replay TWICE for stability confirmation:**
+**Post-Heal: Run full replay TWICE for stability confirmation.**
+Use the SAME replay engine as STAGE 4 (type-dependent):
+
 ```bash
-# Stability run 1
+# For web/api/db/hybrid:
 npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}
-# Stability run 2
-npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}
+
+# For mobile:
+npx tsx scripts/mobile-replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}
 ```
+
+Run the appropriate command twice in sequence.
 
 **Decision logic after heal cycle:**
 

@@ -82,6 +82,87 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
    Print the report to the user and save to output/reports/[{folder}/]plan-generator-report-{scenario}.md
 ```
 
+### Mobile Mode (type: mobile)
+
+When the scenario type is `mobile`, use **Appium MCP tools** instead of Playwright MCP:
+
+| Web (Playwright MCP) | Mobile (Appium MCP) | Purpose |
+|---|---|---|
+| `browser_navigate` | `launch_app` | Start app / open deep link |
+| `browser_snapshot` | `page_source` | Get UI hierarchy (XML) for element discovery |
+| `browser_click` | `tap` | Tap element by strategy + value |
+| `browser_type` / `browser_fill_form` | `type_text` | Enter text into field |
+| `browser_select_option` | `tap` on dropdown → `tap` on option | Custom dropdown interaction |
+| `browser_evaluate` | `get_attribute` / `get_text` | Read element properties |
+| `browser_verify_element_visible` | `is_displayed` | Check element visibility |
+| `browser_wait_for` | `wait_for_element` | Wait for element state |
+| `browser_take_screenshot` | `screenshot` | Capture screen image |
+| `browser_press_key` | `press_key` | Hardware/keyboard key press |
+| `browser_navigate_back` | `back` | Device back button |
+| `browser_close` | `close_app` | End session |
+| N/A | `swipe` | Directional or coordinate swipe |
+| N/A | `scroll_to_element` | Scroll until element visible |
+| N/A | `long_press` | Touch and hold gesture |
+
+**Mobile target format** (strategy + value, not CSS/role):
+```json
+{
+  "target": {
+    "strategy": "accessibility_id",
+    "value": "test-LOGIN",
+    "fallbacks": [
+      { "strategy": "uiautomator", "value": "new UiSelector().text(\"LOGIN\")" },
+      { "strategy": "xpath", "value": "//android.widget.Button[@content-desc='test-LOGIN']" }
+    ]
+  }
+}
+```
+
+**Locator strategy priority (try in order):**
+1. `accessibility_id` — most stable, works on both platforms
+2. `id` (Android: `resource-id`) — unique per screen
+3. `xpath` — flexible but fragile
+4. `uiautomator` — Android-specific, powerful
+5. `class_chain` — iOS-specific
+6. `predicate_string` — iOS-specific
+
+**Mobile fingerprint** — capture from `page_source` XML:
+```json
+{
+  "_fingerprint": {
+    "class": "android.widget.Button",
+    "contentDesc": "test-LOGIN",
+    "resourceId": "com.app:id/loginButton",
+    "text": "LOGIN",
+    "bounds": "[340,520][460,560]"
+  }
+}
+```
+
+**Launch step** — every mobile plan starts with LAUNCH_APP:
+```json
+{
+  "id": 1,
+  "type": "LAUNCH_APP",
+  "action": {
+    "capabilities": {
+      "platformName": "{{ENV.PLATFORM}}",
+      "appium:deviceName": "{{ENV.ANDROID_DEVICE}}",
+      "appium:app": "{{ENV.APP_PATH}}",
+      "appium:automationName": "UiAutomator2",
+      "appium:autoGrantPermissions": true
+    }
+  }
+}
+```
+
+**Replay command** for mobile plans:
+```
+npx tsx scripts/mobile-replay-engine.ts --plan=output/plans/mobile/{scenario}.plan.json
+```
+
+---
+
 ### CRITICAL: Save-First Rule
 
 **Write the plan JSON file as soon as step exploration is complete (after step 7).**

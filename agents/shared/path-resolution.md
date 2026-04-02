@@ -148,9 +148,14 @@
 
 ## Test Execution Commands
 
-### v3 Pipeline — Replay Engine (plan-based, no generated code)
+### v3 Pipeline — Web Replay Engine (plan-based, no generated code)
 ```bash
 npx tsx scripts/replay-engine.ts --plan=output/plans/{type}/[{folder}/]{scenario}.plan.json [--headed] [--browser=chromium] [--report=output/reports/replay-report-{scenario}.md]
+```
+
+### v3 Pipeline — Mobile Replay Engine (Appium-based)
+```bash
+npx tsx scripts/mobile-replay-engine.ts --plan=output/plans/mobile/[{folder}/]{scenario}.plan.json [--report=output/reports/replay-report-{scenario}.md]
 ```
 
 ### Legacy Pipeline — Playwright Test (code-based, generated spec files)

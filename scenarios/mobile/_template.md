@@ -1,3 +1,14 @@
+---
+name: {scenario-name}
+type: mobile
+platform: {android|ios|both}
+tags: [mobile, smoke, P1]
+testId:
+xrayKey:
+adoTestCaseId:
+appContext: scenarios/app-contexts/{app}.md
+---
+
 # Scenario: [Mobile Scenario Name]
 
 ## Metadata

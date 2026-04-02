@@ -3,6 +3,14 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest", "--isolated", "--browser", "chromium", "--caps=testing"]
+    },
+    "appium": {
+      "command": "node",
+      "args": ["mcp-servers/appium/dist/index.js"],
+      "env": {
+        "APPIUM_HOST": "localhost",
+        "APPIUM_PORT": "4723"
+      }
     }
   }
 }
