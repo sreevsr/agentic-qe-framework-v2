@@ -1,0 +1,40 @@
+{
+  "name": "login-orangehrm",
+  "description": "Login to OrangeHRM demo with ENV credentials",
+  "steps": [
+    {
+      "id": 1,
+      "section": "Login",
+      "description": "Navigate to login page",
+      "type": "NAVIGATE",
+      "action": { "url": "{{ENV.BASE_URL}}" }
+    },
+    {
+      "id": 2,
+      "section": "Login",
+      "description": "Enter credentials",
+      "type": "ACTION",
+      "action": {
+        "verb": "fill_form",
+        "fields": [
+          { "target": { "role": "textbox", "name": "Username" }, "value": "{{ENV.TEST_USERNAME}}" },
+          { "target": { "role": "textbox", "name": "Password" }, "value": "{{ENV.TEST_PASSWORD}}" }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "section": "Login",
+      "description": "Click Login",
+      "type": "ACTION",
+      "action": { "verb": "click", "target": { "role": "button", "name": "Login" } }
+    },
+    {
+      "id": 4,
+      "section": "Login",
+      "description": "Verify dashboard loaded",
+      "type": "VERIFY",
+      "action": { "assertion": "elementVisible", "target": { "role": "heading", "name": "Dashboard" } }
+    }
+  ]
+}

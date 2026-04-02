@@ -102,8 +102,10 @@
 
 | File | Purpose |
 |------|---------|
-| `agents/core/orchestrator.md` | Orchestrator pipeline coordinator |
-| `agents/core/explorer-builder.md` | Explorer/Builder core instructions |
+| `agents/core/orchestrator.md` | Orchestrator pipeline coordinator (v3) |
+| `agents/core/plan-generator.md` | Plan Generator — MCP exploration → plan.json |
+| `agents/core/plan-healer.md` | Plan Healer — surgical fix for failing plan steps |
+| `agents/core/explorer-builder.md` | Explorer/Builder core instructions (legacy) |
 | `agents/core/code-generation-rules.md` | Code patterns, locator JSON, spec structure |
 | `agents/core/quality-gates.md` | Fidelity, guardrails, popups, i18n |
 | `agents/core/scenario-handling.md` | Multi-scenario, app-context, subagents |

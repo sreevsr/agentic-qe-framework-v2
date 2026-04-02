@@ -104,7 +104,8 @@ async function runPlanTest(
   const envPath = path.resolve('output/.env');
   const variables = buildContext(
     fs.existsSync(envPath) ? envPath : undefined,
-    plan.dataSources || {},
+    {},  // testDataOverride
+    plan.dataSources || {},  // dataSources
   );
 
   // Launch context + page

@@ -102,7 +102,10 @@
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i];
     var rect = el.getBoundingClientRect();
-    var visible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && el.offsetParent !== null;
+    // offsetParent is null for position:fixed elements AND hidden elements.
+    // Check computed style to distinguish: fixed elements are visible, display:none are not.
+    var isFixed = window.getComputedStyle(el).position === "fixed";
+    var visible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && (el.offsetParent !== null || isFixed);
     if (!visible) continue;
 
     var centerX = rect.left + rect.width / 2;

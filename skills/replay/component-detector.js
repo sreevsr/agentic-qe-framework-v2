@@ -34,9 +34,15 @@
 
     // === MUI (Material UI) ===
 
-    // MUI Select
-    if (cls.indexOf("MuiSelect") !== -1 || cls.indexOf("MuiInputBase") !== -1) {
-      // Find the actual wrapper that opens the dropdown
+    // MUI Select — must have MuiSelect class OR a mui-component-select display element
+    // Do NOT match on MuiInputBase alone — that also matches plain MUI TextFields
+    var hasMuiSelect = cls.indexOf("MuiSelect") !== -1;
+    var hasSelectDisplay = node.querySelector("[id^='mui-component-select']") !== null;
+    if (!hasMuiSelect && !hasSelectDisplay) {
+      // Check ancestors too
+      hasMuiSelect = findAncestorWithClass(el, "MuiSelect") !== null;
+    }
+    if (hasMuiSelect || hasSelectDisplay) {
       var wrapper = findAncestorWithClass(el, "MuiInputBase-root") || findAncestorWithClass(el, "MuiFormControl-root");
       var selectDisplay = node.querySelector("[id^='mui-component-select']") || el;
       return {

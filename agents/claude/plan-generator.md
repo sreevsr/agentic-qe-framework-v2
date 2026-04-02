@@ -143,8 +143,10 @@ Available skills are in `skills/replay/`.
 
 ## After Plan Generation
 
-Tell the user:
+If invoked directly by the user (not by Orchestrator), tell the user:
 ```
 Plan generated: output/plans/{type}/{name}.plan.json
 Run it with: npx tsx scripts/replay-engine.ts --plan=output/plans/{type}/{name}.plan.json --headed
 ```
+
+If invoked by the Orchestrator as a subagent, just confirm the plan was saved. Do NOT instruct the user to run it — the Orchestrator handles the next stage.

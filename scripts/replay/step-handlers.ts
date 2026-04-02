@@ -184,7 +184,7 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
     case 'fill_form': {
       const results: string[] = [];
       for (const field of step.action.fields) {
-        const { locator, strategy } = await resolveWithFallbacks(ctx.page, field.target, timeout);
+        const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(field.target), timeout);
         if (field.verb === 'select') {
           await locator.selectOption(field.value, { timeout });
           results.push(`${strategy} selected "${field.value}"`);
@@ -484,14 +484,14 @@ async function handleCalculate(step: Step, ctx: HandlerContext): Promise<StepRes
   // Resolve variables in the expression
   const resolvedExpr = resolveString(expression, ctx.variables);
 
-  // Evaluate the arithmetic expression safely
-  // Only allow: numbers, operators (+, -, *, /), parentheses, parseFloat, replace, whitespace
-  const safeExpr = resolvedExpr.replace(/[^0-9+\-*/().,' ]/g, (ch: string) => {
-    if ('parseFloatreplace'.includes(ch)) return ch;
-    return ch;
-  });
+  // Validate: only allow arithmetic expressions (numbers, operators, parens, decimals, whitespace)
+  // Reject anything that could be code injection (letters, brackets, semicolons, etc.)
+  const SAFE_ARITHMETIC = /^[\d\s+\-*/().,%]+$/;
+  if (!SAFE_ARITHMETIC.test(resolvedExpr)) {
+    throw new Error(`CALCULATE expression contains unsafe characters: "${resolvedExpr}". Only numbers, +, -, *, /, (, ), ., % are allowed.`);
+  }
 
-  // Use Function constructor for evaluation (sandboxed enough for arithmetic)
+  // Evaluate the validated arithmetic expression
   const result = new Function(`return (${resolvedExpr})`)();
 
   let finalValue = String(result);
@@ -755,16 +755,20 @@ async function handleForEach(step: Step, ctx: HandlerContext): Promise<StepResul
     ctx.variables._runtime.stepNumber = step.id;
 
     for (const subStep of steps) {
-      const resolvedSubStep = resolveDeep(subStep, ctx.variables);
-      const handler = handlers[resolvedSubStep.type];
-      if (!handler) {
-        results.push({ status: 'fail', duration: 0, error: `Unknown step type in FOR_EACH: ${resolvedSubStep.type}` });
-        continue;
-      }
-      const result = await handler(resolvedSubStep, ctx);
-      results.push(result);
-      if (result.status === 'fail' && resolvedSubStep.onFailure === 'stop') {
-        return { status: 'fail', duration: 0, error: `FOR_EACH stopped at item ${i}: ${result.error}` };
+      try {
+        const resolvedSubStep = resolveDeep(subStep, ctx.variables);
+        const handler = handlers[resolvedSubStep.type];
+        if (!handler) {
+          results.push({ status: 'fail', duration: 0, error: `Unknown step type in FOR_EACH: ${resolvedSubStep.type}` });
+          continue;
+        }
+        const result = await handler(resolvedSubStep, ctx);
+        results.push(result);
+        if (result.status === 'fail' && resolvedSubStep.onFailure === 'stop') {
+          return { status: 'fail', duration: 0, error: `FOR_EACH stopped at item ${i}: ${result.error}` };
+        }
+      } catch (err: any) {
+        results.push({ status: 'fail', duration: 0, error: `FOR_EACH item ${i} error: ${err.message}` });
       }
     }
   }
@@ -811,18 +815,28 @@ async function handleConditional(step: Step, ctx: HandlerContext): Promise<StepR
   const stepsToRun = conditionMet ? (thenSteps || []) : (elseSteps || []);
   const branchName = conditionMet ? 'then' : 'else';
 
+  const branchResults: StepResult[] = [];
   for (const subStep of stepsToRun) {
-    const resolvedSubStep = resolveDeep(subStep, ctx.variables);
-    const handler = handlers[resolvedSubStep.type];
-    if (handler) {
-      await handler(resolvedSubStep, ctx);
+    try {
+      const resolvedSubStep = resolveDeep(subStep, ctx.variables);
+      const handler = handlers[resolvedSubStep.type];
+      if (handler) {
+        const result = await handler(resolvedSubStep, ctx);
+        branchResults.push(result);
+        if (result.status === 'fail' && resolvedSubStep.onFailure === 'stop') {
+          return { status: 'fail', duration: 0, error: `CONDITIONAL ${branchName} branch stopped: ${result.error}` };
+        }
+      }
+    } catch (err: any) {
+      branchResults.push({ status: 'fail', duration: 0, error: err.message });
     }
   }
 
+  const failed = branchResults.filter(r => r.status === 'fail').length;
   return {
-    status: 'pass',
+    status: failed > 0 ? 'fail' : 'pass',
     duration: 0,
-    evidence: `CONDITIONAL: condition ${conditionMet ? 'met' : 'not met'}, executed ${branchName} branch (${stepsToRun.length} steps)`,
+    evidence: `CONDITIONAL: condition ${conditionMet ? 'met' : 'not met'}, executed ${branchName} branch (${stepsToRun.length} steps, ${failed} failed)`,
   };
 }
 

@@ -23,8 +23,18 @@ const DETECTOR_SCRIPT = fs.readFileSync(
   'utf-8',
 );
 
-// Load component skills
-const muiSelect = require('../../skills/replay/mui-select.skill.js');
+// Load component skills lazily — only when actually needed
+let muiSelect: any = null;
+function getMuiSelect() {
+  if (!muiSelect) {
+    const skillPath = path.join(__dirname, '..', '..', 'skills', 'replay', 'mui-select.skill.js');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(`MUI Select skill not found: ${skillPath}`);
+    }
+    muiSelect = require(skillPath);
+  }
+  return muiSelect;
+}
 
 export interface ComponentActionResult {
   handled: boolean;
@@ -76,7 +86,7 @@ export async function tryComponentAction(
 
     if (verb === 'select' || (verb === 'click' && value)) {
       // Select a value from MUI dropdown
-      const result = await muiSelect.pick(page, {
+      const result = await getMuiSelect().pick(page, {
         selector: detection.displaySelector || selector,
         value: value,
         timeout,
@@ -159,7 +169,8 @@ export async function tryComponentAction(
     }
   }
 
-  // Known component but unhandled verb — fall through
+  // Known component but no handler for this verb/widget combo — log and fall through
+  console.log(`       Component detected: ${library}/${widget} but no handler for verb="${verb}" — falling through to generic resolver`);
   return null;
 }
 

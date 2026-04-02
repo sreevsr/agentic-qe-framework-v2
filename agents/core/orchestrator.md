@@ -60,7 +60,7 @@ PIPELINE_SUMMARY:     output/reports/[{folder}/]pipeline-summary-{scenario}.md
 ALLURE_RESULTS:       output/test-results/allure-results/{scenario}-result.json
 APP_CONTEXT:          scenarios/app-contexts/{app-identifier}.md
 SHARED_FLOWS:         shared-flows/
-SCREENSHOTS:          output/test-results/screenshots/
+SCREENSHOTS:          output/screenshots/
 ```
 
 ---
@@ -114,7 +114,7 @@ Delete (ignore errors if they don't exist):
 4. **Check existing plan** — if `PLAN_PATH` exists AND scenario .md is unchanged (compare sourceHash):
    - Skip to STAGE 4 (Replay) — reuse existing plan.
    - Print: "Existing plan found, scenario unchanged. Skipping Plan Generation."
-5. **Validate ENV variables** — run `node scripts/plan-validator.js --plan={PLAN_PATH} --dry-run` if plan exists.
+5. **Validate plan** — if plan exists, run `npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --dry-run` to validate schema, ENV variables, and data sources without launching a browser.
 
 **HARD STOP:** If .env is missing or empty → STOP pipeline. Report INCOMPLETE with: "output/.env is missing or empty. Create it with BASE_URL and credentials."
 
@@ -193,11 +193,25 @@ CRITICAL: Create or append app-context learnings to {APP_CONTEXT} after explorat
 CRITICAL: Capture rich fingerprints via browser_evaluate for every action step.
 ```
 
-**For api/db — run script:**
-```bash
-node scripts/plan-from-scenario.js --scenario={ENRICHED_PATH} --type={type} --output={PLAN_PATH}
+**For api/db — delegate to Plan Generator with NO browser:**
 ```
-(If this script doesn't exist yet, delegate to Plan Generator with a note that no browser is needed.)
+Read agents/core/plan-generator.md for your instructions.
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+MODE = no-browser
+
+Enriched scenario: {ENRICHED_PATH}
+Environment: output/.env
+
+This is an API/DB scenario — NO browser exploration needed.
+Parse the enriched scenario steps directly into plan.json format.
+Map each step to API_CALL or DB_QUERY step types.
+Zero LLM cost — this is a structured translation, not exploration.
+
+Save plan to: {PLAN_PATH}
+Save report to: {PLAN_GEN_REPORT}
+```
 
 **HARD STOP — Verify before proceeding:**
 - PLAN_PATH exists and is valid JSON

@@ -79,7 +79,7 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
    Save to: output/plans/{type}/{scenario-name}.plan.json
 9. AFTER the plan is saved: generate a summary report — step count, sections covered,
    key decisions made, any issues encountered, and comparison with existing plan if one existed.
-   Print the report to the user and save to output/reports/plan-generator-report-{scenario}.md
+   Print the report to the user and save to output/reports/[{folder}/]plan-generator-report-{scenario}.md
 ```
 
 ### CRITICAL: Save-First Rule
@@ -306,7 +306,12 @@ For unique-per-run values (like signup email), use `{{_runtime.runId}}`:
 - No page objects
 - No locator JSON files
 - No spec files
-- No app-context updates
+
+## What You DO Update
+
+- **App-context**: After exploration, create or append to `scenarios/app-contexts/{app}.md` with learnings:
+  component libraries detected, navigation patterns, timing quirks, authentication flow, pacing values.
+  If the file exists, append a new section with date. If it doesn't exist, create it.
 
 ---
 
