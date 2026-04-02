@@ -83,6 +83,7 @@ function generateHtml(results: AllureResult[]): string {
       const evidence = step.parameters?.find(p => p.name === 'evidence')?.value || '';
       const type = step.parameters?.find(p => p.name === 'type')?.value || '';
       const error = step.statusDetails?.message || '';
+      const stepScreenshots = step.attachments?.filter(a => a.type === 'image/png') || [];
 
       return `
         <div class="step ${statusClass}">
@@ -92,6 +93,7 @@ function generateHtml(results: AllureResult[]): string {
           <span class="step-time">${stepDuration}s</span>
           ${evidence ? `<div class="step-evidence">${escapeHtml(evidence)}</div>` : ''}
           ${error ? `<div class="step-error">${escapeHtml(error)}</div>` : ''}
+          ${stepScreenshots.length > 0 ? `<div class="step-screenshot"><img src="file://${stepScreenshots[0].source}" alt="failure screenshot" onerror="this.parentElement.innerHTML='Screenshot: ${escapeHtml(stepScreenshots[0].source)}'" /></div>` : ''}
         </div>`;
     }).join('\n');
 
@@ -165,6 +167,9 @@ function generateHtml(results: AllureResult[]): string {
     .step-time { color: #aaa; font-size: 0.8rem; min-width: 40px; text-align: right; }
     .step-evidence { width: 100%; font-size: 0.8rem; color: #666; padding-left: 24px; margin-top: 2px; }
     .step-error { width: 100%; font-size: 0.8rem; color: #ef4444; padding-left: 24px; margin-top: 2px; background: #fef2f2; padding: 4px 8px 4px 24px; border-radius: 4px; }
+    .step-screenshot { width: 100%; margin-top: 4px; padding-left: 24px; }
+    .step-screenshot img { max-width: 100%; max-height: 300px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+    .step-screenshot img:hover { max-height: none; }
     .tag { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
     .severity { padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
     .severity-blocker { background: #fecaca; color: #991b1b; }
