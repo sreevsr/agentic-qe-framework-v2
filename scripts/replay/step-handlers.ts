@@ -550,33 +550,106 @@ async function handleReport(step: Step, ctx: HandlerContext): Promise<StepResult
 // --- API_CALL ---
 
 async function handleApiCall(step: Step, ctx: HandlerContext): Promise<StepResult> {
-  const { method, url, headers, body, captureAs, captureFields, expectedStatus } = step.action;
+  const {
+    method, url, headers, body, captureAs, captureFields,
+    expectedStatus, expectedStatusRange, query, graphql, auth,
+    maxResponseTime,
+  } = step.action;
 
-  // Use native fetch (Node 18+)
-  const fetchOptions: RequestInit = {
-    method: method.toUpperCase(),
-    headers: headers || { 'Content-Type': 'application/json' },
+  // Build URL with query params
+  let fullUrl = url;
+  if (query && typeof query === 'object') {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      params.append(k, String(v));
+    }
+    fullUrl += (fullUrl.includes('?') ? '&' : '?') + params.toString();
+  }
+
+  // Build headers with auth support
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(headers || {}),
   };
 
-  if (body && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-    fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+  // Auth: Bearer token, Basic auth, or API key
+  if (auth) {
+    if (auth.bearer) {
+      requestHeaders['Authorization'] = `Bearer ${auth.bearer}`;
+    } else if (auth.basic) {
+      const encoded = Buffer.from(`${auth.basic.username}:${auth.basic.password}`).toString('base64');
+      requestHeaders['Authorization'] = `Basic ${encoded}`;
+    } else if (auth.apiKey) {
+      // API key can go in header (default) or query param
+      if (auth.apiKey.in === 'query') {
+        fullUrl += (fullUrl.includes('?') ? '&' : '?') + `${auth.apiKey.name}=${auth.apiKey.value}`;
+      } else {
+        requestHeaders[auth.apiKey.name || 'X-API-Key'] = auth.apiKey.value;
+      }
+    }
   }
 
-  const response = await fetch(url, fetchOptions);
+  // Build body — support GraphQL
+  let requestBody: string | undefined;
+  if (graphql) {
+    requestBody = JSON.stringify({
+      query: graphql.query,
+      variables: graphql.variables || {},
+      operationName: graphql.operationName || undefined,
+    });
+  } else if (body && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+    requestBody = typeof body === 'string' ? body : JSON.stringify(body);
+  }
+
+  const fetchOptions: RequestInit = {
+    method: method.toUpperCase(),
+    headers: requestHeaders,
+    body: requestBody,
+  };
+
+  // Execute with timing
+  const apiStart = Date.now();
+  const response = await fetch(fullUrl, fetchOptions);
+  const apiDuration = Date.now() - apiStart;
   const status = response.status;
+
   let responseBody: any;
+  const contentType = response.headers.get('content-type') || '';
   try {
-    responseBody = await response.json();
+    if (contentType.includes('json')) {
+      responseBody = await response.json();
+    } else {
+      responseBody = await response.text();
+    }
   } catch {
-    responseBody = await response.text();
+    responseBody = await response.text().catch(() => '');
   }
 
-  // Check expected status
+  // Check expected status (exact or range)
   if (expectedStatus && status !== expectedStatus) {
     return {
       status: 'fail',
-      duration: 0,
-      error: `API ${method} ${url} returned ${status}, expected ${expectedStatus}. Body: ${JSON.stringify(responseBody).substring(0, 500)}`,
+      duration: apiDuration,
+      error: `API ${method} ${fullUrl} returned ${status}, expected ${expectedStatus}. Body: ${JSON.stringify(responseBody).substring(0, 500)}`,
+    };
+  }
+  if (expectedStatusRange) {
+    const [min, max] = expectedStatusRange;
+    if (status < min || status > max) {
+      return {
+        status: 'fail',
+        duration: apiDuration,
+        error: `API ${method} ${fullUrl} returned ${status}, expected ${min}-${max}. Body: ${JSON.stringify(responseBody).substring(0, 500)}`,
+      };
+    }
+  }
+
+  // Check response time SLA
+  if (maxResponseTime && apiDuration > maxResponseTime) {
+    return {
+      status: 'fail',
+      duration: apiDuration,
+      error: `API ${method} ${fullUrl} took ${apiDuration}ms, exceeded SLA of ${maxResponseTime}ms`,
     };
   }
 
@@ -594,10 +667,14 @@ async function handleApiCall(step: Step, ctx: HandlerContext): Promise<StepResul
     }
   }
 
+  // Always capture response status and headers for subsequent steps
+  setCapturedVariable(ctx.variables, '_lastApiStatus', status);
+  setCapturedVariable(ctx.variables, '_lastApiDuration', apiDuration);
+
   return {
     status: 'pass',
-    duration: 0,
-    evidence: `API ${method} ${url} → ${status}`,
+    duration: apiDuration,
+    evidence: `API ${method} ${fullUrl} → ${status} (${apiDuration}ms)`,
     capturedValues,
   };
 }

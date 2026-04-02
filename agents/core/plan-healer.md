@@ -147,7 +147,7 @@ Copy the `fingerprint` object from the result into `_fingerprint`.
 
 ## App-Context Updates
 
-After fixing all steps, append learnings to the app-context file:
+After fixing all steps, append learnings to the app-context file. If the file doesn't exist, create it using `scenarios/app-contexts/_template.md` as the starting format:
 
 ```markdown
 ## Healer Learnings (2026-04-02)

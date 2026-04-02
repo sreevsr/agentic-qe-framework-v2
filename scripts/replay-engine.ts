@@ -506,7 +506,9 @@ async function main() {
   const reportExt = args.reportFormat === 'junit' ? '.xml' : '.md';
   const finalReportPath = reportPath.endsWith(reportExt) ? reportPath : reportPath.replace(/\.\w+$/, reportExt);
 
-  saveReport(results, finalReportPath, args.reportFormat);
+  // Extract tags from plan for Allure severity/label mapping
+  const planTags: string[] = plan.scenario?.tags || [];
+  saveReport(results, finalReportPath, args.reportFormat, planTags);
 
   // 9. Print summary
   const passed = stepResults.filter(s => s.status === 'pass').length;

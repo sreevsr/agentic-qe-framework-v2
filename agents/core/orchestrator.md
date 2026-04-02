@@ -302,9 +302,9 @@ npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}
 
 ### STAGE 6: Reviewer (MANDATORY — always runs)
 
-Delegate to **QE Reviewer** with:
+Delegate to **QE Plan Reviewer** with:
 ```
-Read agents/core/reviewer.md for your instructions.
+Read agents/core/plan-reviewer.md for your instructions.
 
 SCENARIO_NAME = {scenario}
 SCENARIO_TYPE = {type}
@@ -315,19 +315,13 @@ Plan: {PLAN_PATH}
 Replay report: {REPLAY_REPORT}
 Healer report: {HEALER_REPORT} (if exists)
 
-Tasks:
-1. 1:1 STEP MAPPING — verify every step in enriched scenario has a corresponding plan step
-   and a corresponding result in the replay report. Flag any gaps.
-2. PLAN QUALITY CHECK:
-   - Missing verifications (action without subsequent verify)
-   - Hardcoded values that should be ENV variables
-   - Missing WAIT steps after navigations
-   - Missing screenshots at key checkpoints
-   - Missing cleanup/teardown section
-3. EVIDENCE COMPLETENESS — screenshots, captured values, soft assertion results all present
-4. If REPLAY_STATUS=FAILING: note which steps are failing and whether they map to critical scenarios
+Review across ALL 4 dimensions defined in plan-reviewer.md:
+1. STEP TRACEABILITY (40% weight) — 1:1 mapping: enriched scenario → plan → replay result
+2. PLAN QUALITY (30% weight) — missing verifications, hardcoded values, missing waits, cleanup
+3. EVIDENCE COMPLETENESS (20% weight) — screenshots, captures, soft assertions, failure detail
+4. HEALER IMPACT (10% weight, if healer ran) — fixes applied, stability, MCP cost
 
-Output: Quality score (0-100) + breakdown by category
+Output: Quality score (0-100) + breakdown by dimension
 
 Save scorecard to: {REVIEW_SCORECARD}
 ```

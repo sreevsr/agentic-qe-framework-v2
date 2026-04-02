@@ -105,6 +105,7 @@
 | `agents/core/orchestrator.md` | Orchestrator pipeline coordinator (v3) |
 | `agents/core/plan-generator.md` | Plan Generator — MCP exploration → plan.json |
 | `agents/core/plan-healer.md` | Plan Healer — surgical fix for failing plan steps |
+| `agents/core/plan-reviewer.md` | Plan Reviewer — 1:1 mapping, quality score (v3) |
 | `agents/core/explorer-builder.md` | Explorer/Builder core instructions (legacy) |
 | `agents/core/code-generation-rules.md` | Code patterns, locator JSON, spec structure |
 | `agents/core/quality-gates.md` | Fidelity, guardrails, popups, i18n |
@@ -112,7 +113,7 @@
 | `agents/core/bug-detection-rules.md` | Bug vs test issue classification (3Q + tables) |
 | `agents/core/executor.md` | Executor core instructions |
 | `agents/core/enrichment-agent.md` | Enrichment Agent core instructions |
-| `agents/core/reviewer.md` | Reviewer core instructions |
+| `agents/core/reviewer.md` | Reviewer core instructions (legacy — 9-dimension code review) |
 | `framework-config.json` | Configurable retries, timeouts, bug detection settings |
 | `agents/shared/keyword-reference.md` | Keyword → code patterns |
 | `agents/shared/guardrails.md` | Enterprise ownership boundaries |

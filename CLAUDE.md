@@ -14,13 +14,18 @@ Scout (one-time tool) → [Enrichment Agent] → Explorer → Builder → Execut
 
 | Agent/Tool | Copilot: `@` | Core Instructions | Job |
 |------------|-------------|------------------|-----|
-| **Scout** | N/A (user tool) | `output/tools/README.md` | **One-time** — user navigates app, Scout records elements into locator JSONs |
 | **Orchestrator** | `@QE Orchestrator` | `agents/core/orchestrator.md` | **One-command pipeline** — coordinates all agents in sequence |
+| **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Structure NL / Swagger into .enriched.md scenario files |
+| **Plan Generator** | `@QE Plan Generator` | `agents/core/plan-generator.md` | Explore app via MCP, produce plan.json with rich fingerprints |
+| **Plan Healer** | `@QE Plan Healer` | `agents/core/plan-healer.md` | Surgically fix failing plan steps, classify deterministic vs MCP |
+| **Plan Reviewer** | `@QE Plan Reviewer` | `agents/core/plan-reviewer.md` | 1:1 step mapping, plan quality audit, quality score |
+| | | | |
+| **Legacy agents (v2 code-generation pipeline):** | | | |
+| **Scout** | N/A (user tool) | `output/tools/README.md` | One-time — user navigates app, Scout records elements into locator JSONs |
 | **Explorer** | `@QE Explorer` | `agents/core/explorer.md` | Verify flow in live browser, produce enriched.md with page-step mappings |
 | **Builder** | `@QE Builder` | `agents/core/builder.md` | Generate code from Scout locator JSONs + enriched.md (NO browser) |
 | **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
-| **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language / Swagger to structured scenario .md |
-| **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
+| **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions (legacy — code review) |
 | **Healer** | `@QE Healer` | `agents/core/healer.md` | Fix code quality issues when Reviewer verdict is NEEDS FIXES |
 
 ## MANDATORY Execution Rules

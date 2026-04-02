@@ -311,7 +311,7 @@ For unique-per-run values (like signup email), use `{{_runtime.runId}}`:
 
 - **App-context**: After exploration, create or append to `scenarios/app-contexts/{app}.md` with learnings:
   component libraries detected, navigation patterns, timing quirks, authentication flow, pacing values.
-  If the file exists, append a new section with date. If it doesn't exist, create it.
+  If the file exists, append a new dated section. If it doesn't exist, create it using `scenarios/app-contexts/_template.md` as the starting format.
 
 ---
 
