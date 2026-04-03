@@ -370,14 +370,62 @@ Similarly, when multiple VERIFY steps check the same page, batch them into seque
 
 ---
 
-## Popup Handling
+## Popup Handling — Plan-Driven (MANDATORY)
 
-During plan generation, if you encounter popups/ads/overlays:
-1. Record the popup encounter in the plan as a note (not a step)
-2. The replay engine handles popup dismissal automatically
-3. Do NOT add CONDITIONAL steps for common popups — the built-in dismisser handles them
+**The replay engine has NO proactive popup dismisser.** You are responsible for detecting and recording ALL popup dismissals during exploration. If you encounter a popup, cookie banner, consent modal, ad overlay, or notification during exploration, record the dismissal as an explicit step in the plan.
 
-Only add CONDITIONAL steps for app-specific popups that are part of the test flow (e.g., "Continue Shopping" modal after add-to-cart).
+**During plan generation, if you encounter a popup/banner/overlay:**
+
+1. **Classify it** — what type of popup is it?
+
+| Type | Example | How to Record |
+|------|---------|---------------|
+| Cookie/consent banner | "Accept All Cookies" button | ACTION step: click the accept button |
+| GDPR consent | "I Agree" button | ACTION step: click the agree button |
+| Marketing/newsletter popup | Modal with "No Thanks" or X button | ACTION step: click dismiss |
+| Ad overlay | Full-screen ad with close button | ACTION step: click close or press Escape |
+| Browser notification prompt | "Allow notifications?" | Handled by Playwright context config — no plan step needed |
+| JS dialog (alert/confirm) | `alert("Welcome!")` | Handled by Playwright dialog handler — no plan step needed |
+
+2. **Record it as a plan step** immediately after the NAVIGATE step that triggered it:
+```json
+{
+  "id": 2,
+  "section": "Landing Page",
+  "description": "Dismiss cookie consent banner",
+  "type": "ACTION",
+  "action": {
+    "verb": "click",
+    "target": {
+      "role": "button",
+      "name": "Accept All",
+      "fallbacks": [
+        { "text": "Accept All" },
+        { "css": "button:has-text('Accept')" }
+      ]
+    }
+  },
+  "_popupDismissal": true
+}
+```
+
+3. **Add the `_popupDismissal: true` flag** so the Healer knows this step exists solely to dismiss a popup (not a scenario step).
+
+4. **Note it in the plan report** under Key Discoveries: "Cookie banner detected on initial navigation — added dismissal step."
+
+5. **For app-specific popups** that appear conditionally (e.g., "Continue Shopping" modal), use a CONDITIONAL step:
+```json
+{
+  "type": "CONDITIONAL",
+  "action": {
+    "if": { "elementVisible": { "text": "Continue Shopping" } },
+    "then": [{ "type": "ACTION", "action": { "verb": "click", "target": { "text": "Continue Shopping" } } }]
+  },
+  "_popupDismissal": true
+}
+```
+
+**Why plan-driven:** The blind catch-all dismisser caused false positives on enterprise apps — clicking legitimate UI buttons (navigation menus, panel close buttons) that matched generic dismiss patterns. By recording popups explicitly during exploration, each dismissal is traceable, auditable, and healable.
 
 ---
 

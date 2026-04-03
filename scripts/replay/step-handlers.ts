@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { resolveWithFallbacks, resolveTarget, Target } from './element-resolver';
 import { VariableContext, setCapturedVariable, resolveDeep, resolveString } from './variable-resolver';
-import { dismissPopups, checkAndDismissOverlay, isOverlayError } from './popup-dismisser';
+import { checkAndDismissOverlay, isOverlayError } from './popup-dismisser';
 import { tryComponentAction } from './component-handler';
 import { validatePathWithinProject, validateArithmeticExpression, validateSkillName, maskSensitiveValue } from './security';
 
@@ -137,14 +137,10 @@ async function handleNavigate(step: Step, ctx: HandlerContext): Promise<StepResu
     await ctx.page.waitForTimeout(Number(postNavWait));
   }
 
-  // Auto-dismiss popups after navigation
-  const popupResult = await dismissPopups(ctx.page);
-
   return {
     status: 'pass',
     duration: 0,
     evidence: `Navigated to ${url}`,
-    dismissed: popupResult.dismissed,
   };
 }
 
@@ -177,9 +173,9 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
       try {
         await locator.click({ timeout });
       } catch (clickError: any) {
-        // Reactive: if click failed due to overlay, dismiss and retry once
+        // Reactive: if click failed due to overlay, try Escape and retry once
         if (isOverlayError(clickError.message)) {
-          const reactiveResult = await dismissPopups(ctx.page);
+          const reactiveResult = await checkAndDismissOverlay(ctx.page);
           overlayResult.dismissed.push(...reactiveResult.dismissed);
           await locator.click({ timeout });
         } else {

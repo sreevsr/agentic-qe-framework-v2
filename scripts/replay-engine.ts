@@ -495,9 +495,18 @@ async function main() {
       console.log(`                      Error: ${result.error.substring(0, 80)}`);
     }
 
-    // Stop on failure if configured
-    if (result.status === 'fail' && step.onFailure === 'stop') {
-      stopExecution = true;
+    // Stop on failure — default behavior for ACTION, VERIFY, NAVIGATE
+    // VERIFY_SOFT continues (that's its purpose — non-blocking assertion)
+    // Explicit onFailure: 'continue' overrides the default stop behavior
+    if (result.status === 'fail') {
+      if (step.onFailure === 'continue') {
+        // Explicitly marked to continue — respect it
+      } else if (step.type === 'VERIFY_SOFT') {
+        // Soft assertions never stop execution
+      } else {
+        // ACTION, VERIFY, NAVIGATE, CAPTURE, etc. — stop on failure
+        stopExecution = true;
+      }
     }
   }
 
