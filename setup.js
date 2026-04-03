@@ -74,7 +74,6 @@ const LANGUAGE_CONFIG = {
     coreDir: path.join(TEMPLATES, 'core'),
     configFiles: [
       { src: 'playwright.config.ts', dest: 'playwright.config.ts' },
-      { src: 'package.json',         dest: 'package.json' },
       { src: 'tsconfig.json',        dest: 'tsconfig.json' },
       { src: '.env.example',         dest: '.env.example' },
     ],
@@ -93,7 +92,6 @@ const LANGUAGE_CONFIG = {
     coreDir: path.join(TEMPLATES, 'core'), // JS uses same core files — types stripped at usage
     configFiles: [
       { src: 'playwright.config.js', dest: 'playwright.config.js' },
-      { src: 'package.json',         dest: 'package.json' },
       { src: '.env.example',         dest: '.env.example' },
     ],
     coreFiles: [
@@ -336,41 +334,39 @@ async function main() {
   console.log(`  ${SYMBOLS.ok} Language marker: ${language}`);
 
   if (!FLAGS.skipInstall) {
-    // Step 6: Install dependencies (language-specific)
-    console.log(`\n${SYMBOLS.arrow} Installing ${language} dependencies in output/...`);
+    // Step 6: Install dependencies (single node_modules/ at root)
+    console.log(`\n${SYMBOLS.arrow} Installing dependencies...`);
 
     if (language === 'python') {
-      // Python: pip install
+      // Python: pip install for test-specific deps
       const reqFile = path.join(OUTPUT, 'requirements.txt');
-      if (!fs.existsSync(reqFile)) {
-        console.error(`  ${SYMBOLS.fail} requirements.txt not found`);
-        process.exit(1);
-      }
-      if (!runCommand(langConfig.installCmd, OUTPUT, `pip install -r requirements.txt`)) {
-        process.exit(1);
-      }
-    } else {
-      // TypeScript/JavaScript: npm install
-      const nodeModules = path.join(OUTPUT, 'node_modules');
-      const playwrightPkg = path.join(nodeModules, '@playwright', 'test');
-      if (fs.existsSync(playwrightPkg)) {
-        console.log(`  ${SYMBOLS.skip} node_modules/ already installed`);
-      } else {
-        if (fs.existsSync(nodeModules)) {
-          console.log(`  ${SYMBOLS.warn} node_modules/ appears incomplete — reinstalling...`);
-        }
-        if (!runCommand(langConfig.installCmd, OUTPUT, 'npm install')) {
+      if (fs.existsSync(reqFile)) {
+        if (!runCommand(langConfig.installCmd, OUTPUT, 'pip install -r requirements.txt')) {
           process.exit(1);
         }
       }
     }
 
-    // Step 7: Install Playwright browsers (language-specific command)
+    // Root npm install (replay engine, Playwright, tsx, dotenv)
+    const nodeModules = path.join(ROOT, 'node_modules');
+    const playwrightPkg = path.join(nodeModules, 'playwright');
+    if (fs.existsSync(playwrightPkg)) {
+      console.log(`  ${SYMBOLS.skip} node_modules/ already installed`);
+    } else {
+      if (fs.existsSync(nodeModules)) {
+        console.log(`  ${SYMBOLS.warn} node_modules/ appears incomplete — reinstalling...`);
+      }
+      if (!runCommand(`${npmCmd} install`, ROOT, 'npm install')) {
+        process.exit(1);
+      }
+    }
+
+    // Step 7: Install Playwright browsers
     const playwrightInstallCmd = FLAGS.allBrowsers
       ? langConfig.playwrightCmd
       : langConfig.playwrightChromeCmd;
     console.log(`\n${SYMBOLS.arrow} Installing Playwright browsers${FLAGS.allBrowsers ? ' (all)' : ' (Chrome only)'}...`);
-    if (!runCommand(playwrightInstallCmd, OUTPUT, 'Playwright browser install')) {
+    if (!runCommand(playwrightInstallCmd, ROOT, 'Playwright browser install')) {
       process.exit(1);
     }
   } else {
@@ -414,7 +410,8 @@ function runValidation() {
     { label: 'output/allure-results/',             ok: fs.existsSync(path.join(OUTPUT, 'allure-results')) },
     // Dependencies (skip if validate-only or skip-install)
     ...(!skipInstallChecks ? [
-      { label: 'output/node_modules/',             ok: fs.existsSync(path.join(OUTPUT, 'node_modules')) },
+      { label: 'node_modules/ (playwright)',       ok: fs.existsSync(path.join(ROOT, 'node_modules', 'playwright')) },
+      { label: 'node_modules/ (tsx)',              ok: fs.existsSync(path.join(ROOT, 'node_modules', 'tsx')) },
     ] : []),
     // Framework directories (verify framework itself is intact)
     { label: 'agents/core/ (agent instructions)',   ok: fs.existsSync(path.join(ROOT, 'agents', 'core')) },
