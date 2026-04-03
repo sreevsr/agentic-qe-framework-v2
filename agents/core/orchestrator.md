@@ -56,6 +56,7 @@ HEALER_REPORT:        output/reports/[{folder}/]healer-report-{scenario}.md
 REVIEW_SCORECARD:     output/reports/[{folder}/]review-scorecard-{scenario}.md
 ENRICHMENT_REPORT:    output/reports/[{folder}/]enrichment-report-{scenario}.md
 PLAN_GEN_REPORT:      output/reports/[{folder}/]plan-generator-report-{scenario}.md
+ENGINE_FIXER_REPORT:  output/reports/[{folder}/]engine-fixer-report-{scenario}.md
 PIPELINE_SUMMARY:     output/reports/[{folder}/]pipeline-summary-{scenario}.md
 ALLURE_RESULTS:       output/test-results/allure-results/{scenario}-result.json
 APP_CONTEXT:          scenarios/app-contexts/{app-identifier}.md
@@ -76,6 +77,7 @@ Delete (ignore errors if they don't exist):
   output/reports/[{folder}/]review-scorecard-{scenario}.md
   output/reports/[{folder}/]enrichment-report-{scenario}.md
   output/reports/[{folder}/]plan-generator-report-{scenario}.md
+  output/reports/[{folder}/]engine-fixer-report-{scenario}.md
   output/reports/[{folder}/]pipeline-summary-{scenario}.md
   output/test-results/allure-results/{scenario}-result.json
 ```
@@ -99,6 +101,8 @@ Delete (ignore errors if they don't exist):
 │  STAGE 5: Heal (if replay has failures — max 2 cycles)             │
 │  ↓                                                                 │
 │  STAGE 6: Reviewer (mandatory — 1:1 mapping + quality score)       │
+│  ↓                                                                 │
+│  STAGE 7: Engine Fixer (if engine modifications flagged)           │
 │  ↓                                                                 │
 │  OUTPUT: Pipeline Summary + Allure JSON + verdict                  │
 └────────────────────────────────────────────────────────────────────┘
@@ -343,7 +347,54 @@ Save scorecard to: {REVIEW_SCORECARD}
 
 ---
 
-## 7. Final Verdict — MANDATORY Decision Logic
+### STAGE 7: Engine Fixer (CONDITIONAL — only when engine modifications flagged)
+
+**Decision logic:**
+
+| Condition | Action |
+|-----------|--------|
+| Reviewer scorecard has `## Engine Flags` section | **INVOKE** Engine Fixer |
+| Healer report has `## Engine Modifications` section (not "None") AND Reviewer has Engine Flags | **INVOKE** Engine Fixer |
+| No engine modifications flagged | **SKIP** — proceed to Final Verdict |
+
+**If invoking Engine Fixer:**
+
+Delegate to **QE Engine Fixer** with:
+```
+Read agents/core/engine-fixer.md for your instructions.
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+
+Healer report: {HEALER_REPORT}
+Reviewer scorecard: {REVIEW_SCORECARD}
+Plan: {PLAN_PATH}
+Replay report: {REPLAY_REPORT}
+
+Tasks:
+1. Read the ## Engine Modifications section from the healer report
+2. Read the ## Engine Flags section from the reviewer scorecard
+3. For each flagged modification: implement proper fix (engine code + agent instructions)
+4. Re-run replay to confirm fixes don't break anything (max 2 cycles)
+5. Flag any agent instruction changes that require Plan Generator re-run
+
+Save report to: {ENGINE_FIXER_REPORT}
+```
+
+**Post Engine Fixer: Re-run replay to confirm.**
+
+Use the SAME replay engine as STAGE 4:
+```bash
+npx tsx scripts/replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPORT}
+```
+
+**HARD STOP — Verify before proceeding:**
+- ENGINE_FIXER_REPORT exists
+- Replay still passes after engine fixes
+
+---
+
+## 8. Final Verdict — MANDATORY Decision Logic
 
 **MUST use this exact logic — DO NOT deviate:**
 
@@ -360,7 +411,7 @@ Save scorecard to: {REVIEW_SCORECARD}
 
 ---
 
-## 8. Pipeline Summary — MANDATORY File Save
+## 9. Pipeline Summary — MANDATORY File Save
 
 **MUST save to: `{PIPELINE_SUMMARY}`**
 
@@ -376,6 +427,7 @@ The summary MUST include:
 | Replay | PASS/FAIL | Xs | {passed}/{total} steps |
 | Heal | PASS/SKIP/FAIL | Xs | {N} steps fixed, {M} MCP-flagged |
 | Reviewer | Score: {N}/100 | Xms | {gaps found} |
+| Engine Fixer | PASS/SKIP | Xs | {N} hotfixes hardened, {M} agent instructions updated |
 
 ### Final Verdict
 `APPROVED` / `APPROVED WITH CAVEATS` / `HEALED` / `TESTS FAILING` / `INCOMPLETE`
@@ -404,10 +456,18 @@ The summary MUST include:
 - Stability: {2/2 runs passed}
 - App-context updates: {learnings added}
 
+### Engine Fixer Report (if engine fixer ran)
+- Hotfixes hardened: {N}
+- Engine files modified: {list}
+- Agent instructions modified: {list}
+- Replay confirmation: {PASS/FAIL}
+- Re-generation advisory: {list of agent instruction changes that require Plan Generator re-run on next execution, or "None"}
+
 ### Files
 - Plan: {PLAN_PATH}
 - Replay report: {REPLAY_REPORT}
 - Healer report: {HEALER_REPORT} (if exists)
+- Engine fixer report: {ENGINE_FIXER_REPORT} (if exists)
 - Review scorecard: {REVIEW_SCORECARD}
 - Screenshots: {list}
 - Allure: {ALLURE_RESULTS}
@@ -416,7 +476,7 @@ The summary MUST include:
 
 ---
 
-## 9. Subagent Context Rules
+## 10. Subagent Context Rules
 
 - Each subagent gets its own context window — it does NOT see your history
 - **MUST pass minimum necessary context** to each subagent (file paths, scenario name, type, folder)
@@ -435,7 +495,7 @@ The summary MUST include:
 
 ---
 
-## 10. Platform Awareness
+## 11. Platform Awareness
 
 | Platform | Subagent Mechanism | Fresh Context? |
 |----------|--------------------|----------------|
@@ -443,14 +503,14 @@ The summary MUST include:
 | **VS Code Copilot (1.113+)** | `runSubagent` tool | YES |
 
 Both platforms:
-- Orchestrator spawns Enricher, Plan Generator, Healer, Reviewer as separate subagents
+- Orchestrator spawns Enricher, Plan Generator, Healer, Reviewer, Engine Fixer as separate subagents
 - Each subagent gets a fresh context window
 - Replay engine runs via terminal command (not a subagent)
 - Plan Generator requires MCP Playwright for web scenarios
 
 ---
 
-## 11. Platform Compatibility
+## 12. Platform Compatibility
 
 - **MUST** use `path.join()` for all file paths in scripts
 - Provide both bash and PowerShell commands for terminal operations

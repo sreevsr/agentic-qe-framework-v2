@@ -191,6 +191,15 @@ Use the step-classifier output to map each step:
 | ACTION (click) | ACTION | `action: { verb: "click", target }` |
 | ACTION (fill) | ACTION | `action: { verb: "fill", target, value }` |
 | ACTION (select) | ACTION | `action: { verb: "select", target, value }` |
+| ACTION (press_key) | ACTION | `action: { verb: "press_key", key: "Enter" }` |
+| ACTION (hover) | ACTION | `action: { verb: "hover", target }` |
+| ACTION (check) | ACTION | `action: { verb: "check", target }` |
+| ACTION (uncheck) | ACTION | `action: { verb: "uncheck", target }` |
+| ACTION (type) | ACTION | `action: { verb: "type", target, value }` |
+| ACTION (upload) | ACTION | `action: { verb: "upload", target, files }` |
+| ACTION (download) | ACTION | `action: { verb: "download", trigger, saveAs }` |
+| ACTION (drag) | ACTION | `action: { verb: "drag", source, destination }` |
+| ACTION (fill_form) | ACTION | `action: { verb: "fill_form", fields: [...] }` |
 | ACTION (locate) | — | Skip — locating is implicit in subsequent steps |
 | VERIFY | VERIFY | `action: { assertion, expected, target/scope }` |
 | VERIFY_SOFT | VERIFY_SOFT | Same as VERIFY |
@@ -198,6 +207,8 @@ Use the step-classifier output to map each step:
 | CALCULATE | CALCULATE | `action: { expression, captureAs, resultFormat }` |
 | SCREENSHOT | SCREENSHOT | `action: { name, fullPage }` |
 | REPORT | REPORT | `action: { message }` |
+
+**CRITICAL: Action verb naming uses snake_case.** The replay engine expects `press_key`, NOT `pressKey`. All verbs: `click`, `fill`, `fill_form`, `select`, `hover`, `press_key`, `check`, `uncheck`, `type`, `drag`, `upload`, `download`, `switch_frame`.
 
 ---
 
@@ -378,6 +389,34 @@ For unique-per-run values (like signup email), use `{{_runtime.runId}}`:
 ```json
 {"value": "qademo_{{_runtime.runId}}@testmail.com"}
 ```
+
+---
+
+## Test Data Parameterization — MANDATORY
+
+**If the enriched scenario has a `## Test Data` table, you MUST parameterize ALL values from that table in the plan JSON.** Never hardcode test data values that are defined in the Test Data table.
+
+**How to parameterize:**
+1. Add a `testData` block to the plan JSON (top-level, alongside `steps`):
+```json
+{
+  "testData": {
+    "searchTerm": "Brown",
+    "targetEmployee": "Brown, Robert",
+    "expectedUsername": "CORPORATE\\RBrown",
+    "expectedName": "Robert Brown",
+    "expectedCompany": "9203: RS ANDREWS OF TIDEWATER"
+  }
+}
+```
+
+2. Reference values in steps as `{{testData.fieldName}}`:
+```json
+{ "verb": "fill", "target": {...}, "value": "{{testData.searchTerm}}" }
+{ "assertion": "textVisible", "expected": "{{testData.targetEmployee}}" }
+```
+
+**Why:** Parameterized plans enable data-driven execution — the same plan can run with different test data by swapping the `testData` block or loading from a JSON/CSV/Excel file. Hardcoded values couple the plan to a single data set.
 
 ---
 

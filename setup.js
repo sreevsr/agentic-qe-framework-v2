@@ -443,12 +443,13 @@ function runValidation() {
     console.log('  1. Edit output/.env with your application credentials');
     console.log('  2. Place scenarios in scenarios/web/, scenarios/api/, scenarios/hybrid/, or scenarios/mobile/');
     console.log('  3. Run the v3 pipeline:');
-    console.log('     a. @QE Enricher    — structure scenario into enriched.md');
+    console.log('     a. @QE Enricher       — structure scenario into enriched.md');
     console.log('     b. @QE Plan Generator — explore app via MCP, produce plan.json');
-    console.log('     c. @QE Executor    — replay plan deterministically');
-    console.log('     d. @QE Plan Healer — fix failing steps (max 2 cycles)');
-    console.log('     e. @QE Plan Reviewer — quality audit + traceability');
-    console.log('     Or: @QE Orchestrator — runs the full pipeline end-to-end');
+    console.log('     c. npx tsx scripts/replay-engine.ts --plan=output/plans/{type}/{scenario}.plan.json --headed');
+    console.log('        (deterministic replay — runs in terminal, not an LLM agent)');
+    console.log('     d. @QE Plan Healer    — fix failing steps (max 2 cycles)');
+    console.log('     e. @QE Plan Reviewer  — quality audit + traceability');
+    console.log('     Or: @QE Orchestrator  — runs the full pipeline end-to-end');
     console.log('');
   } else {
     console.log(`\n${SYMBOLS.warn} ${failed} check(s) failed. Review the items above.\n`);

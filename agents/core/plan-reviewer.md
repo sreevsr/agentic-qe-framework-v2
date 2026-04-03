@@ -172,7 +172,36 @@ Save to: `output/reports/[{folder}/]review-scorecard-{scenario}.md`
 
 ---
 
-## 6. What You MUST NOT Do
+## 6. Engine Modification Review — MANDATORY When Healer Report Has Engine Modifications
+
+If the healer report contains an `## Engine Modifications` section (not "None"):
+
+1. **Read each engine modification** in the healer report
+2. **Review the actual changed file** — read the code the Healer modified
+3. **Assess each modification:**
+
+| Assessment | When | Action |
+|-----------|------|--------|
+| **CORRECT** | Hotfix is sound, recommended proper fix is clear | Flag for Engine Fixer with approval |
+| **RISKY** | Change could have side effects or breaks conventions | Flag for Engine Fixer with warnings |
+| **INCORRECT** | Change is wrong or masks the real issue | Flag for Engine Fixer — must be reverted/replaced |
+
+4. **Add `## Engine Flags` section** to the scorecard:
+
+```markdown
+## Engine Flags
+
+| # | File | Classification | Assessment | Notes |
+|---|------|---------------|------------|-------|
+| 1 | scripts/replay/step-handlers.ts | ENHANCEMENT | CORRECT | skipPopupDismissal is a valid pattern |
+| 2 | agents/core/plan-generator.md | HOTFIX | CORRECT | verb table was missing press_key |
+```
+
+**This section is the input for the Engine Fixer agent.** If this section is present, the Orchestrator will invoke the Engine Fixer.
+
+---
+
+## 7. What You MUST NOT Do
 
 1. **DO NOT modify any files** — you are a reviewer, not a fixer
 2. **DO NOT run any scripts** — use the reports already generated

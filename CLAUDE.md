@@ -19,6 +19,7 @@ Scout (one-time tool) → [Enrichment Agent] → Explorer → Builder → Execut
 | **Plan Generator** | `@QE Plan Generator` | `agents/core/plan-generator.md` | Explore app via MCP, produce plan.json with rich fingerprints |
 | **Plan Healer** | `@QE Plan Healer` | `agents/core/plan-healer.md` | Surgically fix failing plan steps, classify deterministic vs MCP |
 | **Plan Reviewer** | `@QE Plan Reviewer` | `agents/core/plan-reviewer.md` | 1:1 step mapping, plan quality audit, quality score |
+| **Engine Fixer** | `@QE Engine Fixer` | `agents/core/engine-fixer.md` | Replace Healer hotfixes with proper engine/instruction fixes |
 | | | | |
 | **Legacy agents (v2 code-generation pipeline):** | | | |
 | **Scout** | N/A (user tool) | `output/tools/README.md` | One-time — user navigates app, Scout records elements into locator JSONs |

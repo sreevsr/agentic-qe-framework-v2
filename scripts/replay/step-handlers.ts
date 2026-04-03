@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { resolveWithFallbacks, resolveTarget, Target } from './element-resolver';
 import { VariableContext, setCapturedVariable, resolveDeep, resolveString } from './variable-resolver';
-import { dismissPopups } from './popup-dismisser';
+import { dismissPopups, checkAndDismissOverlay, isOverlayError } from './popup-dismisser';
 import { tryComponentAction } from './component-handler';
 import { validatePathWithinProject, validateArithmeticExpression, validateSkillName, maskSensitiveValue } from './security';
 
@@ -163,17 +163,29 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
 
   switch (verb) {
     case 'click': {
+      // Pre-action: check for overlays blocking the viewport (Option D+)
+      const overlayResult = await checkAndDismissOverlay(ctx.page);
+
       // Try component-aware handler first (MUI Select, Ant Design, Kendo, etc.)
       const compResult = await tryComponentAction(ctx.page, 'click', withFingerprint(step.action.target), step.action.value, timeout);
       if (compResult?.handled) {
-        const popupResult = await dismissPopups(ctx.page);
-        return { status: 'pass', duration: 0, evidence: compResult.evidence, dismissed: popupResult.dismissed };
+        return { status: 'pass', duration: 0, evidence: compResult.evidence, dismissed: overlayResult.dismissed };
       }
-      // Generic click
+      // Generic click with reactive retry on overlay obstruction
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
-      await locator.click({ timeout });
-      const popupResult = await dismissPopups(ctx.page);
-      return { status: 'pass', duration: 0, evidence: `Clicked: ${strategy}`, dismissed: popupResult.dismissed };
+      try {
+        await locator.click({ timeout });
+      } catch (clickError: any) {
+        // Reactive: if click failed due to overlay, dismiss and retry once
+        if (isOverlayError(clickError.message)) {
+          const reactiveResult = await dismissPopups(ctx.page);
+          overlayResult.dismissed.push(...reactiveResult.dismissed);
+          await locator.click({ timeout });
+        } else {
+          throw clickError;
+        }
+      }
+      return { status: 'pass', duration: 0, evidence: `Clicked: ${strategy}`, dismissed: overlayResult.dismissed };
     }
 
     case 'fill': {

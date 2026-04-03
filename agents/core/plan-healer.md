@@ -198,11 +198,47 @@ Save to: `output/reports/[{folder}/]healer-report-{scenario}.md`
 ## Steps Added
 - {list of WAIT/prerequisite steps inserted, with IDs}
 
+## Engine Modifications
+{If NO engine/agent instruction changes were made, write: "None — all fixes were plan-level only."}
+
+### {N}. {file path} — {brief description}
+- **Classification:** HOTFIX / ENHANCEMENT
+- **Change:** {what was changed}
+- **Why:** {root cause that required engine modification}
+- **Recommended proper fix:** {what the Engine Fixer should implement}
+
 ## MCP Dependency Summary
 | Step | Reason | Estimated cost/run |
 |------|--------|--------------------|
 | {ID} | {reason} | $0.0044 |
 | Total | | ${total} |
+```
+
+---
+
+## Engine Modifications — Allowed but MUST Report
+
+**You CAN modify engine code** (`scripts/replay/`) or agent instructions (`agents/core/`, `agents/shared/`) if the root cause is an engine limitation, not a plan bug. However:
+
+1. **MUST classify each engine change** as:
+   - `HOTFIX` — temporary workaround to unblock this pipeline run
+   - `ENHANCEMENT` — permanent improvement the engine should keep
+
+2. **MUST add a `## Engine Modifications` section** to the healer report (see report template below). This section is the trigger for the Engine Fixer agent.
+
+3. **MUST include a `Recommended proper fix:` line** for each modification — describe what the Engine Fixer should implement as the permanent solution.
+
+4. **MUST NOT modify** core framework files (`output/core/`), user scenario files, or shared test data.
+
+**Example:**
+```markdown
+## Engine Modifications
+
+### 1. scripts/replay/step-handlers.ts — added skipPopupDismissal flag
+- **Classification:** ENHANCEMENT
+- **Change:** Added `skipPopupDismissal?: boolean` to Step interface; conditional skip of dismissPopups() in click handler
+- **Why:** Popup dismisser auto-closes Fluent UI panels with "Close" buttons
+- **Recommended proper fix:** Make popup dismisser smarter — only dismiss elements that aren't inside [role="dialog"] or [role="complementary"]
 ```
 
 ---
@@ -216,6 +252,7 @@ Save to: `output/reports/[{folder}/]healer-report-{scenario}.md`
 5. **DO NOT flag everything as MCP** — MCP is expensive, use only when deterministic is truly impossible
 6. **DO NOT invent test steps** — only fix what exists in the plan, don't add new test logic
 7. **DO NOT modify the enriched scenario or the user's original .md file**
+8. **DO NOT modify core framework files** (`output/core/`) — these are framework-managed
 
 ---
 
