@@ -321,7 +321,18 @@ MCP may show a `<span>` with a click handler as `link "Users"` in the snapshot. 
 
 ## Fingerprint Recording
 
-For EVERY action step, record the `fingerprint` object from the `browser_evaluate` result directly as `_fingerprint`. This enables the replay engine's self-healing resolver to find elements even when selectors break (MUI duplicates, responsive variants, DOM restructuring).
+For EVERY ACTION step AND every VERIFY/VERIFY_SOFT step that targets a specific element, record the `fingerprint` object from `browser_evaluate` as `_fingerprint`. This enables the replay engine's self-healing resolver to find elements even when selectors break (MUI duplicates, responsive variants, DOM restructuring).
+
+**Steps that MUST have `_fingerprint`:**
+- All ACTION steps (click, fill, select, hover, etc.)
+- VERIFY/VERIFY_SOFT steps with `elementVisible`, `elementNotVisible`, `elementAttribute`, `textVisible` with `scope`
+- CAPTURE steps with a target element
+
+**Steps that do NOT need `_fingerprint`:**
+- VERIFY steps using `urlContains`, `urlEquals`, `valueEquals` (no DOM element targeted)
+- SCREENSHOT steps (target is the page, not a specific element)
+- WAIT steps using `networkIdle` or `delay`
+- REPORT steps
 
 **Copy the fingerprint object verbatim from browser_evaluate result:**
 
@@ -377,6 +388,10 @@ Map scenario assertions to plan assertion types:
 | VERIFY: screenshot matches | `screenshotMatch` | Visual comparison against baseline |
 | VERIFY: count equals N | `countEquals` | Number of elements matching target equals expected |
 | VERIFY: A matches B (multi) | `allOf` with conditions | Multiple conditions must all pass |
+
+**CRITICAL: When verifying a dialog/modal/panel opens, assert BOTH element presence AND title/heading text.** `elementVisible` alone confirms the container exists but not that the correct dialog opened. Add a `textVisible` assertion for the dialog title (e.g., "SERVICE ACTIVITY", "Changing Status to Approved") alongside or as part of an `allOf`.
+
+**CRITICAL: When the scenario says "verify X is read-only / not editable", use `elementAttribute` assertion.** `textVisible` only confirms the label exists — it does not verify editability. Check `readonly`, `disabled`, `contenteditable="false"`, or `aria-readonly="true"` on the actual input/textarea element. If the element is a display `<div>` (not an input), note this in the plan step description — display divs are inherently non-editable.
 
 **CRITICAL: Avoid ambiguous URL assertions.** If two pages share a URL prefix (e.g., `/users` for Home and `/users/users` for Search), `urlContains: "/users"` matches both. In such cases, combine `urlContains` with a content-based assertion:
 ```json

@@ -148,6 +148,46 @@
       };
     }
 
+    // === Telerik UI ===
+
+    // Telerik RadComboBox — autocomplete/filterable dropdown
+    if (cls.indexOf("RadComboBox") !== -1 || cls.indexOf("rcbInputCell") !== -1 ||
+        (node.id && node.id.indexOf("_Input") !== -1 && findAncestorWithClass(el, "RadComboBox"))) {
+      var rcbRoot = findAncestorWithClass(el, "RadComboBox") || node;
+      var rcbId = rcbRoot.id || "";
+      // Extract base ID: "ProblemInput" from "ProblemInput_Input" or the wrapper
+      var baseId = rcbId.replace(/_Input$/, "").replace(/_DropDown$/, "");
+      if (!baseId && el.id) baseId = el.id.replace(/_Input$/, "");
+      return {
+        library: "telerik",
+        widget: "combobox",
+        wrapperSelector: rcbRoot.id ? "#" + CSS.escape(rcbRoot.id) : uniqueSelector(rcbRoot),
+        inputSelector: baseId ? "#" + CSS.escape(baseId + "_Input") : null,
+        meta: {
+          dropdownSelector: baseId ? "#" + CSS.escape(baseId + "_DropDown") : null,
+          optionSelector: "li",
+          hoveredClass: "rcbHovered"
+        }
+      };
+    }
+
+    // Telerik RadDropDownList — non-editable dropdown
+    if (cls.indexOf("RadDropDownList") !== -1 || cls.indexOf("rddlInner") !== -1 ||
+        (node.id && document.querySelector("#" + CSS.escape(node.id) + "_DropDown"))) {
+      var rddlRoot = findAncestorWithClass(el, "RadDropDownList") || node;
+      var rddlId = rddlRoot.id || el.id || "";
+      return {
+        library: "telerik",
+        widget: "dropdownlist",
+        wrapperSelector: rddlRoot.id ? "#" + CSS.escape(rddlRoot.id) : uniqueSelector(rddlRoot),
+        meta: {
+          dropdownSelector: rddlId ? "#" + CSS.escape(rddlId + "_DropDown") : null,
+          optionSelector: "li",
+          selectedClass: "rddlItem rddlItemSelected"
+        }
+      };
+    }
+
     // === Fluent UI (Microsoft) ===
 
     if (cls.indexOf("ms-Dropdown") !== -1 || cls.indexOf("fui-Dropdown") !== -1) {

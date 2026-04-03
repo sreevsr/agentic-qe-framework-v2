@@ -36,6 +36,30 @@ function getMuiSelect() {
   return muiSelect;
 }
 
+let telerikCombobox: any = null;
+function getTelerikCombobox() {
+  if (!telerikCombobox) {
+    const skillPath = path.join(__dirname, '..', '..', 'skills', 'replay', 'telerik-combobox.skill.js');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(`Telerik ComboBox skill not found: ${skillPath}`);
+    }
+    telerikCombobox = require(skillPath);
+  }
+  return telerikCombobox;
+}
+
+let telerikDropdown: any = null;
+function getTelerikDropdown() {
+  if (!telerikDropdown) {
+    const skillPath = path.join(__dirname, '..', '..', 'skills', 'replay', 'telerik-dropdown.skill.js');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(`Telerik DropDownList skill not found: ${skillPath}`);
+    }
+    telerikDropdown = require(skillPath);
+  }
+  return telerikDropdown;
+}
+
 export interface ComponentActionResult {
   handled: boolean;
   evidence: string;
@@ -167,6 +191,46 @@ export async function tryComponentAction(
         };
       }
       return { handled: true, evidence: `Fluent UI Dropdown opened` };
+    }
+  }
+
+  // Telerik RadComboBox
+  if (library === 'telerik' && widget === 'combobox') {
+    if (verb === 'select' || (verb === 'click' && value)) {
+      const result = await getTelerikCombobox().pick(page, {
+        inputSelector: detection.inputSelector || selector,
+        dropdownSelector: detection.meta.dropdownSelector,
+        value: value,
+        timeout,
+      });
+      return {
+        handled: true,
+        evidence: `Telerik ComboBox: "${result.previousValue}" → "${result.selected}" (confirmed: "${result.confirmedValue}")`,
+        capturedValues: { _lastSelected: result.confirmedValue },
+      };
+    }
+  }
+
+  // Telerik RadDropDownList
+  if (library === 'telerik' && widget === 'dropdownlist') {
+    if (verb === 'select' || verb === 'click') {
+      if (value) {
+        const result = await getTelerikDropdown().pick(page, {
+          triggerSelector: detection.wrapperSelector || selector,
+          dropdownSelector: detection.meta.dropdownSelector,
+          value: value,
+          timeout,
+        });
+        return {
+          handled: true,
+          evidence: `Telerik DropDownList: "${result.previousValue}" → "${result.selected}" (confirmed: "${result.confirmedValue}")`,
+          capturedValues: { _lastSelected: result.confirmedValue },
+        };
+      }
+      // Plain click to open
+      const trigger = page.locator(detection.wrapperSelector || selector).first();
+      await trigger.click({ timeout });
+      return { handled: true, evidence: `Telerik DropDownList opened` };
     }
   }
 
