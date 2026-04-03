@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * setup.js — Cross-platform bootstrap for Agentic QE Framework v2
+ * setup.js — Cross-platform bootstrap for Agentic QE Framework v3
  *
  * Uses only built-in Node.js modules — no npm install needed to run this script.
  *
@@ -12,6 +12,7 @@
  *   node setup.js --all-browsers        # Install all browsers
  *   node setup.js --validate-only       # Validate without installing
  *   node setup.js --skip-install        # Create dirs + copy files only
+ *   node setup.js --reset-core          # Force-overwrite core files + framework-config
  */
 
 const fs = require('fs');
@@ -47,6 +48,7 @@ const FLAGS = {
   allBrowsers: process.argv.includes('--all-browsers'),
   validateOnly: process.argv.includes('--validate-only'),
   skipInstall: process.argv.includes('--skip-install'),
+  resetCore: process.argv.includes('--reset-core'),
   language,
 };
 
@@ -138,11 +140,13 @@ const CORE_FILES = langConfig.coreFiles;
 // ---------------------------------------------------------------------------
 const OUTPUT_DIRS = [
   '', 'core', 'pages', 'locators',
-  'tests', 'tests/web', 'tests/api', 'tests/hybrid',
+  'tests', 'tests/web', 'tests/api', 'tests/hybrid', 'tests/mobile',
   'test-data', 'test-data/shared', 'test-data/web', 'test-data/api',
-  'test-data/hybrid', 'test-data/datasets',
+  'test-data/hybrid', 'test-data/mobile', 'test-data/datasets',
   'screenshots', 'test-results',
   'reports', 'reports/metrics',
+  'plans', 'plans/web', 'plans/api', 'plans/hybrid', 'plans/mobile',
+  'allure-results',
   'scout-reports', 'auth',
 ];
 
@@ -173,13 +177,14 @@ function runCommand(cmd, cwd, label) {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  console.log('\n=== Agentic QE Framework v2 — Setup ===\n');
+  console.log('\n=== Agentic QE Framework v3 — Setup ===\n');
   console.log(`${SYMBOLS.info} Platform: ${os.platform()} ${os.arch()}`);
   console.log(`${SYMBOLS.info} Node.js:  ${process.version}`);
   console.log(`${SYMBOLS.info} Root:     ${ROOT}`);
   console.log(`${SYMBOLS.info} Language: ${language}`);
   if (FLAGS.validateOnly) console.log(`${SYMBOLS.info} Mode:     Validate only (no install)`);
   if (FLAGS.skipInstall) console.log(`${SYMBOLS.info} Mode:     Skip install (dirs + files only)`);
+  if (FLAGS.resetCore) console.log(`${SYMBOLS.info} Mode:     Reset core (force-overwrite framework files)`);
   if (FLAGS.allBrowsers) console.log(`${SYMBOLS.info} Browsers: All (Chrome, Firefox, WebKit)`);
   console.log('');
 
@@ -257,6 +262,15 @@ async function main() {
         'TEST_USERNAME=your-test-username',
         'TEST_PASSWORD="your-test-password"',
         '',
+        '# API configuration',
+        'API_BASE_URL=',
+        'API_TOKEN=',
+        '',
+        '# Playwright settings',
+        'HEADLESS=true',
+        'DEFAULT_TIMEOUT=30000',
+        'NAVIGATION_TIMEOUT=60000',
+        '',
       ].join('\n');
       fs.writeFileSync(envDest, defaultEnv);
       console.log(`  ${SYMBOLS.ok} Created .env with defaults — edit with your credentials`);
@@ -275,6 +289,8 @@ async function main() {
       'playwright-report/',
       'blob-report/',
       'screenshots/',
+      'allure-results/',
+      'allure-report/',
       '',
     ].join('\n'));
     console.log(`  ${SYMBOLS.ok} Created output/.gitignore`);
@@ -285,6 +301,34 @@ async function main() {
   if (!fs.existsSync(sharedStateFile)) {
     fs.writeFileSync(sharedStateFile, JSON.stringify({}, null, 2));
     console.log(`  ${SYMBOLS.ok} Created test-data/shared-state.json`);
+  }
+
+  // Step 5d: Initialize framework-config.json (v3 — configurable timeouts and pipeline settings)
+  const frameworkConfigFile = path.join(OUTPUT, 'framework-config.json');
+  if (!fs.existsSync(frameworkConfigFile) || FLAGS.resetCore) {
+    const frameworkConfig = {
+      version: '3.0.0',
+      timeouts: {
+        testTimeoutMs: 120000,
+        actionTimeoutMs: 15000,
+        navigationTimeoutMs: 60000,
+      },
+      pipeline: {
+        maxHealCycles: 2,
+        replayConfirmationRuns: 2,
+        defaultExecutor: 'deterministic',
+      },
+      reporters: ['list', 'json', 'html', 'allure'],
+      browsers: {
+        default: 'chromium',
+        headless: true,
+      },
+    };
+    const existed = fs.existsSync(frameworkConfigFile);
+    fs.writeFileSync(frameworkConfigFile, JSON.stringify(frameworkConfig, null, 2) + '\n');
+    console.log(`  ${SYMBOLS.ok} ${existed ? 'Reset' : 'Created'} framework-config.json`);
+  } else {
+    console.log(`  ${SYMBOLS.skip} framework-config.json already exists`);
   }
 
   // Write language marker file (tells agents which language was chosen)
@@ -356,25 +400,31 @@ function runValidation() {
     ...configFileChecks,
     { label: 'output/.env exists',                 ok: fs.existsSync(path.join(OUTPUT, '.env')) },
     { label: `output/.language = ${language}`,     ok: fs.existsSync(path.join(OUTPUT, '.language')) },
+    { label: 'output/framework-config.json',       ok: fs.existsSync(path.join(OUTPUT, 'framework-config.json')) },
     // Core framework files (language-specific)
     ...coreFileChecks,
     // Test directories
     { label: 'output/tests/web/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'web')) },
     { label: 'output/tests/api/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'api')) },
     { label: 'output/tests/hybrid/',               ok: fs.existsSync(path.join(OUTPUT, 'tests', 'hybrid')) },
+    { label: 'output/tests/mobile/',               ok: fs.existsSync(path.join(OUTPUT, 'tests', 'mobile')) },
     { label: 'output/test-data/shared/',           ok: fs.existsSync(path.join(OUTPUT, 'test-data', 'shared')) },
+    // v3 pipeline directories
+    { label: 'output/plans/',                      ok: fs.existsSync(path.join(OUTPUT, 'plans')) },
+    { label: 'output/allure-results/',             ok: fs.existsSync(path.join(OUTPUT, 'allure-results')) },
     // Dependencies (skip if validate-only or skip-install)
     ...(!skipInstallChecks ? [
       { label: 'output/node_modules/',             ok: fs.existsSync(path.join(OUTPUT, 'node_modules')) },
     ] : []),
     // Framework directories (verify framework itself is intact)
-    { label: '.github/agents/ (Copilot wrappers)', ok: fs.existsSync(path.join(ROOT, '.github', 'agents')) },
     { label: 'agents/core/ (agent instructions)',   ok: fs.existsSync(path.join(ROOT, 'agents', 'core')) },
     { label: 'agents/shared/ (keyword-ref, guardrails)', ok: fs.existsSync(path.join(ROOT, 'agents', 'shared')) },
     { label: 'skills/ (skills registry)',           ok: fs.existsSync(path.join(ROOT, 'skills')) },
     { label: 'scripts/ (utility scripts)',          ok: fs.existsSync(path.join(ROOT, 'scripts')) },
     { label: 'templates/ (source of truth)',        ok: fs.existsSync(path.join(ROOT, 'templates')) },
     { label: 'scenarios/ (test scenarios)',          ok: fs.existsSync(path.join(ROOT, 'scenarios')) },
+    { label: 'contracts/ (agent manifests)',        ok: fs.existsSync(path.join(ROOT, 'contracts')) },
+    { label: 'ci/ (CI/CD workflows)',              ok: fs.existsSync(path.join(ROOT, 'ci')) },
   ];
 
   let passed = 0;
@@ -391,9 +441,14 @@ function runValidation() {
     console.log(`\n${SYMBOLS.ok} Setup complete! (language: ${language})\n`);
     console.log('Next steps:');
     console.log('  1. Edit output/.env with your application credentials');
-    console.log('  2. Place scenarios in scenarios/web/, scenarios/api/, or scenarios/hybrid/');
-    console.log(`  3. Run the Explorer/Builder agent: @QE Explorer (Copilot) or via Claude Code`);
-    console.log(`     The agent will generate ${language} code based on the language profile.`);
+    console.log('  2. Place scenarios in scenarios/web/, scenarios/api/, scenarios/hybrid/, or scenarios/mobile/');
+    console.log('  3. Run the v3 pipeline:');
+    console.log('     a. @QE Enricher    — structure scenario into enriched.md');
+    console.log('     b. @QE Plan Generator — explore app via MCP, produce plan.json');
+    console.log('     c. @QE Executor    — replay plan deterministically');
+    console.log('     d. @QE Plan Healer — fix failing steps (max 2 cycles)');
+    console.log('     e. @QE Plan Reviewer — quality audit + traceability');
+    console.log('     Or: @QE Orchestrator — runs the full pipeline end-to-end');
     console.log('');
   } else {
     console.log(`\n${SYMBOLS.warn} ${failed} check(s) failed. Review the items above.\n`);
