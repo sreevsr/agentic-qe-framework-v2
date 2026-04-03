@@ -396,27 +396,88 @@ For unique-per-run values (like signup email), use `{{_runtime.runId}}`:
 
 **If the enriched scenario has a `## Test Data` table, you MUST parameterize ALL values from that table in the plan JSON.** Never hardcode test data values that are defined in the Test Data table.
 
-**How to parameterize:**
-1. Add a `testData` block to the plan JSON (top-level, alongside `steps`):
+### Pattern A: Scenario-Specific Test Data
+
+For data that belongs to THIS scenario (search terms, expected values, form inputs):
+
+1. Create a test data JSON file at `output/test-data/{type}/{scenario-name}.json`:
 ```json
 {
-  "testData": {
-    "searchTerm": "Brown",
-    "targetEmployee": "Brown, Robert",
-    "expectedUsername": "CORPORATE\\RBrown",
-    "expectedName": "Robert Brown",
-    "expectedCompany": "9203: RS ANDREWS OF TIDEWATER"
-  }
+  "searchTerm": "Brown",
+  "targetEmployee": "Brown, Robert",
+  "expectedUsername": "CORPORATE\\RBrown",
+  "expectedName": "Robert Brown",
+  "expectedCompany": "9203: RS ANDREWS OF TIDEWATER"
 }
 ```
 
-2. Reference values in steps as `{{testData.fieldName}}`:
+2. Reference the file in the plan JSON (top-level, alongside `steps`):
+```json
+{
+  "testDataSource": "output/test-data/web/unify-user-photos.json"
+}
+```
+
+3. Reference values in steps as `{{testData.fieldName}}`:
 ```json
 { "verb": "fill", "target": {...}, "value": "{{testData.searchTerm}}" }
 { "assertion": "textVisible", "expected": "{{testData.targetEmployee}}" }
 ```
 
-**Why:** Parameterized plans enable data-driven execution — the same plan can run with different test data by swapping the `testData` block or loading from a JSON/CSV/Excel file. Hardcoded values couple the plan to a single data set.
+### Pattern B: Application-Level Shared Data (dataSources)
+
+For data shared across scenarios — user lists, product catalogs, company data:
+
+1. Place shared data files in `output/test-data/shared/`:
+```
+output/test-data/shared/users.json
+output/test-data/shared/products.csv
+```
+
+2. Reference in the plan JSON via `dataSources`:
+```json
+{
+  "dataSources": {
+    "users": { "file": "output/test-data/shared/users.json", "format": "json" },
+    "products": { "file": "output/test-data/shared/products.csv", "format": "csv" }
+  }
+}
+```
+
+3. Reference in steps as `{{dataSources.users[0].name}}` or `{{dataSources.products[2].sku}}`.
+
+**IMPORTANT:** Files in `output/test-data/shared/` are team-owned — **read only, NEVER modify**.
+
+### Pattern C: Within-Scenario Captured Data
+
+For data captured from the app during execution and used in later steps (same scenario):
+
+1. Use `CAPTURE` step to extract a value:
+```json
+{ "type": "CAPTURE", "action": { "target": {...}, "extract": "textContent", "captureAs": "employeeId" } }
+```
+
+2. Reference in later steps as `{{employeeId}}`:
+```json
+{ "assertion": "textEquals", "expected": "{{employeeId}}" }
+```
+
+Also supports: `CALCULATE` for arithmetic on captured values, `API_CALL` with `captureFields` for API response extraction.
+
+### Pattern D: Cross-Scenario Shared State
+
+For data produced by one scenario that another scenario needs (e.g., scenario A creates a user, scenario B verifies the user):
+
+1. Use `SAVE` step to persist data to shared state:
+```json
+{ "type": "SAVE", "action": { "key": "createdUserId", "value": "{{userId}}" } }
+```
+
+2. In the dependent scenario's plan, load it via `{{sharedState.createdUserId}}`.
+
+3. The enriched scenario should declare this dependency: `Depends On: scenario-a` in metadata.
+
+**Why separate files:** Plans stay focused on steps, test data is reusable across scenarios, and data-driven execution is possible by swapping the JSON file (or using CSV/Excel) without touching the plan.
 
 ---
 

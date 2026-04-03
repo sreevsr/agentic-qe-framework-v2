@@ -77,6 +77,7 @@ export const handlers: Record<string, StepHandler> = {
   WRITE_DATA:   handleWriteData,
   SKILL:        handleSkill,
   WAIT:         handleWait,
+  SAVE:         handleSave,
   FOR_EACH:     handleForEach,
   CONDITIONAL:  handleConditional,
 };
@@ -816,6 +817,37 @@ async function handleWait(step: Step, ctx: HandlerContext): Promise<StepResult> 
     default:
       return { status: 'fail', duration: 0, error: `Unknown wait condition: ${condition}` };
   }
+}
+
+// --- SAVE (cross-scenario shared state) ---
+
+async function handleSave(step: Step, ctx: HandlerContext): Promise<StepResult> {
+  const { key, value } = step.action;
+
+  // Resolve the value — it may reference a captured variable like {{userId}}
+  const resolvedValue = typeof value === 'string' ? resolveString(value, ctx.variables) : value;
+
+  // Persist to shared-state.json (thread-safe)
+  const stateFile = path.resolve('output', 'test-data', 'shared-state.json');
+  let state: Record<string, any> = {};
+  if (fs.existsSync(stateFile)) {
+    state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+  }
+  state[key] = resolvedValue;
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+
+  // Also make it available in current context as sharedState.{key}
+  if (!ctx.variables.sharedState) {
+    ctx.variables.sharedState = {};
+  }
+  ctx.variables.sharedState[key] = resolvedValue;
+
+  return {
+    status: 'pass',
+    duration: 0,
+    evidence: `Saved ${key} = "${resolvedValue}" to shared state`,
+    capturedValues: { [`sharedState.${key}`]: resolvedValue },
+  };
 }
 
 // --- FOR_EACH ---

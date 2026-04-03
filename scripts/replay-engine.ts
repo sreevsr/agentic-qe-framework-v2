@@ -265,9 +265,17 @@ async function main() {
 
   // 2. Build variable context
   const envPath = path.resolve('output', '.env');
-  const testDataOverride = args.data
-    ? JSON.parse(fs.readFileSync(path.resolve(args.data), 'utf-8'))
-    : {};
+
+  // Test data priority: CLI --data flag > plan.testDataSource > empty
+  let testDataOverride: Record<string, any> = {};
+  if (args.data) {
+    testDataOverride = JSON.parse(fs.readFileSync(path.resolve(args.data), 'utf-8'));
+  } else if (plan.testDataSource) {
+    const testDataPath = path.resolve(plan.testDataSource);
+    if (fs.existsSync(testDataPath)) {
+      testDataOverride = JSON.parse(fs.readFileSync(testDataPath, 'utf-8'));
+    }
+  }
 
   let dataSources: Record<string, any> = {};
   if (plan.dataSources && Object.keys(plan.dataSources).length > 0) {
@@ -551,7 +559,7 @@ async function main() {
   // Build captured variables for report (exclude internal namespaces)
   const capturedForReport: Record<string, any> = {};
   for (const [key, value] of Object.entries(context)) {
-    if (!['ENV', 'testData', 'dataSources', '_runtime', '_downloads'].includes(key) && typeof value !== 'function') {
+    if (!['ENV', 'testData', 'dataSources', 'sharedState', '_runtime', '_downloads'].includes(key) && typeof value !== 'function') {
       capturedForReport[key] = value;
     }
   }

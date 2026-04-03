@@ -11,6 +11,7 @@
  */
 
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -18,6 +19,7 @@ export interface VariableContext {
   ENV: Record<string, string>;
   testData: Record<string, any>;
   dataSources: Record<string, any>;
+  sharedState: Record<string, any>;
   _runtime: RuntimeVars;
   _downloads: Record<string, string>;
   [key: string]: any; // captured variables are added at top level
@@ -51,10 +53,22 @@ export function buildContext(
     }
   }
 
+  // Load cross-scenario shared state (persisted by SAVE steps from prior scenarios)
+  const sharedStatePath = path.resolve('output', 'test-data', 'shared-state.json');
+  let sharedState: Record<string, any> = {};
+  try {
+    if (fs.existsSync(sharedStatePath)) {
+      sharedState = JSON.parse(fs.readFileSync(sharedStatePath, 'utf-8'));
+    }
+  } catch {
+    // Corrupted or missing — start empty
+  }
+
   return {
     ENV: envVars,
     testData: testDataOverride || {},
     dataSources: dataSources || {},
+    sharedState,
     _runtime: {
       timestamp: new Date().toISOString(),
       runId: crypto.randomUUID(),

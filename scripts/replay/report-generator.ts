@@ -105,7 +105,7 @@ export function generateMarkdownReport(results: ReplayResults): string {
 
   // Captured Variables
   const capturedEntries = Object.entries(results.capturedVariables).filter(
-    ([k]) => !k.startsWith('_') && k !== 'ENV' && k !== 'testData' && k !== 'dataSources'
+    ([k]) => !k.startsWith('_') && k !== 'ENV' && k !== 'testData' && k !== 'dataSources' && k !== 'sharedState'
   );
   if (capturedEntries.length > 0) {
     md += `\n## Captured Variables\n\n`;
