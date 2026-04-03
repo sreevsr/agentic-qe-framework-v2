@@ -108,6 +108,20 @@ Delete (ignore errors if they don't exist):
 └────────────────────────────────────────────────────────────────────┘
 ```
 
+### HARD RULE: Stage Execution Guard — No Re-Entry
+
+**Each stage runs EXACTLY ONCE per pipeline execution. No stage may re-trigger a previous stage.**
+
+| Rule | Detail |
+|------|--------|
+| No re-entry | Once a stage completes (PASS, FAIL, or PARTIAL), it is DONE. No looping back. |
+| Heal cycles are internal | The Healer runs up to `maxHealCycles` (from `framework-config.json`, default 2) cycles internally. These are internal iterations within STAGE 5, NOT separate pipeline runs. |
+| Engine Fixer does NOT trigger Healer | If Engine Fixer's confirmation replay fails, it reports PARTIAL. It does NOT re-invoke the Healer. |
+| Engine Fixer does NOT re-run Plan Generator | It fixes engine/instruction code and confirms with ONE replay. If that fails, report and stop. |
+| Pipeline moves forward only | Stage 1 → 2 → 3 → 4 → 5 → 6 → 7 → OUTPUT. Never backward. |
+
+**This prevents the hang scenario where Reviewer → Engine Fixer → Replay → Healer → Reviewer creates an infinite loop.**
+
 ---
 
 ### STAGE 1: Pre-Checks
@@ -195,6 +209,7 @@ Save report to: {PLAN_GEN_REPORT}
 CRITICAL: Save the plan JSON FIRST before generating the report.
 CRITICAL: Create or append app-context learnings to {APP_CONTEXT} after exploration.
 CRITICAL: Capture rich fingerprints via browser_evaluate for every action step.
+CRITICAL: Run browser in HEADED mode (visible browser window) for web/mobile/hybrid scenarios.
 ```
 
 **For api/db — delegate to Plan Generator with NO browser:**
@@ -266,7 +281,7 @@ npx tsx scripts/mobile-replay-engine.ts --plan={PLAN_PATH} --report={REPLAY_REPO
 
 ### STAGE 5: Heal (CONDITIONAL — only when REPLAY_STATUS=FAILING)
 
-**Maximum 2 heal cycles.** Each cycle: Heal → Full replay → Full replay (stability check).
+**Maximum heal cycles: read from `framework-config.json` → `pipeline.maxHealCycles` (default: 2).** Each cycle: Heal → Full replay → Full replay (stability check).
 
 Delegate to **QE Plan Healer** with:
 ```
@@ -312,8 +327,8 @@ Run the appropriate command twice in sequence.
 | Condition | Action |
 |-----------|--------|
 | Both stability runs pass | `REPLAY_STATUS=HEALED`. Proceed to STAGE 6. |
-| Either stability run fails AND heal cycles < 2 | Start next heal cycle (back to STAGE 5). |
-| Either stability run fails AND heal cycles = 2 | `REPLAY_STATUS=FAILING`. Proceed to STAGE 6 with failures. |
+| Either stability run fails AND heal cycles < maxHealCycles | Start next heal cycle (within STAGE 5). |
+| Either stability run fails AND heal cycles = maxHealCycles | `REPLAY_STATUS=FAILING`. Proceed to STAGE 6 with failures. |
 
 ---
 

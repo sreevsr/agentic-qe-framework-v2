@@ -357,6 +357,40 @@ async function executeAssertion(step: Step, ctx: HandlerContext, soft: boolean):
         return { status: 'pass', duration: 0, evidence: `${strategy} is hidden` };
       }
 
+      case 'elementNotVisible': {
+        const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+        await expect(locator).not.toBeVisible({ timeout });
+        return { status: 'pass', duration: 0, evidence: `${strategy} is not visible` };
+      }
+
+      case 'textNotVisible': {
+        const expected = step.action.expected;
+        if (step.action.scope) {
+          const { locator } = await resolveWithFallbacks(ctx.page, step.action.scope, timeout);
+          // Use .first() to prevent strict mode instant failure on multi-element locators
+          const count = await locator.count();
+          const target = count > 1 ? locator.first() : locator;
+          await expect(target).not.toContainText(expected, { timeout });
+        } else {
+          const match = ctx.page.getByText(expected, { exact: false });
+          const count = await match.count();
+          if (count === 0) {
+            return { status: 'pass', duration: 0, evidence: `Text "${expected}" is not visible (0 matches)` };
+          }
+          await expect(match.first()).not.toBeVisible({ timeout });
+        }
+        return { status: 'pass', duration: 0, evidence: `Text "${expected}" is not visible` };
+      }
+
+      case 'elementAttribute': {
+        const { locator, strategy } = await resolveWithFallbacks(ctx.page, step.action.target, timeout);
+        const actual = await locator.getAttribute(step.action.attribute, { timeout });
+        if (actual !== step.action.expected) {
+          throw new Error(`Expected attribute "${step.action.attribute}" = "${step.action.expected}" but got "${actual}"`);
+        }
+        return { status: 'pass', duration: 0, evidence: `${strategy} has attribute "${step.action.attribute}" = "${actual}"` };
+      }
+
       case 'urlContains': {
         await expect(ctx.page).toHaveURL(new RegExp(escapeRegex(step.action.expected)), { timeout });
         return { status: 'pass', duration: 0, evidence: `URL contains "${step.action.expected}"` };

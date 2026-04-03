@@ -454,6 +454,11 @@ async function main() {
       continue;
     }
 
+    // Pre-step wait (e.g., grid refresh delay before asserting absence)
+    if (step.waitBefore && Number(step.waitBefore) > 0) {
+      await page.waitForTimeout(Number(step.waitBefore));
+    }
+
     const result = await handler(resolvedStep, handlerContext);
 
     // Per-step pacing (from plan step or global config)
@@ -480,10 +485,10 @@ async function main() {
       allDismissals.push(...result.dismissed);
     }
 
-    // Track screenshots
+    // Track screenshots (use resolvedStep for variable-resolved name)
     if (result.screenshot && step.type === 'SCREENSHOT') {
       screenshots.push({
-        name: step.action.name,
+        name: resolvedStep.action.name,
         step: step.id,
         file: result.screenshot,
       });

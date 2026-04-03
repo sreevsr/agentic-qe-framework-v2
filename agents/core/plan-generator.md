@@ -180,6 +180,23 @@ npx tsx scripts/mobile-replay-engine.ts --plan=output/plans/mobile/{scenario}.pl
 
 ---
 
+### Offline Mode (No Browser Available)
+
+If MCP Playwright browser tools are NOT available (Copilot subagent without MCP config, CI environment, etc.), **do NOT fail**. Generate an estimated plan using:
+1. App-context patterns (if exists) — component patterns, selectors, pacing values
+2. Enriched scenario steps — structure and intent
+3. Known component library patterns (Fluent UI, MUI, etc.)
+
+**MUST:**
+- Mark the plan report with `⚠️ ESTIMATED PLAN — HEALER RUN EXPECTED ON FIRST REPLAY`
+- Flag specific steps where the selector is uncertain (add `_note` with expected healer fix)
+- Estimate fingerprints based on app-context patterns (not live DOM)
+- Set `generatedBy` to include `(offline; no live MCP browser run)`
+
+This is a supported degradation mode, not a failure. The Healer will fix selector drift on first replay. Expect 2-5 healer cycles depending on app-context richness.
+
+---
+
 ### CRITICAL: Save-First Rule
 
 **Write the plan JSON file as soon as step exploration is complete (after step 7).**
@@ -343,12 +360,22 @@ Map scenario assertions to plan assertion types:
 
 | Scenario writes | Plan assertion | What to check |
 |----------------|---------------|---------------|
-| VERIFY: "X" is displayed | `textVisible` | Text appears on page |
+| VERIFY: "X" is displayed | `textVisible` | Text appears on page (use `scope` to limit to a container) |
+| VERIFY: "X" is NOT displayed | `textNotVisible` | Text is absent or not visible (use `scope` for multi-element containers) |
 | VERIFY: X contains "Y" | `textContains` | Scoped element contains text |
 | VERIFY: X matches {{var}} | `textEquals` + variable ref | Compare element text to captured value |
+| VERIFY: element is visible | `elementVisible` | Element matching target is visible |
+| VERIFY: element is NOT visible | `elementNotVisible` | Element matching target is not visible (e.g., panel closed) |
+| VERIFY: element is hidden/detached | `elementHidden` | Element is hidden or detached from DOM |
+| VERIFY: element attribute | `elementAttribute` | Check `attribute` equals `expected` (e.g., `aria-disabled: "true"`) |
 | VERIFY: URL contains "/X" | `urlContains` | Current URL check |
+| VERIFY: URL equals "/X" | `urlEquals` | Exact URL match |
+| VERIFY: variable equals value | `valueEquals` | Compare captured variable to expected |
+| VERIFY: variable contains value | `valueContains` | Captured variable contains expected substring |
 | VERIFY: File downloaded | `fileExists` | File at download path exists |
 | VERIFY: File contains "X" | `fileContains` | File content check |
+| VERIFY: screenshot matches | `screenshotMatch` | Visual comparison against baseline |
+| VERIFY: count equals N | `countEquals` | Number of elements matching target equals expected |
 | VERIFY: A matches B (multi) | `allOf` with conditions | Multiple conditions must all pass |
 
 **CRITICAL: Avoid ambiguous URL assertions.** If two pages share a URL prefix (e.g., `/users` for Home and `/users/users` for Search), `urlContains: "/users"` matches both. In such cases, combine `urlContains` with a content-based assertion:
