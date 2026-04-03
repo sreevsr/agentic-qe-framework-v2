@@ -136,6 +136,7 @@ If an app-context file exists for this application:
 8. **If the user mentions "save" or "remember" a value → use CAPTURE keyword**
 9. **If the user mentions "calculate" or "compute" → use CALCULATE keyword**
 10. **Negative tests:** Only include negative/error test cases if the user EXPLICITLY asks ("test wrong password", "test empty form"). DO NOT add them unprompted — the user asked for a specific flow, not a test plan. If you think negatives are important, suggest them in the `## Notes` section as "Consider also testing: [negative cases]"
+11. **No duplicate rows in Test Data table** — each field name must appear exactly once. If the same value is used in multiple steps, list it once with all step references in the Notes column
 
 ### 4.6: Mobile Scenario Enrichment
 

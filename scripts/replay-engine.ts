@@ -100,6 +100,7 @@ function loadFrameworkConfig(args: CliArgs): ReplayConfig {
   let config: ReplayConfig = {
     timeouts: { action: 30000, navigation: 60000, test: 180000 },
     screenshotOnFailure: true,
+    overlayCheckBeforeActions: false,
     pacing: {
       globalDelayMs: args.pacing,
       postNavWait: args.postNavWait,
@@ -114,6 +115,7 @@ function loadFrameworkConfig(args: CliArgs): ReplayConfig {
         navigation: raw.timeouts?.navigationTimeoutMs || 60000,
         test: raw.timeouts?.testTimeoutMs || 180000,
       };
+      config.overlayCheckBeforeActions = raw.pipeline?.overlayCheckBeforeActions ?? false;
     } catch {
       console.warn('Warning: Could not parse framework-config.json, using defaults');
     }

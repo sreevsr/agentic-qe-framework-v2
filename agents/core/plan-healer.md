@@ -24,17 +24,37 @@ You are the **Plan Healer** — you fix failing steps in execution plans WITHOUT
 ```
 1. Parse replay report → extract failing steps (ID, error, evidence)
 2. Sort failures by step ID (fix in order — earlier fixes may resolve later failures)
-3. FOR EACH failing step:
-   a. Open browser and navigate/replay to the step BEFORE the failure
-   b. Take a snapshot — see what the page looks like now
-   c. Diagnose the failure (see Diagnosis Table below)
-   d. Apply the fix to the plan step
-   e. Classify: deterministic fix OR executor:mcp flag
-   f. Record the fix in the healer report
-4. Save updated plan.json
-5. Append learnings to app-context
-6. Save healer report
+3. Check app-context for KNOWN PATTERNS that match the failures (see step 3 detail below)
+4. FOR EACH failing step:
+   a. CHECK APP-CONTEXT FIRST — does a known pattern match this error?
+      → If YES: apply the known fix directly. Skip browser diagnosis. Log: "Fixed via app-context pattern: {pattern name}"
+      → If NO: proceed to browser-based diagnosis (steps b-e)
+   b. Open browser and navigate/replay to the step BEFORE the failure
+   c. Take a snapshot — see what the page looks like now
+   d. Diagnose the failure (see Diagnosis Table below)
+   e. Apply the fix to the plan step
+   f. Classify: deterministic fix OR executor:mcp flag
+   g. Record the fix in the healer report
+5. Save updated plan.json
+6. Append NEW learnings to app-context (only patterns not already documented)
+7. Save healer report
 ```
+
+### Step 3 Detail: App-Context Pattern Matching
+
+**CRITICAL: Read the app-context BEFORE opening the browser. Known patterns save time and Healer cycles.**
+
+Match failing step errors against app-context learnings:
+
+| Error Pattern | App-Context Match | Direct Fix |
+|---|---|---|
+| `strict mode violation: N elements` | Check "Healer Learnings" for dual-location text patterns | Apply documented scope (e.g., `#fluent-default-layer-host`) |
+| `toBeVisible() failed` on `role="dialog"` | Check "Healer Learnings" for dialog height:0 pattern | Switch to text-based assertion per documented workaround |
+| `Unknown action verb: pressKey` | Check "Verb Naming" section | Rename to `press_key` |
+| `Timeout` after opening dropdown | Check "Popup Dismisser Conflict" patterns | Add `skipPopupDismissal` or fix per documented solution |
+| Selector with dynamic ID | Check "Known Selectors" or "Dynamic IDs" | Replace with stable selector from documented patterns |
+
+**If the app-context pattern gives you the fix, apply it immediately — do NOT open the browser to re-diagnose a known issue.**
 
 ---
 

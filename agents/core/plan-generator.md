@@ -8,13 +8,29 @@ You are the **Plan Generator** — you create execution plans for the Agentic QE
 
 ---
 
-## Pre-Flight (3 reads only)
+## Pre-Flight (4 reads — then start immediately)
 
 1. Read the **scenario .md file** (your input — the test steps)
 2. Read **`output/.env`** (URLs, credentials, test data)
 3. Read **`schemas/execution-plan.schema.json`** (plan format reference)
+4. Read **app-context** (if exists) — `scenarios/app-contexts/{app}.md`
 
-That's it. Start generating immediately.
+**CRITICAL: If an app-context file exists, you MUST read it and apply its learnings. This is the framework's self-improving knowledge base. Ignoring it means rediscovering known patterns, hitting known failures, and wasting Healer cycles.**
+
+### How to Apply App-Context Learnings
+
+When an app-context exists, apply its knowledge BEFORE and DURING exploration:
+
+| App-Context Section | How to Apply |
+|---|---|
+| **Component Library** | Use the documented interaction patterns (e.g., "Fluent UI menuitem dropdowns need 2-step click: open button → click option") instead of guessing |
+| **Pacing** | Use documented `waitAfter` values (e.g., "post-filter change: 500-800ms", "post-search enter: 800ms") instead of defaults |
+| **Learned Patterns** | Follow the documented "Working approach" for each component (e.g., "Branch ComboBox: click → ArrowDown → Enter", not click → select) |
+| **Known Selectors** | Avoid selectors documented as fragile (e.g., "dynamic IDs like ComboBox21, SearchBox20, Panel364") |
+| **Healer Learnings** | Apply known fixes proactively: if app-context says "`role='dialog'` has height:0 — use text assertion", don't use `elementVisible` on `role: dialog` |
+| **Auth Flow** | Use the documented auth method (SSO, login form, API token) without re-discovering it |
+
+**This is the difference between a 1-cycle pass and a 5-cycle Healer marathon.**
 
 ---
 
@@ -69,6 +85,7 @@ The plan JSON conforms to the `agentic-qe/execution-plan/1.0` schema.
 
       **NEVER use role for custom components** (span, div, li with click handlers).
       **ALWAYS include fallbacks** — at least 2 alternative strategies.
+      **ALWAYS validate the primary selector** — after extracting DOM properties via `browser_evaluate`, verify your chosen primary selector actually matches the element. If the element was found via ref in the accessibility tree but the primary CSS/role selector doesn't match the real DOM, use the `cssPath` from the fingerprint as primary instead. A primary selector that fails at replay time means the fallback chain does all the work.
 
    e. Execute the action via MCP (click/fill/select using the ref)
    f. Verify it worked (post-action snapshot if needed)
@@ -201,6 +218,7 @@ Use the step-classifier output to map each step:
 | ACTION (drag) | ACTION | `action: { verb: "drag", source, destination }` |
 | ACTION (fill_form) | ACTION | `action: { verb: "fill_form", fields: [...] }` |
 | ACTION (locate) | — | Skip — locating is implicit in subsequent steps |
+| WAIT | WAIT | `action: { condition: "networkIdle" \| "elementVisible" \| "delay", timeout }` |
 | VERIFY | VERIFY | `action: { assertion, expected, target/scope }` |
 | VERIFY_SOFT | VERIFY_SOFT | Same as VERIFY |
 | CAPTURE | CAPTURE | `action: { target, extract, captureAs }` |
@@ -332,6 +350,15 @@ Map scenario assertions to plan assertion types:
 | VERIFY: File downloaded | `fileExists` | File at download path exists |
 | VERIFY: File contains "X" | `fileContains` | File content check |
 | VERIFY: A matches B (multi) | `allOf` with conditions | Multiple conditions must all pass |
+
+**CRITICAL: Avoid ambiguous URL assertions.** If two pages share a URL prefix (e.g., `/users` for Home and `/users/users` for Search), `urlContains: "/users"` matches both. In such cases, combine `urlContains` with a content-based assertion:
+```json
+[
+  { "assertion": "urlContains", "expected": "/users" },
+  { "assertion": "textVisible", "expected": "Photo Stats" }
+]
+```
+Or use `urlEquals` for the exact path. A VERIFY that can pass on the wrong page is worse than no VERIFY.
 
 ---
 
@@ -551,6 +578,7 @@ For data produced by one scenario that another scenario needs (e.g., scenario A 
 3. **Skip "Locate" steps** — locating is implicit in the action that follows
 4. **Process multiple VERIFYs from one snapshot** — don't snapshot per VERIFY
 5. **Minimize LLM reasoning** — for unambiguous ACTION steps, just find and click
+6. **Never skip explicit WAIT steps** — if the enriched scenario has a "Wait for..." step, create a WAIT plan step. Do NOT optimize it away by relying on implicit timing. Use `networkIdle`, `elementVisible`, or a pacing delay from app-context
 
 ---
 

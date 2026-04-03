@@ -1,59 +1,34 @@
 {
-  "$comment": "Agentic QE Framework v2 — User-configurable settings. Agents read this file instead of using hardcoded values.",
-
-  "exploration": {
-    "maxAttemptsPerStep": 5,
-    "snapshotTimeoutMs": 5000,
-    "interactionTimeoutMs": 60000,
-    "$comment": "maxAttemptsPerStep: how many times Explorer retries a failing interaction before flagging in enriched.md"
-  },
-
-  "executor": {
-    "maxCycles": 10,
-    "preFlightEnabled": true,
-    "$comment": "maxCycles: how many fix-and-rerun cycles before stopping. preFlightEnabled: run tsc + fidelity check"
-  },
+  "$comment": "Agentic QE Framework v3 — User-configurable settings.",
 
   "timeouts": {
     "testTimeoutMs": 180000,
     "actionTimeoutMs": 30000,
     "navigationTimeoutMs": 60000,
     "networkIdleTimeoutMs": 30000,
-    "$comment": "testTimeoutMs: per-test timeout (increase for long E2E scenarios). Override these for slower enterprise apps. Values in milliseconds."
+    "$comment": "Override these for slower enterprise apps. Values in milliseconds."
   },
 
-  "enrichedScenario": {
-    "filenameSuffix": ".enriched",
-    "createOnExploration": true,
-    "neverModifyExisting": true,
-    "$comment": "filenameSuffix: appended to scenario name for enriched version. createOnExploration: Explorer writes enriched file. neverModifyExisting: once created, Explorer never edits."
+  "pipeline": {
+    "maxHealCycles": 2,
+    "replayConfirmationRuns": 2,
+    "defaultExecutor": "deterministic",
+    "overlayCheckBeforeActions": false,
+    "$comment": "overlayCheckBeforeActions: opt-in pre-action overlay detection. Default false. Enable for public-facing apps with mid-test ad popups. Not needed for enterprise/internal apps."
   },
 
-  "bugDetection": {
-    "uncertainVerdictEnabled": true,
-    "flagDisabledElements": true,
-    "flagEmptyValues": true,
-    "$comment": "Controls bug detection sensitivity. uncertainVerdictEnabled: allow UNCERTAIN verdict for ambiguous cases."
-  },
+  "reporters": ["list", "json", "html", "allure"],
 
-  "builder": {
-    "incrementalUpdate": true,
-    "preserveHealedCode": true,
-    "preservePacingComments": true,
-    "$comment": "incrementalUpdate: when true, Builder runs scenario-diff.js and only updates changed steps. preserveHealedCode: never overwrite code with // HEALED comments. preservePacingComments: never remove // PACING: waits."
-  },
-
-  "chunking": {
-    "maxStepsPerChunk": 15,
-    "alwaysChunk": true,
-    "$comment": "maxStepsPerChunk: maximum steps per Explorer chunk (if Explorer verification is chunked for long scenarios). alwaysChunk: legacy setting, not used in Scout+Explorer+Builder architecture."
+  "browsers": {
+    "default": "chromium",
+    "headless": true
   },
 
   "observability": {
     "trackTokens": true,
     "trackContextWindow": true,
     "trackDuration": true,
-    "metricsVersion": "2.1.0",
-    "$comment": "All agents MUST populate observability fields in their metrics JSON. metricsVersion tracks schema changes. If platform does not expose token counts, agents write 'Platform does not expose token count' instead of omitting the field."
+    "metricsVersion": "3.0.0",
+    "$comment": "All agents MUST populate observability fields in their metrics JSON."
   }
 }

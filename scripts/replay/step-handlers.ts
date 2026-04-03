@@ -53,6 +53,7 @@ export interface ReplayConfig {
     test: number;
   };
   screenshotOnFailure: boolean;
+  overlayCheckBeforeActions: boolean;  // Opt-in: check for viewport overlays before ACTION steps (default: false)
   pacing: {
     globalDelayMs: number;       // Delay between every step (0 = no delay)
     postNavWait: string;         // After navigation: ms number or 'networkidle'
@@ -160,8 +161,10 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
 
   switch (verb) {
     case 'click': {
-      // Pre-action: check for overlays blocking the viewport (Option D+)
-      const overlayResult = await checkAndDismissOverlay(ctx.page);
+      // Pre-action: check for overlays blocking the viewport (opt-in, default off)
+      const overlayResult = ctx.config.overlayCheckBeforeActions
+        ? await checkAndDismissOverlay(ctx.page)
+        : { dismissed: [] as string[], timeSpent: 0 };
 
       // Try component-aware handler first (MUI Select, Ant Design, Kendo, etc.)
       const compResult = await tryComponentAction(ctx.page, 'click', withFingerprint(step.action.target), step.action.value, timeout);
