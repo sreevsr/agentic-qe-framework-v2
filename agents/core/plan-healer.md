@@ -191,7 +191,13 @@ After fixing all steps, append learnings to the app-context file. If the file do
 
 Save to: `output/reports/[{folder}/]healer-report-{scenario}.md`
 
-**CRITICAL: The healer report is CUMULATIVE.** If this is cycle 2 or 3, APPEND a new cycle section to the existing report file. Do NOT overwrite previous cycles. The Reviewer and Engine Fixer need the full history of all cycles to audit what happened.
+**CRITICAL: The healer report is CUMULATIVE — HARD RULE.**
+
+**Before writing the report, CHECK if the report file already exists:**
+- If it EXISTS → READ the existing file, then APPEND your new cycle section at the end. Update the Overall Summary table at the top with cumulative totals.
+- If it does NOT exist → Create the file with the template below.
+
+**Do NOT overwrite previous cycles. Do NOT create a new file if one exists.** The Reviewer and Engine Fixer need the full history of all cycles to audit what happened. If you modified engine code, you MUST document it in the Engine Modifications section — stating "Engine Modifications: None" when you added `js_click` or any other verb is incorrect and misleads the Reviewer.
 
 ```markdown
 # Healer Report — {scenario}

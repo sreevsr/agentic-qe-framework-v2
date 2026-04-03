@@ -234,6 +234,8 @@ Use the step-classifier output to map each step:
 | ACTION (download) | ACTION | `action: { verb: "download", trigger, saveAs }` |
 | ACTION (drag) | ACTION | `action: { verb: "drag", source, destination }` |
 | ACTION (fill_form) | ACTION | `action: { verb: "fill_form", fields: [...] }` |
+| ACTION (js_click) | ACTION | `action: { verb: "js_click", target }` — JS mousedown+click, bypasses Playwright actionability |
+| ACTION (js_evaluate) | ACTION | `action: { verb: "js_evaluate", value: "script" }` — runs JS in page context |
 | ACTION (locate) | — | Skip — locating is implicit in subsequent steps |
 | WAIT | WAIT | `action: { condition: "networkIdle" \| "elementVisible" \| "delay", timeout }` |
 | VERIFY | VERIFY | `action: { assertion, expected, target/scope }` |
@@ -243,7 +245,17 @@ Use the step-classifier output to map each step:
 | SCREENSHOT | SCREENSHOT | `action: { name, fullPage }` |
 | REPORT | REPORT | `action: { message }` |
 
-**CRITICAL: Action verb naming uses snake_case.** The replay engine expects `press_key`, NOT `pressKey`. All verbs: `click`, `fill`, `fill_form`, `select`, `hover`, `press_key`, `check`, `uncheck`, `type`, `drag`, `upload`, `download`, `switch_frame`.
+**CRITICAL: Action verb naming uses snake_case.** The replay engine expects `press_key`, NOT `pressKey`. All verbs: `click`, `fill`, `fill_form`, `select`, `hover`, `press_key`, `check`, `uncheck`, `type`, `drag`, `upload`, `download`, `switch_frame`, `js_click`, `js_evaluate`.
+
+**CRITICAL: Use `js_click` (not `click`) for Telerik RadDropDownList / RadComboBox `<li>` items and any DOM elements that are attached but not Playwright-actionable.** `js_click` dispatches `mousedown` + `HTMLElement.click()` via `page.evaluate()`, bypassing Playwright's visibility/stability checks. Required pattern for Telerik dropdowns:
+1. `click` on the trigger element (input or dropdown container) to open
+2. `js_click` on the `<li>` item to select (these items are DOM-attached but may fail Playwright actionability)
+
+**CRITICAL: ASP.NET WebForms UpdatePanel — fill() does NOT trigger blur/postback.**
+After `fill()` on any input inside an ASP.NET UpdatePanel:
+1. Add `press_key: Tab` to explicitly move focus away (triggers `onblur` → validation → `__doPostBack`)
+2. Add a WAIT step for the expected UpdatePanel response (e.g., `elementVisible` on the element rendered by the postback)
+3. Add pacing between rapid fills on the same form (~500-600ms) to prevent concurrent postback drops — ASP.NET silently drops the second concurrent `__doPostBack`
 
 ---
 

@@ -298,6 +298,31 @@ async function handleAction(step: Step, ctx: HandlerContext): Promise<StepResult
       return { status: 'pass', duration: 0, evidence: `Frame context set to: ${JSON.stringify(frame)}` };
     }
 
+    case 'js_click': {
+      // Dispatches mousedown + click events via JavaScript, bypassing Playwright
+      // actionability checks (visibility, stability). Required for Telerik
+      // RadDropDownList / RadComboBox list items which are present in the DOM
+      // but not considered "visible" by Playwright's standards.
+      const { locator, strategy } = await resolveWithFallbacks(ctx.page, withFingerprint(step.action.target), timeout);
+      await locator.waitFor({ state: 'attached', timeout });
+      await locator.evaluate((el) => {
+        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        (el as HTMLElement).click();
+      });
+      return { status: 'pass', duration: 0, evidence: `JS-clicked: ${strategy}` };
+    }
+
+    case 'js_evaluate': {
+      // Evaluates arbitrary JavaScript in the page context. step.action.value
+      // contains the script string. Useful for triggering app-specific functions
+      // (e.g., onEquipmentAgeChange()) that are not reliably triggered via DOM
+      // events from Playwright actions alone.
+      const script = (step.action as any).value as string;
+      if (!script) return { status: 'fail', duration: 0, error: 'js_evaluate: no value/script provided' };
+      const result = await ctx.page.evaluate(script);
+      return { status: 'pass', duration: 0, evidence: `js_evaluate result: ${String(result ?? '(void)').substring(0, 200)}` };
+    }
+
     default:
       return { status: 'fail', duration: 0, error: `Unknown action verb: ${verb}` };
   }
@@ -829,13 +854,15 @@ async function handleWait(step: Step, ctx: HandlerContext): Promise<StepResult> 
 
     case 'elementVisible': {
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, target, timeout || 10000);
-      await locator.waitFor({ state: 'visible', timeout: timeout || 10000 });
+      // Use .first() to avoid strict mode violation when multiple elements match
+      await locator.first().waitFor({ state: 'visible', timeout: timeout || 10000 });
       return { status: 'pass', duration: 0, evidence: `${strategy} became visible` };
     }
 
     case 'elementHidden': {
       const { locator, strategy } = await resolveWithFallbacks(ctx.page, target, timeout || 10000);
-      await locator.waitFor({ state: 'hidden', timeout: timeout || 10000 });
+      // Use .first() to avoid strict mode violation when multiple elements match
+      await locator.first().waitFor({ state: 'hidden', timeout: timeout || 10000 });
       return { status: 'pass', duration: 0, evidence: `${strategy} became hidden` };
     }
 
