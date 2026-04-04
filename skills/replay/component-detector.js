@@ -150,6 +150,25 @@
 
     // === Telerik UI ===
 
+    // Telerik RadCalendar — date picker
+    if (cls.indexOf("RadCalendar") !== -1 || node.querySelector("table.rcMainTable")) {
+      var calRoot = findAncestorWithClass(el, "RadCalendar") || node;
+      return {
+        library: "telerik",
+        widget: "calendar",
+        wrapperSelector: calRoot.id ? "#" + CSS.escape(calRoot.id) : uniqueSelector(calRoot),
+        meta: {
+          tableSelector: calRoot.id ? "#" + CSS.escape(calRoot.id) + " table.rcMainTable" : "table.rcMainTable",
+          titleSelector: ".rcTitle",
+          nextSelector: ".rcNext a",
+          prevSelector: ".rcPrev a",
+          availableCellSelector: "td.availableDate",
+          selectedCellSelector: "td.rcSelected",
+          weekendCellSelector: "td.rcWeekend"
+        }
+      };
+    }
+
     // Telerik RadComboBox — autocomplete/filterable dropdown
     if (cls.indexOf("RadComboBox") !== -1 || cls.indexOf("rcbInputCell") !== -1 ||
         (node.id && node.id.indexOf("_Input") !== -1 && findAncestorWithClass(el, "RadComboBox"))) {
