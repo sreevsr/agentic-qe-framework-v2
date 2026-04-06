@@ -92,9 +92,15 @@ Delete (ignore errors if they don't exist):
 │                                                                      │
 │  STAGE 0: Enrichment (CONDITIONAL)                                   │
 │  ↓                                                                    │
-│  STAGE 1a: Explorer (verify flow in live browser → enriched.md)     │
+│  STAGE 1-pre: Incremental Detection (scripts — zero LLM tokens)     │
+│  ↓ [determines pipeline mode: FIRST_RUN / NO_CHANGES /               │
+│     BUILDER_ONLY / EXPLORER_REQUIRED]                                │
 │  ↓                                                                    │
-│  STAGE 1b: Builder (generate code from locator JSONs + enriched.md) │
+│  STAGE 1a: Explorer (CONDITIONAL — verify flow in live browser)      │
+│  ↓                                                                    │
+│  STAGE 1b: Builder (generate/modify code from enriched.md)           │
+│  ↓                                                                    │
+│  STAGE 1-post: Cleanup annotations (script — zero LLM tokens)       │
 │  ↓                                                                    │
 │  STAGE 2: Executor (run tests + fix timing + heal Scout gaps)        │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
@@ -142,14 +148,46 @@ Save enrichment report to: output/reports/enrichment-report-{scenario}.md
 
 | Condition | Action |
 |-----------|--------|
-| Locator JSONs exist | Scout has run. Proceed to Stage 1a. |
+| Locator JSONs exist | Scout has run. Proceed to Stage 1-pre. |
 | No locator JSONs | **STOP.** Tell the user: "Scout has not been run for this application. Run: `cd output && npx playwright test --config=tools/scout.config.ts`" |
+
+### STAGE 1-pre: Incremental Detection (MANDATORY — scripts only, zero LLM tokens)
+
+**Run TWO scripts in sequence to determine the pipeline mode.** This decides whether Explorer and Builder need to run, and if so, how much work they do.
+
+**Step 1: Run scenario-diff.js — detect changes:**
+```bash
+node scripts/scenario-diff.js --scenario=scenarios/{type}/[{folder}/]{scenario}.enriched.md --spec=output/tests/{type}/[{folder}/]{scenario}.spec.{ext} --output=output/reports/classified-changeset.json
+```
+If `{scenario}.enriched.md` does not exist, use `{scenario}.md` as the `--scenario` argument.
+If spec file does not exist, this script outputs `pipelineMode: FIRST_RUN`.
+
+**Step 2: Run builder-incremental.js — annotate enriched.md + produce instructions:**
+```bash
+node scripts/builder-incremental.js --scenario={scenario} --type={type} [--folder={folder}]
+```
+This reads `classified-changeset.json`, annotates the enriched.md with `<!-- CHANGE: -->` and `<!-- WALK: -->` markers, and produces `output/reports/builder-instructions.json`.
+
+**Step 3: Read the pipeline mode from `builder-instructions.json`:**
+
+| `pipelineMode` | Stage 1a (Explorer) | Stage 1b (Builder) | Meaning |
+|----------------|--------------------|--------------------|---------|
+| `FIRST_RUN` | **RUN** (full exploration) | **RUN** (full generation) | No existing spec — first pipeline run |
+| `NO_CHANGES` | **SKIP** | **SKIP** | Scenario matches spec — proceed directly to Stage 2 |
+| `BUILDER_ONLY` | **SKIP** | **RUN** (incremental) | Only VERIFY values or teardown changed — no new interactions to explore |
+| `EXPLORER_REQUIRED` | **RUN** (selective) | **RUN** (incremental) | New/changed interactions — Explorer must verify in browser |
 
 ### STAGE 1a: Explorer (Flow Verification → enriched.md)
 
 **The Explorer navigates the app following the scenario steps, verifies the flow works, maps steps to pages, and produces the enriched.md file. It does NOT generate code.**
 
-Delegate to **QE Explorer** with:
+**Skip rules (based on Stage 1-pre pipeline mode):**
+- `FIRST_RUN` → Run Explorer with full exploration (no enriched.md exists yet)
+- `EXPLORER_REQUIRED` → Run Explorer with selective mode (read `classified-changeset.json` for walk modes)
+- `BUILDER_ONLY` → **SKIP Stage 1a entirely**
+- `NO_CHANGES` → **SKIP Stage 1a entirely**
+
+**For FIRST_RUN — delegate to QE Explorer:**
 ```
 Read agents/core/explorer.md for your instructions.
 
@@ -165,26 +203,44 @@ Save explorer report to: {EXPLORER_REPORT}
 Save enriched scenario to: scenarios/{type}/{scenario}.enriched.md
 ```
 
-**Skip Stage 1a if `{scenario}.enriched.md` already exists** — the enriched file is user-owned after first creation. Proceed directly to Stage 1b.
+**For EXPLORER_REQUIRED — delegate to QE Explorer with incremental context:**
+```
+Read agents/core/explorer.md for your instructions.
 
-**HARD STOP — Verify before proceeding to Stage 1b:**
+INCREMENTAL MODE: Read output/reports/classified-changeset.json for step walk modes.
+- Steps marked WALK: FAST → execute interaction to maintain browser state, do NOT snapshot or deep-verify
+- Steps marked WALK: DEEP → full verification loop (navigate, interact, verify, check Scout inventory)
+- Steps marked WALK: SKIP → do not execute (deleted steps)
+- Sections with sectionWalkMode: SKIP → skip the entire section
+
+SCENARIO_NAME = {scenario}
+SCENARIO_TYPE = {type}
+FOLDER = {folder}    (only if provided)
+
+Enriched scenario (annotated): scenarios/{type}/{scenario}.enriched.md
+App-context (if exists): scenarios/app-contexts/{app-identifier}.md
+Scout page inventory: output/scout-reports/{app}-page-inventory.json
+
+Update the enriched.md IN-PLACE — only update annotations for DEEP-verified steps.
+Save explorer report to: {EXPLORER_REPORT}
+```
+
+**HARD STOP — Verify before proceeding to Stage 1b (applies to FIRST_RUN and EXPLORER_REQUIRED only):**
 1. **MUST** check that `scenarios/{type}/{scenario}.enriched.md` exists — if missing → STOP, report INCOMPLETE
 2. **MUST** check that EXPLORER_REPORT exists — if missing → STOP, report INCOMPLETE
 3. Read explorer report — extract: steps verified, steps blocked, missing elements flagged
+
+**For BUILDER_ONLY mode:** Skip these checks — enriched.md already exists and Explorer did not run.
 
 ### STAGE 1b: Builder (Code Generation from Locator JSONs + enriched.md)
 
 **The Builder reads the enriched.md and Scout locator JSONs to generate all code files. It does NOT open a browser.**
 
-**Step 1b-pre: Run incremental check script BEFORE invoking Builder:**
-```bash
-node scripts/builder-incremental.js --scenario={scenario} --type={type} [--folder={folder}]
-```
-This produces `output/reports/builder-instructions.json` which tells the Builder whether to do FULL, INCREMENTAL, or NO_CHANGES generation. The Builder reads this file FIRST.
+**Skip rules (based on Stage 1-pre pipeline mode):**
+- `NO_CHANGES` → **SKIP Stage 1b entirely.** Proceed to Stage 2.
+- All other modes → Run Builder.
 
-**If mode is NO_CHANGES:** Skip the Builder entirely. Proceed to Stage 2.
-
-**Step 1b-main: Delegate to QE Builder:**
+**Delegate to QE Builder:**
 ```
 Read agents/core/builder.md for your instructions.
 Read agents/core/code-generation-rules.md for code patterns.
@@ -201,6 +257,9 @@ Scout page inventory: output/scout-reports/{app}-page-inventory.json
 Locator JSONs: output/locators/*.locators.json
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
 
+For INCREMENTAL mode: Look for <!-- CHANGE: --> annotations in the enriched.md.
+Only modify steps marked MODIFIED/ADDED/DELETED. Leave unmarked steps untouched.
+
 Save builder report to: output/reports/builder-report-{scenario}.md
 ```
 
@@ -209,6 +268,17 @@ Save builder report to: output/reports/builder-report-{scenario}.md
 node scripts/explorer-post-check.js --scenario={scenario} --type={type} [--folder={folder}]
 ```
 Read the output — mechanical verification of step counts, locator usage, and keyword counts.
+
+### STAGE 1-post: Cleanup Annotations (MANDATORY after Builder — script only)
+
+**Run the cleanup script to strip incremental markers from the enriched.md:**
+```bash
+node scripts/cleanup-annotations.js --file=scenarios/{type}/[{folder}/]{scenario}.enriched.md
+```
+
+This removes `<!-- CHANGE: -->` and `<!-- WALK: -->` annotations, removes deleted steps, renumbers steps per section, and deletes temporary report files (`classified-changeset.json`, `builder-instructions.json`).
+
+**The enriched.md is now clean and ready for the next pipeline cycle.**
 
 **HARD STOP — Verify before proceeding to Stage 2:**
 1. **MUST** check that TEST_SPEC exists — if missing → STOP, report INCOMPLETE

@@ -112,7 +112,7 @@ If a locator file doesn't exist for a page section, note it. You can still gener
 
 **HARD STOP: Before generating ANY code, check if `output/reports/builder-instructions.json` exists.**
 
-The Orchestrator (or user) runs `node scripts/builder-incremental.js` BEFORE invoking you. This script produces `output/reports/builder-instructions.json` which tells you exactly what to do.
+The Orchestrator runs `node scripts/builder-incremental.js` BEFORE invoking you. This script produces `output/reports/builder-instructions.json` AND annotates the enriched.md with `<!-- CHANGE: -->` markers.
 
 **Read `output/reports/builder-instructions.json` FIRST. It contains a `mode` field:**
 
@@ -120,29 +120,33 @@ The Orchestrator (or user) runs `node scripts/builder-incremental.js` BEFORE inv
 |------|---------|-------------|
 | `FULL` | No existing spec — first generation | Proceed to Section 4, generate everything from scratch |
 | `NO_CHANGES` | Scenario matches existing spec | **STOP. Do nothing. Report: "No changes detected."** |
-| `INCREMENTAL` | Some steps changed | Read the `partialEnrichedFile` — it contains ONLY the changed steps. Modify ONLY those steps in the existing spec. |
+| `INCREMENTAL` | Some steps changed | Read the FULL enriched.md — steps are annotated with `<!-- CHANGE: -->` markers telling you what changed |
 
 **If `builder-instructions.json` does NOT exist:** Run the script yourself: `node scripts/builder-incremental.js --scenario={name} --type={type}`. If that fails, fall back to full generation.
 
-**For INCREMENTAL mode:** The instructions file contains:
-- `unchanged` — steps that haven't changed → **KEEP existing code — DO NOT regenerate**
-- `modified` — steps whose text changed → **UPDATE the corresponding test.step() block and page object method**
-- `added` — new steps not in the existing spec → **ADD new test.step() blocks and page object methods**
-- `deleted` — steps removed from the scenario → **REMOVE the corresponding test.step() blocks** (mark as `// REMOVED: step was deleted from scenario`)
+**For INCREMENTAL mode:** The enriched.md contains inline annotations on each step:
+
+| Annotation | Meaning | Your Action |
+|-----------|---------|-------------|
+| `<!-- CHANGE: UNCHANGED -->` | Step has not changed | **DO NOT TOUCH** — leave the existing test.step() and page object method exactly as they are |
+| `<!-- CHANGE: MODIFIED \| OLD: ... -->` | Step text changed | **UPDATE** the corresponding test.step() block and page object method |
+| `<!-- CHANGE: ADDED -->` | New step | **ADD** new test.step() block at this position. Create new page object method if needed |
+| `<!-- CHANGE: DELETED -->` | Step removed (shown with ~~strikethrough~~) | **REMOVE** the corresponding test.step() block (comment out with `// REMOVED: step was deleted from scenario`) |
+| No annotation | Step is unchanged | **DO NOT TOUCH** |
 
 **Incremental update rules — HARD STOP:**
 
 1. **READ the existing spec file FIRST.** Understand its structure, imports, CAPTURE variables.
 2. **READ existing page object files.** Know what methods already exist.
-3. **DO NOT recreate files from scratch when a changeset exists.** Only modify what changed.
+3. **DO NOT recreate files from scratch.** Only modify steps with CHANGE annotations.
 4. **Preserve Executor-healed code.** If an existing method has a `// HEALED` comment, the Executor discovered this selector at runtime — DO NOT replace it. Healed code is proven to work.
 5. **Preserve PACING comments.** If existing code has `// PACING: reason` waits, keep them — the Executor added them for a reason.
-6. **For unchanged steps:** Leave the test.step() block and page object method exactly as they are.
-7. **For modified steps:** Update the step label and the method call, but preserve any healed selectors or pacing waits in the page object method.
-8. **For added steps:** Append new test.step() blocks at the correct position in the spec. Create new page object methods if needed.
-9. **For deleted steps:** Comment out the test.step() block with `// REMOVED` — do not delete, in case the user wants to restore.
+6. **For MODIFIED steps:** Update the step label and the method call, but preserve any healed selectors or pacing waits in the page object method.
+7. **For ADDED steps:** Insert new test.step() blocks at the correct position. Create new page object methods if needed.
+8. **For DELETED steps:** Comment out the test.step() block with `// REMOVED` — do not delete, in case the user wants to restore.
+9. **For multi-scenario files:** Changes are section-scoped. If only `Scenario: Add Item` has changes, do NOT touch `Scenario: Remove Item`'s test() block.
 
-**Why this matters:** The Executor may have spent 10 cycles healing selectors, adding waits, and refining locator entries. If the Builder regenerates from scratch, ALL that work is lost. The user then has to re-run the Executor for the same fixes. Incremental updates preserve proven working code while updating only what changed.
+**Why this matters:** The Executor may have spent 3 cycles healing selectors, adding waits, and refining locator entries. If the Builder regenerates from scratch, ALL that work is lost. The user then has to re-run the Executor for the same fixes. Incremental updates preserve proven working code while updating only what changed.
 
 **If scenario-diff.js fails or returns an error:** Log the error and proceed with full regeneration. Add a note in the builder report: "Incremental update unavailable — full regeneration performed."
 

@@ -79,7 +79,8 @@
 | Failure screenshots | `output/test-results/test-failed-*.png` | Visual state at failure |
 | HTML report | `output/playwright-report/` | Playwright HTML report |
 | Screenshots | `output/screenshots/` | Manual screenshots |
-| Scenario changeset | `output/reports/scenario-changeset.json` | From scenario-diff.js |
+| Classified changeset | `output/reports/classified-changeset.json` | From scenario-diff.js (section-aware diff + classification) |
+| Builder instructions | `output/reports/builder-instructions.json` | From builder-incremental.js (FULL/INCREMENTAL/NO_CHANGES mode) |
 | Skill hashes | `skills/.skill-hashes.json` | Drift detection |
 | Lock file | `output/test-data/shared-state.json.lock` | Concurrent write lock |
 

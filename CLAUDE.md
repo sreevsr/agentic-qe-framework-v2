@@ -123,8 +123,9 @@ Without Playwright MCP configured, the Explorer/Builder CANNOT explore web/hybri
 | Parse results | `node scripts/test-results-parser.js --results-dir=output/test-results` | Structured failure data |
 | Classify failures | `node scripts/failure-classifier.js --results=output/test-results/last-run-parsed.json` | CI/CD failure triage |
 | Swagger parser | `node scripts/swagger-parser.js --spec=path/to/spec.json` | Parse OpenAPI specs |
-| Scenario diff | `node scripts/scenario-diff.js --scenario=path --spec=path` | Detect changes for incremental updates |
-| Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Pre-Builder: determines FULL/INCREMENTAL/NO_CHANGES mode, creates partial enriched.md |
+| Scenario diff | `node scripts/scenario-diff.js --scenario=path --spec=path` | Section-aware diff + change classification (EXPLORER_REQUIRED vs BUILDER_ONLY) |
+| Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Pre-Builder: annotates enriched.md with CHANGE/WALK markers, produces builder-instructions.json |
+| Cleanup annotations | `node scripts/cleanup-annotations.js --file=path` | Post-Builder: strips CHANGE/WALK markers, removes deleted steps, renumbers |
 | Collect metrics | `node scripts/metrics-collector.js --run-type=pipeline` | Aggregate observability data |
 | Eval summary | `node scripts/eval-summary.js --scenario=X` | Agent evaluation summary |
 | Rehash skills | `node scripts/rehash-skills.js` | Update skill content hashes for drift detection |

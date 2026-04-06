@@ -67,15 +67,54 @@ Read `output/.env` to get actual URLs and credentials for browser navigation.
 
 If the Scout page inventory exists (`output/scout-reports/{app}-page-inventory.json`), read it to understand which pages are mapped and how many elements per page.
 
+### Step 3.5: Check for Incremental Mode — MANDATORY
+
+**Check if `output/reports/classified-changeset.json` exists.**
+
+| Condition | Action |
+|-----------|--------|
+| File does NOT exist | **FULL mode** — explore all steps with deep verification (first run) |
+| File exists | **INCREMENTAL mode** — read the changeset and apply selective walk modes |
+
+**For INCREMENTAL mode, read `classified-changeset.json` and extract:**
+1. `pipelineMode` — confirms this is `EXPLORER_REQUIRED` (Orchestrator only invokes you for this mode)
+2. `sections[]` — each section has `sectionWalkMode` and per-step walk modes
+
+**Per-step walk modes from the changeset:**
+
+| Walk Mode | Browser Action | Snapshot? | Enriched.md Update? |
+|-----------|---------------|-----------|---------------------|
+| **FAST** | Execute the interaction (click, fill, navigate) to maintain browser state | NO (unless page transition detected) | Keep existing annotations unchanged |
+| **DEEP** | Full verification loop — interact, snapshot, check Scout inventory, apply bug detection | YES | Update annotations with fresh verification results |
+| **SKIP** | Do NOT execute this step (deleted from scenario) | NO | Leave deletion marker in place |
+
+**Section-level optimization:** If a section's `sectionWalkMode` is `SKIP`, skip the entire section — do not open or navigate to its pages. This applies to unchanged scenarios in multi-scenario files.
+
+**FAST-walk behavior — CRITICAL:**
+- Execute the interaction (click the button, fill the field, navigate the URL) — this maintains browser state so subsequent DEEP steps reach the correct page
+- Do NOT take MCP snapshots (saves context and time)
+- Do NOT apply bug detection rules (Section 4.3)
+- Do NOT check Scout inventory (Section 4.4)
+- Do NOT update the enriched.md annotation for this step
+- If a FAST-walk interaction fails → escalate to DEEP (the step may have broken due to upstream changes)
+
 ---
 
 ## 4. The Core Loop — Navigate, Verify, Document
 
-**For EACH step in the scenario, follow this loop:**
+**For EACH step in the scenario, follow this loop.**
+
+**In INCREMENTAL mode:** Check the step's walk mode from the changeset BEFORE entering the loop body. FAST and SKIP steps use the abbreviated paths described in Step 3.5.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  FOR EACH STEP:                                                     │
+│                                                                     │
+│  0. CHECK walk mode (INCREMENTAL only):                              │
+│     ├── SKIP → do nothing, move to next step                        │
+│     ├── FAST → execute interaction only (no snapshot/verify/record) │
+│     │          if interaction fails → escalate to DEEP              │
+│     └── DEEP (or FULL mode) → continue to step 1 below             │
 │                                                                     │
 │  1. READ the step intent from the scenario                          │
 │  2. NAVIGATE or INTERACT in the live browser via MCP                │
@@ -159,10 +198,11 @@ Match page names to Scout's locator file names when possible (e.g., `login-page.
 
 ### Creation Rules
 
-| Condition | Action |
-|-----------|--------|
-| `{scenario}.enriched.md` does NOT exist | **MUST create it** |
-| `{scenario}.enriched.md` ALREADY exists | **MUST NOT modify it** — user owns it. Read it as input only |
+| Condition | Mode | Action |
+|-----------|------|--------|
+| `{scenario}.enriched.md` does NOT exist | FULL | **MUST create it** |
+| `{scenario}.enriched.md` exists, NO changeset | FULL | **MUST NOT modify it** — user owns it. Read it as input only |
+| `{scenario}.enriched.md` exists, changeset present | INCREMENTAL | **Update in-place** — only update annotations for DEEP-verified steps. Preserve all existing annotations for FAST/SKIP steps. |
 
 Save to: `scenarios/{type}/[{folder}/]{scenario}.enriched.md`
 
