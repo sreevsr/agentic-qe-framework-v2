@@ -291,6 +291,35 @@ async function main() {
   fs.writeFileSync(path.join(OUTPUT, '.language'), language);
   console.log(`  ${SYMBOLS.ok} Language marker: ${language}`);
 
+  // Step 5d: Patch .vscode/mcp.json with nvm PATH if needed
+  console.log(`\n${SYMBOLS.arrow} Configuring VS Code MCP server...`);
+  const mcpJsonPath = path.join(ROOT, '.vscode', 'mcp.json');
+  if (fs.existsSync(mcpJsonPath)) {
+    const nodeBinDir = path.dirname(process.execPath);
+    const isNvm = nodeBinDir.includes('.nvm') || nodeBinDir.includes('fnm') || nodeBinDir.includes('volta');
+    if (isNvm) {
+      try {
+        const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
+        const pw = mcpConfig.servers && mcpConfig.servers.playwright;
+        if (pw && !(pw.env && pw.env.PATH)) {
+          pw.command = path.join(nodeBinDir, isWin ? 'npx.cmd' : 'npx');
+          pw.env = { PATH: `${nodeBinDir}:\${env:PATH}` };
+          fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2) + '\n');
+          console.log(`  ${SYMBOLS.ok} Patched .vscode/mcp.json with node path: ${nodeBinDir}`);
+          console.log(`  ${SYMBOLS.info} Node is managed by nvm/fnm/volta — VS Code needs the explicit path`);
+        } else {
+          console.log(`  ${SYMBOLS.skip} .vscode/mcp.json already has env.PATH configured`);
+        }
+      } catch (e) {
+        console.log(`  ${SYMBOLS.warn} Could not patch .vscode/mcp.json: ${e.message}`);
+      }
+    } else {
+      console.log(`  ${SYMBOLS.skip} System-installed node detected — no MCP config patching needed`);
+    }
+  } else {
+    console.log(`  ${SYMBOLS.skip} .vscode/mcp.json not found — skipping MCP config`);
+  }
+
   if (!FLAGS.skipInstall) {
     // Step 6: Install dependencies (language-specific)
     console.log(`\n${SYMBOLS.arrow} Installing ${language} dependencies in output/...`);
