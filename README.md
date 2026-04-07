@@ -11,6 +11,43 @@ Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  R
 
 ---
 
+## Quick Start
+
+Get a sample test running in under 10 minutes:
+
+```bash
+# 1. Install and initialize
+npm install
+npm run setup
+
+# 2. Configure credentials
+cd output
+cp .env.example .env
+# Edit .env — fill in BASE_URL, TEST_USERNAME, TEST_PASSWORD
+
+# 3. Install Playwright browsers
+npm install
+npx playwright install chromium
+
+# 4. Reload VS Code window (so MCP server starts)
+# Ctrl+Shift+P → "Developer: Reload Window"
+
+# 5. Run the Explorer (in Copilot chat)
+# @QE Explorer Run Explorer for scenario saucedemo/checkout-flow, type web.
+# Input: scenarios/web/saucedemo/checkout-flow.md
+
+# 6. Run the Builder (in a new Copilot chat)
+# @QE Builder Run Builder for scenario saucedemo/checkout-flow, type web.
+# Input: scenarios/web/saucedemo/checkout-flow.enriched.md
+
+# 7. Run the test
+cd output && npx playwright test tests/web/saucedemo/checkout-flow.spec.ts --headed
+```
+
+For full setup details and all options, read on.
+
+---
+
 ## Core Philosophy
 
 ### 1. Build What Works, Not What You Think Should Work
@@ -85,7 +122,7 @@ When you edit a scenario after the first pipeline run, the framework detects cha
 | `BUILDER_ONLY` | Skip Explorer (only VERIFY values or teardown text changed), Builder modifies only changed steps |
 | `EXPLORER_REQUIRED` | Explorer fast-walks unchanged steps, deep-verifies only changed ones. Builder modifies only changed steps. |
 
-The incremental pipeline preserves Executor-healed code (`// HEALED` selectors, `// PACING` waits) so you don't lose runtime fixes when regenerating.
+The incremental pipeline preserves Executor-healed selectors (`"_healed": true` in locator JSONs) and `// PACING` waits so you don't lose runtime fixes when regenerating.
 
 ---
 
@@ -139,7 +176,12 @@ API_TOKEN=your-api-token
 # Optional — for SSO login
 SSO_EMAIL=user@company.com
 SSO_PASSWORD="sso-password"
+
+# Browser mode — set to false to see the browser during test runs
+HEADLESS=false
 ```
+
+**Headed vs headless:** Set `HEADLESS=false` in `.env` to see the browser window during test execution. This is recommended during development and debugging. Set `HEADLESS=true` for CI/CD runs. The `playwright.config.ts` reads this variable automatically.
 
 ### 3. Install Playwright Browsers
 
@@ -151,17 +193,20 @@ npx playwright install chromium
 
 ### 4. Configure MCP (for Explorer browser access)
 
-**VS Code** — create/edit `.vscode/mcp.json`:
+**VS Code** — `npm run setup` auto-generates `.vscode/mcp.json` with the correct `npx` path for your environment. If you use **nvm, fnm, or volta**, this is critical — bare `npx` won't be on the default PATH and the Explorer will fail with "no Browser MCP." If you need to create it manually:
+
 ```json
 {
   "servers": {
     "playwright": {
-      "command": "npx",
+      "command": "/full/path/to/npx",
       "args": ["@playwright/mcp@latest", "--isolated", "--browser", "chromium"]
     }
   }
 }
 ```
+
+Find your `npx` path: `which npx` (Linux/Mac) or `where npx` (Windows). After editing, **reload the VS Code window** (`Ctrl+Shift+P` → "Developer: Reload Window") for the MCP server to start.
 
 **Claude Code CLI** — add to `.mcp.json` in project root or `~/.claude/mcp_servers.json`.
 
@@ -243,22 +288,54 @@ Create a `.md` file in `scenarios/{type}/`:
 
 ### Step 2: Run the Pipeline
 
-**With Claude Code CLI:**
+#### VS Code Copilot — Run Agents Individually (Recommended)
+
+The Orchestrator runs all stages in one context window, which frequently exhausts Copilot's 200K shared context on non-trivial scenarios. **Run each agent separately in a fresh Copilot chat session.** Scripts run in the terminal (zero LLM tokens, milliseconds).
+
+**First run (no existing spec):**
+
+| Step | Where | Command | What it does |
+|------|-------|---------|-------------|
+| **1. Explorer** | Copilot chat | `@QE Explorer Run Explorer for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.md` | Walks the app in a live browser, captures selectors, produces `checkout-flow.enriched.md` |
+| **2. Builder** | Copilot chat (new session) | `@QE Builder Run Builder for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.enriched.md` | Generates locator JSONs, page objects, spec, test data from enriched.md |
+| **3. Test** | Terminal | `cd output && npx playwright test tests/web/checkout-flow.spec.ts --headed` | Run the test directly — if it passes, skip the Executor |
+| **4. Executor** | Copilot chat (new session) | `@QE Executor Run Executor for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` | Only if step 3 fails — fixes timing/selector issues (max cycles configurable) |
+| **5. Reviewer** | Copilot chat (new session) | `@QE Reviewer Run Reviewer for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` | Audits code quality across 9 dimensions, produces scorecard |
+| **6. Healer** | Copilot chat (new session) | `@QE Healer Fix issues from review scorecard for scenario checkout-flow. Scorecard: output/reports/review-scorecard-checkout-flow.md` | Only if Reviewer verdict is NEEDS FIXES — fixes quality issues, then re-run test and Reviewer to verify |
+
+**Incremental run (scenario edited after first run):**
+
+| Step | Where | Command | What it does |
+|------|-------|---------|-------------|
+| **1. Diff** | Terminal | `node scripts/scenario-diff.js --scenario=scenarios/web/checkout-flow.md` | Detects changes, produces `classified-changeset.json` with pipeline mode (`NO_CHANGES` / `BUILDER_ONLY` / `EXPLORER_REQUIRED`) |
+| **2. Annotate** | Terminal | `node scripts/builder-incremental.js --scenario=checkout-flow --type=web` | Marks enriched.md with CHANGE/WALK annotations for each step |
+| **3. Explorer** | Copilot chat | Same as first run, add: `INCREMENTAL mode — classified-changeset.json exists. FAST-walk unchanged steps, DEEP-verify changed steps.` | Only if step 1 shows `EXPLORER_REQUIRED`. FAST-walks unchanged steps (no browser verification), DEEP-verifies only new/changed steps |
+| **4. Cleanup** | Terminal | `node scripts/cleanup-annotations.js --file=scenarios/web/checkout-flow.enriched.md` | Strips CHANGE/WALK markers, renumbers steps |
+| **5. Builder** | Copilot chat (new session) | Same as first run, add: `INCREMENTAL mode — builder-instructions.json exists.` | Modifies only changed steps in existing spec |
+| **6-8.** | | Test → Executor → Reviewer → Healer | Same as first run |
+
+**Important — Copilot tips:**
+- **Fresh chat session per agent.** Never chain agents in the same chat — each needs maximum context for its own work.
+- **Test before Executor.** Run `npx playwright test --headed` in terminal first. If it passes, skip the Executor entirely and go straight to Reviewer.
+- **If an agent hangs or VS Code freezes** — kill the session and re-run. Context is already exhausted; waiting won't help.
+- **Reviewer doesn't need MCP.** It can run in Claude Code CLI if Copilot context is tight.
+
+#### Claude Code CLI — Orchestrator or Individual Agents
+
+Claude Code CLI gives each subagent its own context window, so the Orchestrator works reliably:
+
 ```
 Invoke @QE Orchestrator with scenario=checkout-flow type=web
 ```
 
-**With VS Code Copilot:**
-```
-@QE Orchestrator scenario=checkout-flow type=web
-```
-
-**With optional folder organization:**
-```
-@QE Orchestrator scenario=checkout-flow type=web folder=my-store
-```
-
 The Orchestrator runs all stages automatically and produces a pipeline summary report at `output/reports/pipeline-summary-{scenario}.md`.
+
+You can also run agents individually with the same prompts shown above — useful when you want to inspect output between stages.
+
+**With optional folder organization (both platforms):**
+```
+scenario=checkout-flow type=web folder=my-store
+```
 
 ### Step 3: Review the Output
 
@@ -320,7 +397,7 @@ npx playwright test --reporter=html
 
 ## Incremental Workflow
 
-After the first pipeline run, you can edit your scenario and re-run. The framework detects what changed and does only the necessary work.
+After the first pipeline run, you can edit your scenario and re-run. The framework detects what changed and does only the necessary work. For step-by-step commands, see **Step 2 → Incremental run** above.
 
 ### What Triggers Each Mode
 
@@ -332,18 +409,6 @@ After the first pipeline run, you can edit your scenario and re-run. The framewo
 | Deleted a step | `BUILDER_ONLY` | No | Yes (comments out that test.step) |
 | Changed an interaction (e.g., different button, different dropdown value) | `EXPLORER_REQUIRED` | Yes (fast-walks unchanged, deep-verifies changed) | Yes |
 | Added a new step | `EXPLORER_REQUIRED` | Yes (fast-walks to reach state, deep-verifies new step) | Yes |
-
-### How It Works Under the Hood
-
-```
-scenario-diff.js          →  classified-changeset.json (what changed, per section)
-builder-incremental.js    →  annotated enriched.md (<!-- CHANGE: MODIFIED -->, <!-- WALK: DEEP -->)
-Explorer (if needed)      →  updated enriched.md (verified changes in browser)
-Builder                   →  modified spec (only changed test.step blocks)
-cleanup-annotations.js    →  clean enriched.md (markers stripped, renumbered)
-Executor                  →  full test run (catches regressions)
-Reviewer + Healer         →  quality audit + fixes (as always)
-```
 
 ### Multi-Scenario File Support
 
@@ -406,7 +471,7 @@ The Reviewer audits generated code across **9 dimensions**:
 
 | Script | Command | Purpose |
 |--------|---------|---------|
-| Scenario diff | `node scripts/scenario-diff.js --scenario=path --spec=path` | Section-aware diff + change classification |
+| Scenario diff | `node scripts/scenario-diff.js --scenario=path` | Section-aware diff + change classification (auto-detects enriched.md, falls back to spec) |
 | Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Annotate enriched.md, produce builder-instructions.json |
 | Cleanup annotations | `node scripts/cleanup-annotations.js --file=path` | Strip markers, remove deleted steps, renumber |
 | Explorer post-check | `node scripts/explorer-post-check.js --scenario=X --type=web` | Mechanical verification of step counts, locator counts |
@@ -477,6 +542,9 @@ All agents read this file instead of using hardcoded values:
   "chunking": {
     "maxStepsPerChunk": 15,
     "alwaysChunk": false
+  },
+  "appContext": {
+    "filename": "my-app.md"
   }
 }
 ```
@@ -543,6 +611,22 @@ node ci/scripts/ci-test-runner.js --suite=regression --tracker=jira
 ### Defect Tracking
 
 Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passes (configurable). Deduplication prevents duplicate tickets for the same failure.
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Explorer says "no Browser MCP" or "MCP tools not available" | Playwright MCP server not running or `npx` path wrong in `.vscode/mcp.json` | Run `npm run setup` (auto-patches path). If manual: use `which npx` to find the full path, update `.vscode/mcp.json`, reload VS Code window. |
+| Explorer or Executor says "`.env` not found" but the file exists | `.env` is in `.gitignore` — Copilot's file search tools skip gitignored files | The agent should read by exact path (`output/.env`), not search. If it persists, tell the agent: "Read the file at output/.env directly." |
+| VS Code freezes or crashes during agent run | Context window exhausted — the agent consumed all 200K tokens | Kill the session. Re-run the agent in a fresh Copilot chat. For long scenarios (40+ steps), expect this. |
+| Executor loops on the same error for multiple cycles | Same-root-cause detector may not trigger if error messages differ slightly between cycles | Check the executor report — if the same step fails every cycle, the issue is likely a bad selector from the Explorer. Fix the locator JSON manually and re-run the test. |
+| Test runs in headless mode (no browser window) | `HEADLESS=true` in `output/.env` | Set `HEADLESS=false` in `output/.env`. No code changes needed — `playwright.config.ts` reads this variable. |
+| Test passes locally but fails on a fresh machine | SSO session cookie from a previous browser session — the Explorer may have skipped login verification | Ensure the spec handles both SSO-redirect and active-session paths. Check `SSOLoginPage.login()` for the URL check. |
+| Builder overwrites Executor's selector fixes | Executor-healed selectors not marked with `"_healed": true` | Manually add `"_healed": true` to the locator JSON entry. The Builder will preserve it on future regenerations. |
+| `scenario-diff.js` classifies everything as FIRST_RUN | No enriched.md found next to the scenario file | Run the Explorer first to produce the enriched.md. The diff compares scenario .md against enriched .md (not the spec). |
+| App-context file not found by Executor or Explorer | Agents guessing the filename from URL/domain instead of reading config | Set `appContext.filename` in `framework-config.json` to the exact filename in `scenarios/app-contexts/`. |
 
 ---
 
@@ -655,8 +739,9 @@ The repository includes two tested scenarios:
 
 ### Adding a New Scenario
 1. Create `scenarios/{type}/{folder}/{scenario-name}.md` using the template in `scenarios/web/_template.md`
-2. Configure MCP Playwright (if not already done) for the Explorer's browser access
-3. Invoke the Orchestrator: `@QE Orchestrator scenario={name} type={type} folder={folder}`
+2. Configure MCP Playwright (if not already done) — see Setup Step 4
+3. Set `appContext.filename` in `framework-config.json` if onboarding a new application
+4. Run the pipeline — see Step 2 above (individual agents recommended for Copilot, Orchestrator works on Claude Code CLI)
 
 ### Adding a New Skill
 1. Create `skills/{domain}/{skill-name}.skill.md` with full instructions
