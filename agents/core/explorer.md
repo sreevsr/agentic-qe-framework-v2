@@ -25,7 +25,7 @@ You walk the app step by step via MCP Playwright. For each step you: take a snap
 | 3 | `agents/shared/keyword-reference.md` | Know what keywords mean (VERIFY, CAPTURE, etc.) | **YES — ALWAYS** |
 | 4 | `agents/shared/guardrails.md` | Enterprise ownership boundaries | **YES — ALWAYS** |
 | 5 | `agents/shared/type-registry.md` | Type-specific behavior (web/api/hybrid) | **YES — ALWAYS** |
-| 6 | App-context file (if exists) | `scenarios/app-contexts/{app-name}.md` — learned patterns | **YES — if exists** |
+| 6 | App-context file (if exists) | `scenarios/app-contexts/{filename}` where `{filename}` comes from `framework-config.json → appContext.filename` — do NOT guess the filename | **YES — if exists** |
 | 7 | `agents/core/bug-detection-rules.md` | Bug vs test issue classification | **YES — ALWAYS** |
 | 8 | `framework-config.json` | Configurable retries, timeouts | **YES — ALWAYS** |
 
@@ -53,7 +53,7 @@ Read the scenario file and extract:
 
 ### Step 3.3: Resolve Environment Variables
 
-Read `output/.env` to get actual URLs and credentials for browser navigation.
+Read `output/.env` to get actual URLs and credentials for browser navigation. **NOTE:** `output/.env` is in `.gitignore` — some platforms (e.g., VS Code Copilot) may hide gitignored files from search tools. Read it by EXACT path (`output/.env`), not by searching. If the read fails, try the absolute path. If `.env` truly does not exist but `.env.example` does, tell the user to `cp output/.env.example output/.env` and fill in credentials.
 
 ### Step 3.4: Check for Incremental Mode — MANDATORY
 

@@ -10,7 +10,13 @@
  *   - Per-step walk mode for Explorer: FAST | DEEP | SKIP
  *
  * Usage:
- *   node scripts/scenario-diff.js --scenario=<path> [--spec=<path>] [--output=<path>]
+ *   node scripts/scenario-diff.js --scenario=<path> [--spec=<path>] [--enriched=<path>] [--output=<path>]
+ *
+ * Comparison strategy (in priority order):
+ *   1. If --enriched is provided and exists → compare scenario .md against enriched .md
+ *      (enriched.md preserves original step text, so matching is exact)
+ *   2. Else auto-detect: look for {scenario}.enriched.md next to the scenario file
+ *   3. Else fall back to --spec comparison (step labels may be paraphrased by Builder)
  *
  * Handles multi-scenario files:
  *   ## Common Setup Once, ## Common Setup, ### Scenario: X, ## Common Teardown, etc.
@@ -43,7 +49,7 @@ process.argv.slice(2).forEach(arg => {
 
 const scenarioFile = args.scenario;
 if (!scenarioFile) {
-  console.error('Usage: node scripts/scenario-diff.js --scenario=<path> [--spec=<path>] [--output=<path>]');
+  console.error('Usage: node scripts/scenario-diff.js --scenario=<path> [--spec=<path>] [--enriched=<path>] [--output=<path>]');
   process.exit(1);
 }
 if (!fs.existsSync(scenarioFile)) {
@@ -58,18 +64,44 @@ const scenarioContent = fs.readFileSync(scenarioFile, 'utf-8');
 const scenarioParsed = parseSections(scenarioContent);
 
 // ---------------------------------------------------------------------------
-// Parse spec file (if it exists)
+// Resolve comparison target: enriched.md (preferred) or spec (fallback)
+// Enriched.md preserves original step text — matching is exact.
+// Spec has paraphrased step labels from the Builder — matching is lossy.
 // ---------------------------------------------------------------------------
+let comparisonMode = 'none'; // 'enriched' | 'spec' | 'none'
+let enrichedParsed = null;
 let specBlocks = { blocks: [] };
 const specFile = args.spec;
-if (specFile && fs.existsSync(specFile)) {
+
+// Priority 1: explicit --enriched flag
+let enrichedFile = args.enriched;
+
+// Priority 2: auto-detect enriched.md next to the scenario file
+if (!enrichedFile) {
+  const scenarioDir = path.dirname(scenarioFile);
+  const scenarioBase = path.basename(scenarioFile, '.md');
+  const autoEnriched = path.join(scenarioDir, `${scenarioBase}.enriched.md`);
+  if (fs.existsSync(autoEnriched)) {
+    enrichedFile = autoEnriched;
+  }
+}
+
+if (enrichedFile && fs.existsSync(enrichedFile)) {
+  enrichedParsed = parseSections(fs.readFileSync(enrichedFile, 'utf-8'));
+  comparisonMode = 'enriched';
+  console.log(`[scenario-diff] Comparing against enriched.md: ${enrichedFile}`);
+} else if (specFile && fs.existsSync(specFile)) {
   specBlocks = parseSpecBlocks(fs.readFileSync(specFile, 'utf-8'));
+  comparisonMode = 'spec';
+  console.log(`[scenario-diff] No enriched.md found — falling back to spec: ${specFile}`);
+} else {
+  comparisonMode = 'none';
 }
 
 // ---------------------------------------------------------------------------
-// If no spec exists, everything is new → FIRST_RUN
+// If no comparison target exists, everything is new → FIRST_RUN
 // ---------------------------------------------------------------------------
-if (specBlocks.blocks.length === 0) {
+if (comparisonMode === 'none' || (comparisonMode === 'spec' && specBlocks.blocks.length === 0)) {
   const changeset = buildChangeset({
     scenarioFile,
     specFile: specFile || 'none',
@@ -97,40 +129,137 @@ if (specBlocks.blocks.length === 0) {
 }
 
 // ---------------------------------------------------------------------------
-// Match scenario sections to spec blocks and diff within each
+// Match scenario sections to comparison target and diff within each
 // ---------------------------------------------------------------------------
 const sectionResults = [];
-const matchedSpecBlocks = new Set();
 
-for (const section of scenarioParsed.sections) {
-  // Find matching spec block
-  const specBlock = findMatchingSpecBlock(section, specBlocks.blocks, matchedSpecBlocks);
+if (comparisonMode === 'enriched') {
+  // Enriched mode: compare scenario sections against enriched sections (exact text match)
+  const matchedEnrichedSections = new Set();
 
-  if (!specBlock) {
-    // Entire section is new (new scenario added, or new lifecycle hook)
+  for (const section of scenarioParsed.sections) {
+    // Find matching enriched section by name and type
+    const enrichedSection = findMatchingEnrichedSection(section, enrichedParsed.sections, matchedEnrichedSections);
+
+    if (!enrichedSection) {
+      // Entire section is new
+      sectionResults.push({
+        name: section.name,
+        type: section.type,
+        sectionType: section.sectionType,
+        specBlock: section.specBlock,
+        unchanged: [],
+        modified: [],
+        added: section.steps.map(step => ({
+          position: step.position,
+          text: step.text,
+          walkMode: 'DEEP',
+          classification: 'EXPLORER_REQUIRED',
+        })),
+        deleted: [],
+        sectionWalkMode: 'DEEP',
+      });
+      continue;
+    }
+
+    matchedEnrichedSections.add(enrichedSection);
+
+    // Diff steps: compare scenario step texts against enriched step texts
+    const enrichedStepTexts = enrichedSection.steps.map(s => s.text);
+    const { unchanged, modified, added, deleted } = diffSteps(section.steps, enrichedStepTexts);
+
+    // Classify each change
+    const classifiedModified = modified.map(m => classifyChange(m, section));
+    const classifiedAdded = added.map(a => {
+      if (isTeardownSection(section.sectionType)) {
+        return { ...a, walkMode: 'DEEP', classification: 'BUILDER_ONLY' };
+      }
+      return { ...a, walkMode: 'DEEP', classification: 'EXPLORER_REQUIRED' };
+    });
+    const classifiedDeleted = deleted.map(d => ({
+      ...d,
+      walkMode: 'SKIP',
+      classification: 'BUILDER_ONLY',
+    }));
+
+    const hasExplorerRequired = classifiedModified.some(m => m.classification === 'EXPLORER_REQUIRED') ||
+                                 classifiedAdded.some(a => a.classification === 'EXPLORER_REQUIRED');
+
+    let sectionWalkMode = 'SKIP';
+    if (hasExplorerRequired) sectionWalkMode = 'FAST';
+
     sectionResults.push({
       name: section.name,
       type: section.type,
       sectionType: section.sectionType,
       specBlock: section.specBlock,
-      unchanged: [],
-      modified: [],
-      added: section.steps.map(step => ({
-        position: step.position,
-        text: step.text,
-        walkMode: 'DEEP',
-        classification: 'EXPLORER_REQUIRED',
+      unchanged: unchanged.map(u => ({
+        position: u.position,
+        text: u.text,
+        walkMode: hasExplorerRequired ? 'FAST' : 'SKIP',
       })),
-      deleted: [],
-      sectionWalkMode: 'DEEP',
+      modified: classifiedModified,
+      added: classifiedAdded,
+      deleted: classifiedDeleted,
+      sectionWalkMode,
     });
-    continue;
   }
 
-  matchedSpecBlocks.add(specBlock);
+  // Check for deleted sections (enriched sections with no matching scenario section)
+  for (const enrichedSection of enrichedParsed.sections) {
+    if (!matchedEnrichedSections.has(enrichedSection)) {
+      sectionResults.push({
+        name: enrichedSection.name,
+        type: enrichedSection.type,
+        sectionType: null,
+        specBlock: enrichedSection.specBlock,
+        unchanged: [],
+        modified: [],
+        added: [],
+        deleted: enrichedSection.steps.map((s, i) => ({
+          position: i + 1,
+          text: s.text,
+          walkMode: 'SKIP',
+          classification: 'BUILDER_ONLY',
+        })),
+        sectionWalkMode: 'SKIP',
+        entireSectionDeleted: true,
+      });
+    }
+  }
+} else {
+  // Spec mode (fallback): compare scenario sections against spec blocks (paraphrased labels)
+  const matchedSpecBlocks = new Set();
 
-  // Diff steps within this section
-  const { unchanged, modified, added, deleted } = diffSteps(section.steps, specBlock.steps);
+  for (const section of scenarioParsed.sections) {
+    // Find matching spec block
+    const specBlock = findMatchingSpecBlock(section, specBlocks.blocks, matchedSpecBlocks);
+
+    if (!specBlock) {
+      // Entire section is new (new scenario added, or new lifecycle hook)
+      sectionResults.push({
+        name: section.name,
+        type: section.type,
+        sectionType: section.sectionType,
+        specBlock: section.specBlock,
+        unchanged: [],
+        modified: [],
+        added: section.steps.map(step => ({
+          position: step.position,
+          text: step.text,
+          walkMode: 'DEEP',
+          classification: 'EXPLORER_REQUIRED',
+        })),
+        deleted: [],
+        sectionWalkMode: 'DEEP',
+      });
+      continue;
+    }
+
+    matchedSpecBlocks.add(specBlock);
+
+    // Diff steps within this section
+    const { unchanged, modified, added, deleted } = diffSteps(section.steps, specBlock.steps);
 
   // Classify each change
   const classifiedModified = modified.map(m => classifyChange(m, section));
@@ -176,28 +305,29 @@ for (const section of scenarioParsed.sections) {
   });
 }
 
-// Check for deleted sections (spec blocks with no matching scenario section)
-for (const specBlock of specBlocks.blocks) {
-  if (!matchedSpecBlocks.has(specBlock)) {
-    sectionResults.push({
-      name: specBlock.name,
-      type: specBlock.type,
-      sectionType: null,
-      specBlock: specBlock.specBlock,
-      unchanged: [],
-      modified: [],
-      added: [],
-      deleted: specBlock.steps.map((text, i) => ({
-        position: i + 1,
-        text,
-        walkMode: 'SKIP',
-        classification: 'BUILDER_ONLY',
-      })),
-      sectionWalkMode: 'SKIP',
-      entireSectionDeleted: true,
-    });
+  // Check for deleted sections (spec blocks with no matching scenario section)
+  for (const specBlock of specBlocks.blocks) {
+    if (!matchedSpecBlocks.has(specBlock)) {
+      sectionResults.push({
+        name: specBlock.name,
+        type: specBlock.type,
+        sectionType: null,
+        specBlock: specBlock.specBlock,
+        unchanged: [],
+        modified: [],
+        added: [],
+        deleted: specBlock.steps.map((text, i) => ({
+          position: i + 1,
+          text,
+          walkMode: 'SKIP',
+          classification: 'BUILDER_ONLY',
+        })),
+        sectionWalkMode: 'SKIP',
+        entireSectionDeleted: true,
+      });
+    }
   }
-}
+} // end of enriched vs spec mode branching
 
 // ---------------------------------------------------------------------------
 // Determine pipeline mode
@@ -218,6 +348,43 @@ writeOutput(changeset);
 // ---------------------------------------------------------------------------
 // Core functions
 // ---------------------------------------------------------------------------
+
+/**
+ * Match a scenario section to its corresponding enriched section.
+ * Both use parseSections() format so names and types match directly.
+ */
+function findMatchingEnrichedSection(section, enrichedSections, alreadyMatched) {
+  for (const es of enrichedSections) {
+    if (alreadyMatched.has(es)) continue;
+
+    // Exact name match
+    if (section.name === es.name) return es;
+
+    // Lifecycle match by sectionType
+    if (section.sectionType === es.sectionType && section.type === 'lifecycle' && es.type === 'lifecycle') {
+      return es;
+    }
+  }
+
+  // Single-scenario match: both have sectionType=steps
+  if (section.sectionType === 'steps') {
+    const stepsSections = enrichedSections.filter(es => !alreadyMatched.has(es) && es.sectionType === 'steps');
+    if (stepsSections.length === 1) return stepsSections[0];
+  }
+
+  // Fuzzy match for scenarios
+  if (section.type === 'scenario') {
+    const sectionName = section.name.replace(/^Scenario:\s*/i, '').trim();
+    for (const es of enrichedSections) {
+      if (alreadyMatched.has(es)) continue;
+      if (es.type !== 'scenario') continue;
+      const esName = es.name.replace(/^Scenario:\s*/i, '').trim();
+      if (normalizeStep(sectionName) === normalizeStep(esName)) return es;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Match a scenario section to its corresponding spec block.

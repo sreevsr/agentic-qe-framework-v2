@@ -49,6 +49,11 @@
     "$comment": "maxStepsPerChunk: maximum steps per Explorer chunk (if Explorer verification is chunked for long scenarios). alwaysChunk: false for Copilot (subagents share 200K context window — chunking adds risk with no benefit). Set true only for Claude Code CLI where subagents get independent context windows."
   },
 
+  "appContext": {
+    "filename": "uat-scout.md",
+    "$comment": "filename: the app-context file name in scenarios/app-contexts/. ALL agents MUST use this exact filename — do NOT guess from URL, domain, or app name. Change this value when onboarding a different application."
+  },
+
   "observability": {
     "trackTokens": true,
     "trackContextWindow": true,

@@ -125,8 +125,16 @@ function parseSections(content) {
     if (currentSection) {
       currentSection.rawLines.push(line);
 
-      // Detect numbered steps
-      const stepMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+      // Detect steps — numbered (e.g., "1. Navigate to...") or unnumbered (e.g., "Click Submit")
+      // Unnumbered steps are valid scenario lines that appear inside a ## Steps section
+      // without a leading number. They get assigned positional numbers automatically.
+      const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+      const unnumberedMatch = !numberedMatch && trimmed !== '' && !trimmed.startsWith('#') &&
+        !trimmed.startsWith('<!--') && !trimmed.startsWith('|') && !trimmed.startsWith('-') &&
+        !trimmed.startsWith('*') && !trimmed.startsWith('```') && !trimmed.startsWith('**') &&
+        !trimmed.startsWith('![') &&
+        /^(?:Navigate|Click|Type|Enter|Select|Wait|VERIFY|CAPTURE|CALCULATE|SCREENSHOT|REPORT|SAVE|If |Tap|Long press|Swipe|Scroll|Launch|Sign|Log)/i.test(trimmed);
+      const stepMatch = numberedMatch || (unnumberedMatch ? [null, null, trimmed] : null);
       if (stepMatch) {
         // Strip inline HTML comments (e.g., <!-- ORIGINAL -->) and strikethrough markers from step text
         const rawStepText = stepMatch[2].trim();
@@ -137,7 +145,7 @@ function parseSections(content) {
           .trim();
         const step = {
           position: currentSection.steps.length + 1,
-          globalStepNumber: parseInt(stepMatch[1], 10),
+          globalStepNumber: numberedMatch ? parseInt(stepMatch[1], 10) : null,
           text: cleanStepText,
           lineNumber: i,
           rawLine: line,

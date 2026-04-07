@@ -139,7 +139,7 @@ Check `output/.language` file. If missing, default to TypeScript. Read `template
 
 **Page name → file name mapping:** `LoginPage` → `login-page.locators.json`, `ServicerHomePage` → `servicer-home-page.locators.json` (PascalCase → kebab-case).
 
-**If a locator file already exists** (from a previous run or another scenario), READ it first and MERGE — add new keys, update existing keys with fresh Explorer data, but preserve keys with `// HEALED` notes (Executor-refined selectors).
+**If a locator file already exists** (from a previous run or another scenario), READ it first and MERGE — add new keys, update existing keys with fresh Explorer data, but **preserve any key that has `"_healed": true`** (Executor-refined selectors). The `_healed` field means the Executor discovered this selector at runtime — it is proven to work and MUST NOT be overwritten with Explorer data. Only healed entries have this field; non-healed entries simply omit it.
 
 **If a step has no ELEMENT annotation and no BLOCKED flag**, it may be a navigation step, SCREENSHOT, CALCULATE, or REPORT step that doesn't interact with an element — this is normal.
 
@@ -174,7 +174,7 @@ The Orchestrator runs `node scripts/builder-incremental.js` BEFORE invoking you.
 1. **READ the existing spec file FIRST.** Understand its structure, imports, CAPTURE variables.
 2. **READ existing page object files.** Know what methods already exist.
 3. **DO NOT recreate files from scratch.** Only modify steps with CHANGE annotations.
-4. **Preserve Executor-healed code.** If an existing method has a `// HEALED` comment, the Executor discovered this selector at runtime — DO NOT replace it. Healed code is proven to work.
+4. **Preserve Executor-healed selectors.** If an existing locator JSON entry has `"_healed": true`, the Executor refined this selector at runtime — DO NOT replace it. Healed selectors are proven to work. Also preserve any page object method that references a healed locator key.
 5. **Preserve PACING comments.** If existing code has `// PACING: reason` waits, keep them — the Executor added them for a reason.
 6. **For MODIFIED steps:** Update the step label and the method call, but preserve any healed selectors or pacing waits in the page object method.
 7. **For ADDED steps:** Insert new test.step() blocks at the correct position. Create new page object methods if needed.

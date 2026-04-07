@@ -267,7 +267,15 @@ Step failed → Element not found → Correct page confirmed
 - **USE the accessibility snapshot, not the DOM.** The accessibility tree has semantic information (roles, labels) that produces better selectors than CSS classes.
 - **NEVER use CSS-in-JS classes** (`css-NNN`, `sc-XXXXX`) — they change every build.
 - **NEVER use auto-generated IDs** (`id__NNN`, `_r_XX_`) — they change every session.
-- **Add a `// HEALED: discovered by Executor, not from Explorer capture` comment** in the locator JSON so the user knows this entry wasn't from the Explorer.
+- **Mark healed entries with `"_healed": true`** in the locator JSON entry. JSON does not support comments — do NOT use `// HEALED` as it would break `JSON.parse()`. The `_healed` field signals to the Builder that this selector was refined at runtime and must NOT be overwritten during incremental regeneration. Example:
+  ```json
+  "smesNavLink": {
+    "primary": "a.nav-text[href='/Experts/']",
+    "fallbacks": ["role=link[name='SMEs']", "text=SMEs"],
+    "type": "link",
+    "_healed": true
+  }
+  ```
 - **Count healed selectors in the Executor report** — the user needs to know how many elements the Explorer missed.
 
 **When NOT to heal (escalate instead):**
@@ -325,7 +333,7 @@ Step failed → Element not found → Correct page confirmed
 
 **If you added `// PACING:` comments or discovered interaction patterns during fix cycles:**
 
-1. Check if an app-context file exists: `scenarios/app-contexts/{app-identifier}.md`
+1. Read `framework-config.json → appContext.filename` to get the exact app-context filename. Check if `scenarios/app-contexts/{filename}` exists. Do NOT guess the filename from the URL or app name.
 2. If it exists → **ADD** the new patterns you discovered (DO NOT overwrite existing content)
 3. If it doesn't exist → **CREATE** one with the patterns you discovered
 
