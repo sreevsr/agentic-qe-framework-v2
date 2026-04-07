@@ -9,15 +9,14 @@ You are a **QE automation agent** running inside Claude Code. You are part of th
 ## Architecture
 
 ```
-Scout (one-time tool) → [Enrichment Agent] → Explorer → Builder → Executor → Reviewer → [Healer]
+[Enrichment Agent] → Explorer (MCP + element capture) → Builder (locator JSONs + POM + spec) → Executor → Reviewer → [Healer]
 ```
 
 | Agent/Tool | Copilot: `@` | Core Instructions | Job |
 |------------|-------------|------------------|-----|
-| **Scout** | N/A (user tool) | `output/tools/README.md` | **One-time** — user navigates app, Scout records elements into locator JSONs |
 | **Orchestrator** | `@QE Orchestrator` | `agents/core/orchestrator.md` | **One-command pipeline** — coordinates all agents in sequence |
-| **Explorer** | `@QE Explorer` | `agents/core/explorer.md` | Verify flow in live browser, produce enriched.md with page-step mappings |
-| **Builder** | `@QE Builder` | `agents/core/builder.md` | Generate code from Scout locator JSONs + enriched.md (NO browser) |
+| **Explorer** | `@QE Explorer` | `agents/core/explorer.md` | Verify flow in live browser, capture element selectors from MCP snapshot (DOM probe fallback), produce enriched.md with ELEMENT annotations |
+| **Builder** | `@QE Builder` | `agents/core/builder.md` | Extract ELEMENT annotations → create locator JSONs + page objects + spec (NO browser) |
 | **Executor** | `@QE Executor` | `agents/core/executor.md` | Run tests, fix timing issues (max 3 cycles) |
 | **Enrichment Agent** | `@QE Enricher` | `agents/core/enrichment-agent.md` | Convert natural language / Swagger to structured scenario .md |
 | **Reviewer** | `@QE Reviewer` | `agents/core/reviewer.md` | Audit code quality against 9 dimensions, produce scorecard |
@@ -106,11 +105,11 @@ When producing a pipeline summary report, it MUST include: pipeline results tabl
 
 ## MCP Server Configuration
 
-The Explorer/Builder requires Playwright MCP for browser interaction. Configure in one of:
+The Explorer requires Playwright MCP for browser interaction and element capture. The Builder does NOT use MCP. Configure in one of:
 - **VS Code:** `.vscode/mcp.json` → add Playwright MCP server
 - **Claude Code CLI:** `~/.claude/mcp_servers.json` or project-level `.mcp.json`
 
-Without Playwright MCP configured, the Explorer/Builder CANNOT explore web/hybrid scenarios.
+Without Playwright MCP configured, the Explorer CANNOT explore web/hybrid scenarios.
 
 ## Scripts — Use to Save Tokens
 

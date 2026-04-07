@@ -37,7 +37,7 @@ Agent tool call:
 ## Pipeline
 
 ```
-Scout (one-time) → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
+[Stage 0: Enrichment] → Stage 1a: Explorer (MCP + element capture) → Stage 1b: Builder (locator JSONs + POM + spec) → Stage 2: Executor → Stage 3: Reviewer → Summary
 ```
 
 ## Platform Compatibility

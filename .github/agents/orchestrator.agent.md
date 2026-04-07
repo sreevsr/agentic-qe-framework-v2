@@ -31,7 +31,7 @@ You coordinate the ENTIRE QE pipeline by delegating to specialized agents in seq
 ## Pipeline
 
 ```
-Scout (one-time, user-driven) → Input → [Stage 0: Enrichment] → Stage 1a: Explorer → Stage 1b: Builder → Stage 2: Executor → Stage 3: Reviewer → Summary
+Input → [Stage 0: Enrichment] → Stage 1a: Explorer (MCP + element capture) → Stage 1b: Builder (locator JSONs + POM + spec) → Stage 2: Executor → Stage 3: Reviewer → Summary
 ```
 
 - **Stage 0** is CONDITIONAL — skipped if input is a structured .md file

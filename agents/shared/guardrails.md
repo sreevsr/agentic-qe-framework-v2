@@ -86,7 +86,7 @@ Mobile-specific signals (applies to `mobile` and `mobile-hybrid` types):
 ## 4. No Force Bypasses
 
 - NEVER use `{ force: true }` to bypass disabled or overlapped elements — this masks interaction bugs
-- **Exception:** Only when a Scout report explicitly flags `HIT-AREA MISMATCH` for the element
+- **Exception:** Only when the Explorer report explicitly flags `HIT-AREA MISMATCH` for the element
 
 ---
 
@@ -115,7 +115,7 @@ Mobile-specific signals (applies to `mobile` and `mobile-hybrid` types):
 - ALL selectors must live in JSON locator files (`output/locators/*.locators.json`)
 - Page objects must use `LocatorLoader` (`this.loc.get('elementName')`) — no raw `page.locator()` in page objects or test specs
 - Every element needs a primary selector + at least 2 fallbacks
-- Selector priority: `data-testid` > `id` > `name` > `role` > CSS class
+- Selector priority (set by Explorer during capture): `data-testid` > `id` > `href` > native `role+text` > `text` > CSS
 
 ---
 

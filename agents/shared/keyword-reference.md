@@ -4,7 +4,7 @@
 
 Each agent interprets keywords for its role:
 - **Explorer:** Verifies the keyword action works in the live browser. Records the result in enriched.md.
-- **Builder:** Translates the keyword into TypeScript code using verified locators from Scout.
+- **Builder:** Translates the keyword into TypeScript code using locators extracted from Explorer's ELEMENT annotations.
 - **Executor:** Validates keyword implementations work at runtime and fixes timing issues.
 - **Reviewer:** Audits keyword implementations against quality standards.
 

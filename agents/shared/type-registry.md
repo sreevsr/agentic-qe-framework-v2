@@ -18,17 +18,17 @@
 | **Scenario input** | `scenarios/web/{scenario}.md` or `scenarios/web/{folder}/{scenario}.md` |
 | **Requires browser exploration?** | Yes — Explorer/Builder explores scenario in a live browser via Playwright MCP |
 | **Explorer/Builder source** | Scenario `.md` file |
-| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Explorer report (if exists) |
 | **Test fixture** | `{ page }` |
 | **Test spec path** | `output/tests/web/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/web/{scenario}.json` |
 | **Creates locator JSONs?** | Yes — `output/locators/{page-name}.locators.json` |
 | **Creates page objects?** | Yes — `output/pages/{PageName}Page.ts` |
 | **Helper files apply?** | Yes — `output/pages/{PageName}Page.helpers.ts` |
-| **Scout report used?** | Yes (if exists) — `output/scout-reports/[{folder}/]{scenario}-page-inventory-latest.md` |
+| **Explorer report used?** | Yes (if exists) — `output/reports/[{folder}/]explorer-report-{scenario}.md` |
 | **Selector externalization** | Required — all selectors in JSON, never in code |
 | **Executor source file** | Explorer report |
-| **Executor debugging context** | Scout report + DOM fallback chain |
+| **Executor debugging context** | Explorer report + DOM fallback chain |
 | **Reviewer: Dimension 4** | Locator Quality — audits primary + 2 fallbacks, no raw selectors |
 | **API Behavior escape hatch** | N/A |
 | **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
@@ -48,7 +48,7 @@
 | **Creates locator JSONs?** | No |
 | **Creates page objects?** | No |
 | **Helper files apply?** | No |
-| **Scout report used?** | No |
+| **Explorer report used?** | No |
 | **Selector externalization** | N/A |
 | **Executor source file** | Explorer report + parsed results |
 | **Executor debugging context** | Parsed results (status codes, response bodies) + scenario `.md` |
@@ -64,17 +64,17 @@
 | **Scenario input** | `scenarios/hybrid/{scenario}.md` or `scenarios/hybrid/{folder}/{scenario}.md` |
 | **Requires browser exploration?** | Yes — Explorer/Builder explores UI steps in browser, API steps via request fixture |
 | **Explorer/Builder source** | Scenario `.md` file |
-| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Scout report (if exists) |
+| **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Explorer report (if exists) |
 | **Test fixture** | `{ page, request }` — both fixtures always required |
 | **Test spec path** | `output/tests/hybrid/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/hybrid/{scenario}.json` |
 | **Creates locator JSONs?** | Yes — one per UI page (API-only steps have no locators) |
 | **Creates page objects?** | Yes — one per UI page (API-only steps use `request` directly) |
 | **Helper files apply?** | Yes — `output/pages/{PageName}Page.helpers.ts` (UI pages only) |
-| **Scout report used?** | Yes (if exists) — for UI element selectors only |
+| **Explorer report used?** | Yes (if exists) — for UI element selectors only |
 | **Selector externalization** | Required for UI elements; N/A for API assertions |
 | **Executor source file** | Explorer report |
-| **Executor debugging context** | Scout report + DOM fallback chain (UI steps); API diagnostics (API steps) |
+| **Executor debugging context** | Explorer report + DOM fallback chain (UI steps); API diagnostics (API steps) |
 | **Reviewer: Dimension 4** | Locator Quality — audits UI selectors only; API assertions excluded |
 | **API Behavior escape hatch** | Yes — `## API Behavior: mock` or `live` controls CRUD persistence for API steps |
 | **Pipeline** | [Enrichment Agent] → Explorer/Builder → Executor → Reviewer |
@@ -94,7 +94,7 @@
 | **Creates locator JSONs?** | Yes — `output/locators/mobile/{screen-name}.locators.json` |
 | **Creates page objects?** | Yes — `output/screens/{ScreenName}Screen.ts` (Screen Objects, not Page Objects) |
 | **Helper files apply?** | Yes — `output/screens/{ScreenName}Screen.helpers.ts` |
-| **Scout report used?** | No |
+| **Explorer report used?** | No |
 | **Selector externalization** | Required — accessibility_id > id > class chain/predicate > xpath |
 | **Executor source file** | Explorer report |
 | **Executor debugging context** | Explorer report + parsed results + page source XML |

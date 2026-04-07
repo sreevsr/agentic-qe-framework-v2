@@ -24,7 +24,7 @@
 **Pages Generated:** {N} page objects from {N} enriched.md sections
 **Spec Steps:** {N} test.step() blocks matching {N} scenario steps
 **Fidelity:** {N} VERIFY, {N} CAPTURE, {N} SCREENSHOT, {N} REPORT, {N} CALCULATE
-**Missing Elements:** {N} steps flagged with test.fixme (Scout gaps)
+**Missing Elements:** {N} steps flagged with test.fixme (element capture gaps)
 **Blocked Steps:** {N} steps from Explorer's blocked list
 
 ---
@@ -46,11 +46,11 @@
 
 ---
 
-## Missing Elements (Scout Gaps)
+## Missing Elements (Capture Gaps)
 | Step | Description | Page | Action Needed |
 |------|-------------|------|--------------|
-| 8 | Click filter icon | FilterPanel | Re-run Scout with filter panel open |
-(If none: "All scenario elements found in Scout locator JSONs.")
+| 8 | Click filter icon | FilterPanel | Re-run Explorer — element capture failed for this step |
+(If none: "All scenario elements have ELEMENT annotations from Explorer.")
 
 ---
 

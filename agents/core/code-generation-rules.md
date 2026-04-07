@@ -2,7 +2,7 @@
 
 **This file is MANDATORY reading for the Builder agent. DO NOT generate any code without reading this file first.**
 
-**Note:** In the previous architecture, the Explorer-Builder (legacy) combined exploration and code generation. In the current architecture, the Builder is a separate agent that reads Scout locator JSONs + Explorer enriched.md and generates code. The Builder has NO browser access — all selectors come from Scout's locator JSON files.
+**Note:** In the previous architecture, the Explorer-Builder (legacy) combined exploration and code generation. In the current architecture, the Explorer captures element selectors from the MCP snapshot (with `browser_evaluate()` DOM probe for non-accessible elements) and embeds them in the enriched.md as `<!-- ELEMENT: {...} -->` annotations. The Builder extracts these annotations to create locator JSONs and generate code. The Builder has NO browser access — all selectors come from Explorer-captured ELEMENT annotations.
 
 ## 0. Language Selection — MANDATORY First Check
 
@@ -80,13 +80,13 @@ Every element you interact with MUST have an entry in a locator JSON file.
 ```
 
 **Rules — NO EXCEPTIONS:**
-- Primary selector = the one that WORKED during live exploration. Use semantic prefixes (`role=`, `label=`, `testid=`) — the LocatorLoader resolves them automatically
-- **MUST** include at least 2 fallback selectors. Fallbacks SHOULD be CSS-based (work without prefix resolution)
-- **MUST** include `type` field (`input` | `button` | `link` | `select` | `checkbox` | `text` | `image`) — helps Reviewer verify correct interaction patterns
-- Use descriptive camelCase element names
+- Primary selector = extracted from the Explorer's `<!-- ELEMENT: {...} -->` annotation (`primary` field). The Explorer captured this from the MCP snapshot or DOM probe during live exploration. Use semantic prefixes (`role=`, `label=`, `testid=`, `text=`) — the LocatorLoader resolves them automatically
+- **MUST** include at least 2 fallback selectors (from the ELEMENT annotation's `fallbacks` array)
+- **MUST** include `type` field (`input` | `button` | `link` | `select` | `checkbox` | `radio` | `text` | `image` | `structural`) — helps Reviewer verify correct interaction patterns
+- Use descriptive camelCase element names (from the ELEMENT annotation's `key` field)
 - One locator file per page object
 - **NEVER** put selectors directly in page objects or spec files
-- Selector priority (from Scout locator JSONs): data-testid > data-automation-id > stable ID > role+aria-label > component class > text-based > tag. The Builder uses whatever Scout captured — do NOT override.
+- Selector priority (set by the Explorer during capture): data-testid > stable ID > href > native role+text > text > CSS. The Builder uses exactly what the Explorer captured — do NOT override.
 
 ---
 
@@ -566,7 +566,146 @@ The base element (`cartTable`) and the target element (`cartProductPrice`) both 
 
 ---
 
-## 12. Reusing Existing Code — MANDATORY Checks
+## 12. Structural Assertions — NEVER Use Data Values for Existence Checks — MANDATORY
+
+**This is the automation engineer's mindset: verify STRUCTURE to confirm data exists, verify VALUES only when the scenario explicitly names them.**
+
+### 12.1: Data Existence ≠ Data Match
+
+When a scenario says **"widget is visible with data in the grid"**, it means: the grid has rendered and contains rows. It does NOT mean: check if a specific person's name appears.
+
+```typescript
+// ❌ WRONG — uses a specific person's name to check data exists. Breaks when data changes.
+async isGridDataVisible(): Promise<boolean> {
+  return await this.page.locator(this.loc.get('johnSmith')).isVisible();
+}
+
+// ✅ CORRECT — checks structural elements for data presence
+async isGridDataVisible(): Promise<boolean> {
+  const rowCount = await this.page.locator(this.loc.get('gridRows')).count();
+  return rowCount > 0;
+}
+
+// ✅ ALSO CORRECT — checks that a cell in the first row has text content
+async isGridDataVisible(): Promise<boolean> {
+  const firstCell = this.page.locator(this.loc.get('gridFirstColumnCells')).first();
+  const text = await firstCell.textContent();
+  return text !== null && text.trim().length > 0;
+}
+```
+
+**Rule: If the scenario says "data is visible" / "data is loaded" / "grid has data" — verify ROW COUNT > 0 or FIRST CELL HAS TEXT. NEVER check for a specific name, email, or phone number.**
+
+### 12.2: Sort Verification — Read Dynamically, Don't Hardcode
+
+When the scenario says **"sorted A–Z"** or **"sorted Z–A"**, verify the order programmatically:
+
+```typescript
+// ✅ CORRECT — reads all cells and verifies sort order dynamically
+async verifyColumnSortedAscending(): Promise<boolean> {
+  const cells = await this.page.locator(this.loc.get('gridFirstColumnCells')).allTextContents();
+  const trimmed = cells.map(c => c.trim()).filter(c => c.length > 0);
+  for (let i = 1; i < trimmed.length; i++) {
+    if (trimmed[i].localeCompare(trimmed[i - 1]) < 0) return false;
+  }
+  return true;
+}
+
+// ❌ WRONG — hardcodes the expected first row from Explorer's DISCOVERED notes
+expect(firstCell).toBe('Acme Corp'); // breaks when data changes
+```
+
+**Exception:** If the scenario ITSELF explicitly names an expected value (e.g., "VERIFY: first row shows 'Admin'"), then hardcoding that value is correct — it's a scenario requirement, not a data dependency.
+
+### 12.3: Pagination — Parameterized Methods, Not Per-Page Methods
+
+**NEVER create individual methods per page number.** An automation engineer builds ONE reusable method:
+
+```typescript
+// ❌ WRONG — one method per page, doesn't scale, hardcoded
+async clickPageButton1(): Promise<void> { ... }
+async clickPageButton2(): Promise<void> { ... }
+async waitForPageButton1Active(): Promise<void> { ... }
+async waitForPageButton2Active(): Promise<void> { ... }
+
+// ✅ CORRECT — parameterized, reusable, works for any page count
+async clickPageButton(pageNumber: number): Promise<void> {
+  await this.page.getByRole('button', { name: String(pageNumber), exact: true }).click();
+}
+
+async waitForPageActive(pageNumber: number): Promise<void> {
+  await expect(this.page.getByRole('button', { name: String(pageNumber), exact: true }))
+    .toBeDisabled();
+}
+
+async isPageActive(pageNumber: number): Promise<boolean> {
+  return await this.page.getByRole('button', { name: String(pageNumber), exact: true }).isDisabled();
+}
+```
+
+**The spec then reads naturally:**
+```typescript
+await gridPage.clickPageButton(2);
+await gridPage.waitForPageActive(2);
+expect(await gridPage.isPageActive(2)).toBe(true);
+```
+
+Similarly for pagination with `waitForFunction` — use Playwright's built-in locator waits instead:
+
+```typescript
+// ❌ WRONG — raw document.querySelectorAll bypasses locator pattern
+await this.page.waitForFunction(() => {
+  const buttons = Array.from(document.querySelectorAll('button'));
+  const btn = buttons.find(b => b.textContent?.trim() === '2');
+  return btn?.disabled === true;
+});
+
+// ✅ CORRECT — uses Playwright locator API
+await expect(this.page.getByRole('button', { name: '2', exact: true })).toBeDisabled();
+```
+
+### 12.4: Widget/Section Visibility — Use Structural Selectors
+
+When verifying multiple widgets or sections exist on a page, use heading/container selectors — not data values inside them:
+
+```typescript
+// ❌ WRONG — verifies widget exists by checking if a specific person's name is visible
+async isSectionGridDataVisible(): Promise<boolean> {
+  return await this.page.locator(this.loc.get('johnSmith')).isVisible();
+}
+
+// ✅ CORRECT — verifies widget has rows with data
+async isWidgetDataVisible(widgetLocatorKey: string): Promise<boolean> {
+  const widget = this.page.locator(this.loc.get(widgetLocatorKey));
+  const rows = widget.locator('tbody tr');
+  return (await rows.count()) > 0;
+}
+```
+
+### 12.5: Locator JSON — Structural Entries
+
+When the Builder needs structural locators that weren't explicitly captured as individual ELEMENT annotations (e.g., `gridRows`, `gridFirstColumnCells`), it creates them in the locator JSON based on the structural ELEMENT annotations the Explorer captured (see Section 4.5 of explorer.md). Use descriptive names:
+
+```json
+{
+  "gridRows": {
+    "primary": "tbody tr",
+    "fallbacks": ["table tbody tr", ".grid-body tr"],
+    "type": "text",
+    "notes": "All data rows in the grid table. Used for row count and data existence checks."
+  },
+  "gridFirstColumnCells": {
+    "primary": "tbody tr td:first-child",
+    "fallbacks": ["table tbody tr td:nth-child(1)"],
+    "type": "text",
+    "notes": "First column cells in all grid rows. Used for sort verification."
+  }
+}
+```
+
+---
+
+## 13. Reusing Existing Code — MANDATORY Checks
 
 Before creating ANY new file, you MUST check if it already exists:
 
@@ -577,30 +716,30 @@ Before creating ANY new file, you MUST check if it already exists:
 
 ---
 
-## 13. Locator JSON Input — How the Builder Uses Scout Data
+## 14. Locator JSON Creation — How the Builder Extracts Element Data
 
-**The Builder does NOT use MCP or open a browser.** All element selectors come from Scout-produced locator JSON files in `output/locators/`.
+**The Builder does NOT use MCP or open a browser.** All element selectors come from `<!-- ELEMENT: {...} -->` annotations that the Explorer embedded in the enriched.md during live browser exploration.
 
-When generating page object methods, the Builder reads locator keys from the JSON:
+**The Builder's first task is to extract these annotations and create locator JSON files:**
 
 ```json
-// output/locators/login-page.locators.json
+// Extracted from enriched.md ELEMENT annotations → output/locators/login-page.locators.json
 {
   "signupEmailInput": {
-    "primary": ".signup-form input[name='email']",
-    "fallbacks": ["#signup-email", "[data-testid='signup-email']"],
+    "primary": "testid=signup-email",
+    "fallbacks": ["input[name='email']", "#signup-email"],
     "type": "input"
   }
 }
 ```
 
-The Builder generates code that uses `this.loc.get('signupEmailInput')` — NEVER the raw selector string. If a locator key referenced in the enriched.md does not exist in the JSON file, generate `test.fixme('MISSING ELEMENT: ...')`.
+The Builder generates code that uses `this.loc.get('signupEmailInput')` — NEVER the raw selector string. If a step has `<!-- ELEMENT_CAPTURE_FAILED -->`, generate `test.fixme('ELEMENT CAPTURE FAILED: ...')`.
 
-**If `interactionNotes` is present in the locator entry**, use that pattern in the generated page object method. For example, if the notes say "Click to open popup, then click li.k-item", generate the multi-step interaction rather than a simple click.
+**Every locator entry traces back to an ELEMENT annotation.** The Builder does not invent selectors. If the Explorer didn't capture an element, the Builder cannot create a locator for it.
 
 ---
 
-## 14. Lifecycle Hook Rules — HARD STOP
+## 15. Lifecycle Hook Rules — HARD STOP
 
 ### beforeAll / afterAll — `{ browser }` ONLY
 

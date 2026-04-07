@@ -88,8 +88,6 @@ Delete (ignore errors if they don't exist):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  PRE-REQUISITE: Scout (ONE-TIME per app — user-driven, NOT a stage) │
-│                                                                      │
 │  STAGE 0: Enrichment (CONDITIONAL)                                   │
 │  ↓                                                                    │
 │  STAGE 1-pre: Incremental Detection (scripts — zero LLM tokens)     │
@@ -102,7 +100,7 @@ Delete (ignore errors if they don't exist):
 │  ↓                                                                    │
 │  STAGE 1-post: Cleanup annotations (script — zero LLM tokens)       │
 │  ↓                                                                    │
-│  STAGE 2: Executor (run tests + fix timing + heal Scout gaps)        │
+│  STAGE 2: Executor (run tests + fix timing + heal selector gaps)     │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
 │  STAGE 3: Reviewer (precheck script + 9-dimension audit)            │
 │  ↓ [if NEEDS FIXES]                                                   │
@@ -114,7 +112,7 @@ Delete (ignore errors if they don't exist):
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Scout is NOT a pipeline stage.** Scout is a one-time, user-driven tool that runs BEFORE the pipeline. It produces locator JSONs in `output/locators/`. The Orchestrator checks that locator JSONs exist before starting. If missing, the Orchestrator tells the user to run Scout first: `cd output && npx playwright test --config=tools/scout.config.ts`
+**There is no Scout prerequisite.** The Explorer captures element selectors directly from the MCP snapshot during exploration (with `browser_evaluate()` DOM probe only for non-accessible elements). The Builder then extracts ELEMENT annotations from the enriched.md to create locator JSON files. No separate element discovery tool is needed.
 
 ### STAGE 0: Enrichment Agent (CONDITIONAL — skip if structured .md exists)
 
@@ -138,18 +136,6 @@ Save enrichment report to: output/reports/enrichment-report-{scenario}.md
 ```
 
 **HARD STOP — Verify before proceeding:** MUST check that `SCENARIO_PATH` exists and contains `## Steps` with numbered steps. If file missing or malformed → STOP pipeline, report INCOMPLETE.
-
-### PRE-CHECK: Scout Locator JSONs — MANDATORY Before Stage 1
-
-**HARD STOP: Before starting any pipeline stage, verify that Scout has been run for this application.**
-
-1. Check if `output/locators/` contains `.locators.json` files
-2. Check if `output/scout-reports/{app}-page-inventory.json` exists
-
-| Condition | Action |
-|-----------|--------|
-| Locator JSONs exist | Scout has run. Proceed to Stage 1-pre. |
-| No locator JSONs | **STOP.** Tell the user: "Scout has not been run for this application. Run: `cd output && npx playwright test --config=tools/scout.config.ts`" |
 
 ### STAGE 1-pre: Incremental Detection (MANDATORY — scripts only, zero LLM tokens)
 
@@ -197,7 +183,6 @@ FOLDER = {folder}    (only if provided)
 
 Scenario file: {SCENARIO_PATH}
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
-Scout page inventory: output/scout-reports/{app}-page-inventory.json
 
 Save explorer report to: {EXPLORER_REPORT}
 Save enriched scenario to: scenarios/{type}/{scenario}.enriched.md
@@ -208,8 +193,8 @@ Save enriched scenario to: scenarios/{type}/{scenario}.enriched.md
 Read agents/core/explorer.md for your instructions.
 
 INCREMENTAL MODE: Read output/reports/classified-changeset.json for step walk modes.
-- Steps marked WALK: FAST → execute interaction to maintain browser state, do NOT snapshot or deep-verify
-- Steps marked WALK: DEEP → full verification loop (navigate, interact, verify, check Scout inventory)
+- Steps marked WALK: FAST → execute interaction to maintain browser state, do NOT capture or deep-verify
+- Steps marked WALK: DEEP → full verification loop (navigate, interact, capture element data, verify)
 - Steps marked WALK: SKIP → do not execute (deleted steps)
 - Sections with sectionWalkMode: SKIP → skip the entire section
 
@@ -219,7 +204,6 @@ FOLDER = {folder}    (only if provided)
 
 Enriched scenario (annotated): scenarios/{type}/{scenario}.enriched.md
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
-Scout page inventory: output/scout-reports/{app}-page-inventory.json
 
 Update the enriched.md IN-PLACE — only update annotations for DEEP-verified steps.
 Save explorer report to: {EXPLORER_REPORT}
@@ -234,7 +218,7 @@ Save explorer report to: {EXPLORER_REPORT}
 
 ### STAGE 1b: Builder (Code Generation from Locator JSONs + enriched.md)
 
-**The Builder reads the enriched.md and Scout locator JSONs to generate all code files. It does NOT open a browser.**
+**The Builder reads the enriched.md (which contains ELEMENT annotations from the Explorer's live browser capture), extracts element data to create locator JSONs, and generates all code files. It does NOT open a browser.**
 
 **Skip rules (based on Stage 1-pre pipeline mode):**
 - `NO_CHANGES` → **SKIP Stage 1b entirely.** Proceed to Stage 2.
@@ -253,8 +237,6 @@ FOLDER = {folder}    (only if provided)
 LANGUAGE = {language from output/.language}
 
 Enriched scenario: scenarios/{type}/{scenario}.enriched.md
-Scout page inventory: output/scout-reports/{app}-page-inventory.json
-Locator JSONs: output/locators/*.locators.json
 App-context (if exists): scenarios/app-contexts/{app-identifier}.md
 
 For INCREMENTAL mode: Look for <!-- CHANGE: --> annotations in the enriched.md.
@@ -481,10 +463,9 @@ The framework runs on multiple platforms. Both support subagent spawning with fr
 - The `chat.subagents.allowInvocationsFromSubagents` setting MUST be enabled
 - Agent prompt files in `.github/agents/` define tool access and subagent relationships
 
-**Why the Scout + Explorer + Builder separation works on both platforms:**
-- Scout is a user-driven Playwright tool — no LLM involved, no platform dependency
-- Explorer uses MCP but produces only enriched.md (text) — lightweight context
-- Builder reads structured JSON + text and generates code — no MCP, no context pressure
+**Why the Explorer + Builder separation works on both platforms:**
+- Explorer uses MCP to verify flow AND capture element selectors from the snapshot (DOM probe fallback for non-accessible elements) — produces enriched.md with embedded ELEMENT annotations (text only, lightweight context)
+- Builder reads enriched.md, extracts ELEMENT annotations to create locator JSONs, and generates code — no MCP, no context pressure, no bloated locator files
 - The old Explorer-Builder (legacy) failed on Copilot because it combined MCP exploration + code generation in one context. That problem is eliminated.
 
 ---

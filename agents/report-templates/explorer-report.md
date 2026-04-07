@@ -35,7 +35,7 @@
 |------|------|--------|
 | Scenario | scenarios/{type}/[{folder}/]{scenario}.md | Read |
 | App-context | scenarios/app-contexts/{app}.md | Read / Not found |
-| Scout report | output/scout-reports/{scenario}-page-inventory-latest.md | Read / Not found |
+| App-context | scenarios/app-contexts/{app}.md | Read / Not found |
 | Skills registry | skills/registry.md | Read |
 | Keyword reference | agents/shared/keyword-reference.md | Read |
 

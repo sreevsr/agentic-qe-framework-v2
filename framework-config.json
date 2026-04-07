@@ -45,8 +45,8 @@
 
   "chunking": {
     "maxStepsPerChunk": 15,
-    "alwaysChunk": true,
-    "$comment": "maxStepsPerChunk: maximum steps per Explorer chunk (if Explorer verification is chunked for long scenarios). alwaysChunk: legacy setting, not used in Scout+Explorer+Builder architecture."
+    "alwaysChunk": false,
+    "$comment": "maxStepsPerChunk: maximum steps per Explorer chunk (if Explorer verification is chunked for long scenarios). alwaysChunk: false for Copilot (subagents share 200K context window — chunking adds risk with no benefit). Set true only for Claude Code CLI where subagents get independent context windows."
   },
 
   "observability": {
