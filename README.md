@@ -3,8 +3,10 @@
 An enterprise-grade, multi-agent pipeline that converts test scenario descriptions into production-quality Playwright automation code. Write what you want to test in plain English. The agents explore your app, generate code, run it, review it, and fix it — autonomously.
 
 ```
-Scenario .md  ──>  Scout  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  Reviewer  ──>  Healer
-(what to test)    (elements)  (verify flow)  (gen code)   (run & fix)   (audit)       (fix quality)
+Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  Reviewer  ──>  Healer
+(what to test)    (verify flow    (gen code)   (run & fix)   (audit)       (fix quality)
+                   + capture
+                   selectors)
 ```
 
 ---
@@ -39,19 +41,18 @@ Each agent has one job and hard boundaries. The Explorer verifies flows but does
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  PRE-REQUISITE: Scout (ONE-TIME per app — user-driven, NOT a stage) │
-│                                                                      │
 │  STAGE 0: Enrichment (CONDITIONAL — if input is natural language)    │
 │  ↓                                                                    │
 │  STAGE 1-pre: Incremental Detection (scripts — zero LLM tokens)     │
 │  ↓                                                                    │
-│  STAGE 1a: Explorer (CONDITIONAL — verify flow in live browser)      │
+│  STAGE 1a: Explorer (verify flow + capture selectors in live browser)│
 │  ↓                                                                    │
-│  STAGE 1b: Builder (generate/modify code from enriched.md)           │
+│  STAGE 1b: Builder (extract ELEMENT annotations → locator JSONs +   │
+│            page objects + spec from enriched.md)                      │
 │  ↓                                                                    │
 │  STAGE 1-post: Cleanup annotations (script — zero LLM tokens)       │
 │  ↓                                                                    │
-│  STAGE 2: Executor (run tests + fix timing + heal Scout gaps)        │
+│  STAGE 2: Executor (run tests + fix timing issues)                   │
 │  ↓ [HARD GATE: verify test results before proceeding]                │
 │  STAGE 3: Reviewer (precheck script + 9-dimension audit)            │
 │  ↓ [if NEEDS FIXES]                                                   │
@@ -65,11 +66,10 @@ Each agent has one job and hard boundaries. The Explorer verifies flows but does
 
 | Agent | Browser? | Job | Key Output |
 |-------|----------|-----|------------|
-| **Scout** | YES | One-time element discovery — user navigates the app, Scout records selectors | `output/locators/*.locators.json` |
 | **Enrichment Agent** | NO | Converts natural language or Swagger/OpenAPI specs into structured scenario `.md` | `scenarios/{type}/{name}.md` |
-| **Explorer** | YES | Verifies scenario flow in a live browser, maps steps to pages | `{scenario}.enriched.md` + explorer report |
-| **Builder** | NO | Generates Playwright page objects, spec files, and test data from enriched.md + locator JSONs | spec.ts + PageObject.ts + test-data.json |
-| **Executor** | YES | Runs tests, fixes timing/selector issues, heals Scout gaps (max cycles configurable) | Fixed code + executor report |
+| **Explorer** | YES | Verifies scenario flow in a live browser, captures element selectors from MCP snapshot (DOM probe fallback for non-accessible elements), maps steps to pages | `{scenario}.enriched.md` (with ELEMENT annotations) + explorer report |
+| **Builder** | NO | Extracts ELEMENT annotations from enriched.md → creates locator JSONs, page objects, spec files, and test data | locators.json + PageObject.ts + spec.ts + test-data.json |
+| **Executor** | YES | Runs tests, fixes timing/selector issues (max cycles configurable) | Fixed code + executor report |
 | **Reviewer** | NO | Audits code against 9 quality dimensions, produces scorecard with verdict | Review scorecard (APPROVED / NEEDS FIXES) |
 | **Healer** | NO | Fixes quality issues flagged by Reviewer, re-runs tests (max 2 cycles) | Healer report + fixed code |
 | **Orchestrator** | NO | Coordinates all agents in sequence, enforces hard gates between stages | Pipeline summary |
@@ -117,7 +117,6 @@ This creates the `output/` directory with:
 - Playwright config (`playwright.config.ts`)
 - Core utilities (`base-page.ts`, `locator-loader.ts`, `test-data-loader.ts`, `shared-state.ts`)
 - `.env.example` with credential placeholders
-- Scout tool (`tools/scout.config.ts`)
 
 ### 2. Configure Environment
 
@@ -170,39 +169,7 @@ npx playwright install chromium
 
 ## Using the Framework
 
-### Step 1: Run Scout (One-Time Per Application)
-
-Scout discovers every interactive element in your application. You navigate manually; Scout records silently.
-
-```bash
-cd output
-npx playwright test --config=tools/scout.config.ts --headed
-```
-
-A floating toolbar appears in the browser:
-```
-┌─────────────────────────────────────────┐
-│  Scout Recording           ─            │
-│  [Scan]  [Timed 5s]  [Done]            │
-└─────────────────────────────────────────┘
-```
-
-- **Navigate** to each page of your application
-- Click **Scan** (or **Timed 5s** for pages with lazy-loaded content) on each page
-- Click **Done** when finished
-
-**Output:**
-- `output/locators/*.locators.json` — element selectors with primary + 2 fallbacks
-- `output/scout-reports/{app}-page-inventory.json` — page summary with element counts
-
-**When to re-run Scout:**
-- After a major UI redesign
-- When new pages/features are added
-- When the Executor heals 5+ elements (it recommends a re-scan)
-
-You do **not** re-run Scout for each scenario — all scenarios share the same locator files.
-
-### Step 2: Write a Scenario
+### Step 1: Write a Scenario
 
 Create a `.md` file in `scenarios/{type}/`:
 
@@ -274,7 +241,7 @@ Create a `.md` file in `scenarios/{type}/`:
 1. Click "Logout"
 ```
 
-### Step 3: Run the Pipeline
+### Step 2: Run the Pipeline
 
 **With Claude Code CLI:**
 ```
@@ -293,7 +260,7 @@ Invoke @QE Orchestrator with scenario=checkout-flow type=web
 
 The Orchestrator runs all stages automatically and produces a pipeline summary report at `output/reports/pipeline-summary-{scenario}.md`.
 
-### Step 4: Review the Output
+### Step 3: Review the Output
 
 After a successful pipeline run, `output/` contains:
 
@@ -308,7 +275,7 @@ output/
 │   ├── LoginPage.ts
 │   ├── InventoryPage.ts
 │   └── CartPage.ts
-├── locators/                      # Scout-discovered selectors
+├── locators/                      # Element selectors (created by Builder from Explorer's ELEMENT annotations)
 │   ├── login-page.locators.json
 │   ├── inventory-page.locators.json
 │   └── cart-page.locators.json
@@ -328,7 +295,7 @@ output/
 └── .env
 ```
 
-### Step 5: Run the Tests Independently
+### Step 4: Run the Tests Independently
 
 ```bash
 cd output
@@ -429,11 +396,11 @@ The Reviewer audits generated code across **9 dimensions**:
 
 ### Browser Exploration
 
-- **Scout** — one-time element discovery with toolbar UI (Scan, Timed, Done)
-- **Explorer** — live flow verification with MCP Playwright
+- **Explorer** — live flow verification + element capture with MCP Playwright. Snapshot-first strategy: derives selectors from the MCP accessibility snapshot (role, name, href). DOM probe fallback for non-accessible elements (SVGs, DOM-only panels, custom widgets).
+- **Selector validation gate** — every non-structural selector is validated against the live DOM (`querySelectorAll` count === 1) before recording. Prevents ambiguous selectors that match multiple elements.
 - **FAST-walk** — execute interactions for state without deep verification (incremental mode)
 - **Bug detection** — 3-question decision gate classifies failures as test issue vs app bug
-- **Selector healing** — Executor discovers missing elements at runtime via accessibility snapshots
+- **Iframe-aware** — validation runs in the same frame context as the interaction. Shadow DOM elements skip CSS validation and rely on MCP interaction success as proof.
 
 ### Automation Scripts (Zero LLM Tokens)
 
@@ -506,6 +473,10 @@ All agents read this file instead of using hardcoded values:
     "uncertainVerdictEnabled": true,
     "flagDisabledElements": true,
     "flagEmptyValues": true
+  },
+  "chunking": {
+    "maxStepsPerChunk": 15,
+    "alwaysChunk": false
   }
 }
 ```
@@ -536,7 +507,7 @@ Strict boundaries prevent agents from stepping on each other's work or modifying
 | `output/test-data/shared/` | Team | **Read only** — immutable cross-scenario test data |
 | `output/core/*` | Framework (`setup.js`) | **Read only** — base utilities |
 | `output/pages/*.ts` | Builder | Create/modify (agents own these) |
-| `output/locators/*.json` | Scout + Executor | Scout creates, Executor appends healed selectors |
+| `output/locators/*.json` | Builder + Executor | Builder creates from Explorer's ELEMENT annotations, Executor refines selectors |
 | `output/tests/**/*.spec.ts` | Builder | Create/modify (agents own these) |
 | `output/test-data/{type}/*.json` | Builder | Create/modify |
 | `scenarios/app-contexts/*.md` | Explorer | Read/write (self-improving patterns) |
@@ -579,14 +550,14 @@ Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passe
 
 | Area | Limitation | Workaround |
 |------|-----------|------------|
-| **Scout coverage** | Captures ~90% of elements. Rare custom components (canvas, Web Components with closed shadow DOM) may be missed. | Executor heals up to 3 missing elements per run. Re-run Scout after major UI changes. |
+| **Element capture** | Snapshot-first capture covers ~85% of elements. Non-accessible elements (SVGs, DOM-only panels, shadow DOM) require DOM probe fallback. Closed shadow DOM elements skip CSS validation entirely. | DOM probe automatically kicks in for elements not in the accessibility snapshot. Shadow DOM elements rely on MCP interaction success as validation. |
 | **Canvas / pixel-based** | Cannot assert on canvas charts or pixel colors. Only SVG/DOM-rendered charts are readable. | Use SVG-based chart libraries, or add `data-testid` attributes to chart containers. |
 | **Mobile** | Declared and partially implemented. Appium configuration is minimal. | Web and API types are production-ready. Mobile is functional but less battle-tested. |
 | **CI/CD workflows** | GitHub Actions workflows are skeletal. Jira connector exists but is non-functional. | Use the `ci-test-runner.js` script directly. Build custom workflows around it. |
 | **Single-scenario insertions** | Mid-section step insertions in single-scenario files (`## Steps`) cause positional cascade in the diff (more steps marked MODIFIED than necessary). | Not a correctness issue — just extra work. Multi-scenario files with `### Scenario:` blocks are unaffected. |
 | **Context window** | Very large scenarios (50+ steps) may approach LLM context limits on some platforms. | Split into multi-scenario files with Common Setup/Teardown. |
 | **Async Python** | Python code generation uses synchronous Playwright API only (no async/await). | Use TypeScript for async-heavy scenarios. |
-| **No `{ force: true }`** | Agents never use `{ force: true }` on clicks (it masks real bugs). | If an element has a hit-area mismatch, Scout flags it. Fix the app or use a more specific selector. |
+| **No `{ force: true }`** | Agents never use `{ force: true }` on clicks (it masks real bugs). | If an element has a hit-area mismatch, the Explorer flags it. Fix the app or use a more specific selector. |
 
 ---
 
@@ -597,7 +568,7 @@ agentic-qe-framework-v2/
 ├── agents/
 │   ├── core/                     # Agent instruction files (5,031 lines total)
 │   │   ├── orchestrator.md       # Pipeline coordinator
-│   │   ├── explorer.md           # Flow verification
+│   │   ├── explorer.md           # Flow verification + element capture (snapshot-first)
 │   │   ├── builder.md            # Code generation
 │   │   ├── executor.md           # Test runner + healing
 │   │   ├── reviewer.md           # 9-dimension quality audit
@@ -657,10 +628,9 @@ agentic-qe-framework-v2/
 ├── output/                       # Generated Playwright test project
 │   ├── core/                     # Runtime utilities (from templates)
 │   ├── pages/                    # Generated page objects
-│   ├── locators/                 # Scout-discovered selectors
+│   ├── locators/                 # Element selectors (Builder-created from Explorer ELEMENT annotations)
 │   ├── tests/                    # Generated spec files
 │   ├── test-data/                # Test data (per-scenario + shared)
-│   ├── tools/                    # Scout tool
 │   └── reports/                  # Pipeline reports and metrics
 ├── framework-config.json         # User-configurable agent settings
 ├── CLAUDE.md                     # Claude Code framework instructions
@@ -685,7 +655,7 @@ The repository includes two tested scenarios:
 
 ### Adding a New Scenario
 1. Create `scenarios/{type}/{folder}/{scenario-name}.md` using the template in `scenarios/web/_template.md`
-2. Run Scout on the application if locator files don't exist yet
+2. Configure MCP Playwright (if not already done) for the Explorer's browser access
 3. Invoke the Orchestrator: `@QE Orchestrator scenario={name} type={type} folder={folder}`
 
 ### Adding a New Skill
