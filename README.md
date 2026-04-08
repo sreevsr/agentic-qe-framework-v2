@@ -288,54 +288,80 @@ Create a `.md` file in `scenarios/{type}/`:
 
 ### Step 2: Run the Pipeline
 
+#### Agent Prompts — Quick Reference
+
+Each agent can be invoked with a short prompt or a detailed prompt. Short prompts work when the agent can infer defaults. Detailed prompts are explicit — use them when the short form doesn't pick up the right files.
+
+**VS Code Copilot** — run each agent in a **fresh chat session** (never chain agents in the same chat):
+
+| Agent | Short Prompt | Detailed Prompt |
+|-------|-------------|----------------|
+| **Enricher** | `@QE Enricher Enrich scenario checkout-flow, type web` | `@QE Enricher Convert the following description into a structured scenario .md file, type web. Save to scenarios/web/checkout-flow.md` |
+| **Explorer** | `@QE Explorer Run Explorer for scenario checkout-flow, type web` | `@QE Explorer Run Explorer for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.md` |
+| **Builder** | `@QE Builder Run Builder for scenario checkout-flow, type web` | `@QE Builder Run Builder for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.enriched.md` |
+| **Executor** | `@QE Executor Run Executor for scenario checkout-flow, type web` | `@QE Executor Run Executor for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` |
+| **Reviewer** | `@QE Reviewer Review scenario checkout-flow, type web` | `@QE Reviewer Run Reviewer for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` |
+| **Healer** | `@QE Healer Fix scenario checkout-flow` | `@QE Healer Fix issues from review scorecard for scenario checkout-flow. Scorecard: output/reports/review-scorecard-checkout-flow.md` |
+
+**Claude Code CLI** — same prompts work, or use the Orchestrator for the full pipeline:
+
+| Agent | Short Prompt |
+|-------|-------------|
+| **Orchestrator** | `@QE Orchestrator scenario=checkout-flow type=web` |
+| **Explorer** | `@QE Explorer scenario=checkout-flow type=web` |
+| **Builder** | `@QE Builder scenario=checkout-flow type=web` |
+| **Executor** | `@QE Executor scenario=checkout-flow type=web` |
+| **Reviewer** | `@QE Reviewer scenario=checkout-flow type=web` |
+| **Healer** | `@QE Healer scenario=checkout-flow` |
+
+**With folder organization (both platforms):** add `folder=my-store` to any prompt.
+
+---
+
 #### VS Code Copilot — Run Agents Individually (Recommended)
 
 The Orchestrator runs all stages in one context window, which frequently exhausts Copilot's 200K shared context on non-trivial scenarios. **Run each agent separately in a fresh Copilot chat session.** Scripts run in the terminal (zero LLM tokens, milliseconds).
 
 **First run (no existing spec):**
 
-| Step | Where | Command | What it does |
-|------|-------|---------|-------------|
-| **1. Explorer** | Copilot chat | `@QE Explorer Run Explorer for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.md` | Walks the app in a live browser, captures selectors, produces `checkout-flow.enriched.md` |
-| **2. Builder** | Copilot chat (new session) | `@QE Builder Run Builder for scenario checkout-flow, type web. Input: scenarios/web/checkout-flow.enriched.md` | Generates locator JSONs, page objects, spec, test data from enriched.md |
-| **3. Test** | Terminal | `cd output && npx playwright test tests/web/checkout-flow.spec.ts --headed` | Run the test directly — if it passes, skip the Executor |
-| **4. Executor** | Copilot chat (new session) | `@QE Executor Run Executor for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` | Only if step 3 fails — fixes timing/selector issues (max cycles configurable) |
-| **5. Reviewer** | Copilot chat (new session) | `@QE Reviewer Run Reviewer for scenario checkout-flow, type web. Spec: output/tests/web/checkout-flow.spec.ts` | Audits code quality across 9 dimensions, produces scorecard |
-| **6. Healer** | Copilot chat (new session) | `@QE Healer Fix issues from review scorecard for scenario checkout-flow. Scorecard: output/reports/review-scorecard-checkout-flow.md` | Only if Reviewer verdict is NEEDS FIXES — fixes quality issues, then re-run test and Reviewer to verify |
+| Step | Where | What to do |
+|------|-------|-----------|
+| **0. Enricher** | Copilot chat | Only if your input is natural language (not a structured .md). Produces `scenarios/web/checkout-flow.md`. |
+| **1. Explorer** | Copilot chat (new session) | Walks the app in a live browser, captures selectors, produces `checkout-flow.enriched.md` |
+| **2. Builder** | Copilot chat (new session) | Generates locator JSONs, page objects, spec, test data from enriched.md |
+| **3. Test** | Terminal: `cd output && npx playwright test tests/web/checkout-flow.spec.ts --headed` | Run the test directly — if it passes, skip the Executor |
+| **4. Executor** | Copilot chat (new session) | Only if step 3 fails — fixes timing/selector issues (max cycles configurable) |
+| **5. Reviewer** | Copilot chat (new session) | Audits code quality across 9 dimensions, produces scorecard |
+| **6. Healer** | Copilot chat (new session) | Only if Reviewer verdict is NEEDS FIXES — fixes quality issues, then re-run test and Reviewer to verify |
 
 **Incremental run (scenario edited after first run):**
 
-| Step | Where | Command | What it does |
-|------|-------|---------|-------------|
-| **1. Diff** | Terminal | `node scripts/scenario-diff.js --scenario=scenarios/web/checkout-flow.md` | Detects changes, produces `classified-changeset.json` with pipeline mode (`NO_CHANGES` / `BUILDER_ONLY` / `EXPLORER_REQUIRED`) |
-| **2. Annotate** | Terminal | `node scripts/builder-incremental.js --scenario=checkout-flow --type=web` | Marks enriched.md with CHANGE/WALK annotations for each step |
-| **3. Explorer** | Copilot chat | Same as first run, add: `INCREMENTAL mode — classified-changeset.json exists. FAST-walk unchanged steps, DEEP-verify changed steps.` | Only if step 1 shows `EXPLORER_REQUIRED`. FAST-walks unchanged steps (no browser verification), DEEP-verifies only new/changed steps |
-| **4. Cleanup** | Terminal | `node scripts/cleanup-annotations.js --file=scenarios/web/checkout-flow.enriched.md` | Strips CHANGE/WALK markers, renumbers steps |
-| **5. Builder** | Copilot chat (new session) | Same as first run, add: `INCREMENTAL mode — builder-instructions.json exists.` | Modifies only changed steps in existing spec |
-| **6-8.** | | Test → Executor → Reviewer → Healer | Same as first run |
+| Step | Where | What to do |
+|------|-------|-----------|
+| **1. Diff** | Terminal: `node scripts/scenario-diff.js --scenario=scenarios/web/checkout-flow.md` | Detects changes, shows pipeline mode: `NO_CHANGES` / `BUILDER_ONLY` / `EXPLORER_REQUIRED` |
+| **2. Annotate** | Terminal: `node scripts/builder-incremental.js --scenario=checkout-flow --type=web` | Marks enriched.md with CHANGE/WALK annotations |
+| **3. Explorer** | Copilot chat | Only if step 1 shows `EXPLORER_REQUIRED`. Add to prompt: `INCREMENTAL mode — FAST-walk unchanged, DEEP-verify changed.` |
+| **4. Cleanup** | Terminal: `node scripts/cleanup-annotations.js --file=scenarios/web/checkout-flow.enriched.md` | Strips markers, renumbers steps |
+| **5. Builder** | Copilot chat (new session) | Add to prompt: `INCREMENTAL mode — builder-instructions.json exists.` |
+| **6-8.** | | Test → Executor → Reviewer → Healer (same as first run) |
 
 **Important — Copilot tips:**
 - **Fresh chat session per agent.** Never chain agents in the same chat — each needs maximum context for its own work.
 - **Test before Executor.** Run `npx playwright test --headed` in terminal first. If it passes, skip the Executor entirely and go straight to Reviewer.
-- **If an agent hangs or VS Code freezes** — kill the session and re-run. Context is already exhausted; waiting won't help.
-- **Reviewer doesn't need MCP.** It can run in Claude Code CLI if Copilot context is tight.
+- **If an agent hangs or VS Code freezes** — close the chat session and re-run in a new one. Don't wait — context is already exhausted.
+- **Reviewer and Healer don't need MCP.** They can run in Claude Code CLI if Copilot context is tight.
 
 #### Claude Code CLI — Orchestrator or Individual Agents
 
 Claude Code CLI gives each subagent its own context window, so the Orchestrator works reliably:
 
 ```
-Invoke @QE Orchestrator with scenario=checkout-flow type=web
+@QE Orchestrator scenario=checkout-flow type=web
 ```
 
 The Orchestrator runs all stages automatically and produces a pipeline summary report at `output/reports/pipeline-summary-{scenario}.md`.
 
-You can also run agents individually with the same prompts shown above — useful when you want to inspect output between stages.
-
-**With optional folder organization (both platforms):**
-```
-scenario=checkout-flow type=web folder=my-store
-```
+You can also run agents individually with the prompts above — useful when you want to inspect output between stages.
 
 ### Step 3: Review the Output
 

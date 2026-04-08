@@ -13,6 +13,7 @@ export default defineConfig({
     ['list'],
     ['json', { outputFile: 'test-results/results.json' }],
     ['html', { open: 'never' }],
+    ['allure-playwright', { outputFolder: 'allure-results' }],
   ],
   use: {
     baseURL: process.env.BASE_URL,
