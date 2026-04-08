@@ -446,6 +446,174 @@ Incremental detection is **section-aware**. In a file with Common Setup + 3 Scen
 
 ---
 
+## API Test Automation
+
+The framework supports REST API testing using Playwright's `request` fixture — no browser needed. API scenarios skip the Explorer (no UI to verify) and go directly to the Builder.
+
+### Writing an API Scenario
+
+Create a `.md` file in `scenarios/api/`:
+
+```markdown
+# CRUD Operations — Posts API
+
+## Metadata
+- **Priority:** P0
+- **Type:** api
+- **Tags:** smoke, api, crud
+
+## Application
+- **URL:** {{ENV.API_BASE_URL}}
+- **Auth:** Bearer token via {{ENV.API_TOKEN}}
+
+## API Behavior: mock
+
+## Steps
+
+1. API GET: /posts — retrieve all posts
+2. VERIFY: Response status is 200
+3. VERIFY: Response body is a non-empty array
+
+4. API POST: /posts with body {"title": "Test Post", "body": "Test content", "userId": 1}
+5. VERIFY: Response status is 201
+6. VERIFY: Response body contains "title" = "Test Post"
+7. CAPTURE: Response body "id" as {{newPostId}}
+
+8. API GET: /posts/1 — retrieve a single post
+9. VERIFY: Response status is 200
+10. VERIFY: Response body contains "id" = 1
+
+11. API PUT: /posts/1 with body {"id": 1, "title": "Updated Title", "body": "Updated body", "userId": 1}
+12. VERIFY: Response status is 200
+13. VERIFY: Response body contains "title" = "Updated Title"
+
+14. API PATCH: /posts/1 with body {"title": "Patched Title"}
+15. VERIFY: Response status is 200
+16. VERIFY: Response body contains "title" = "Patched Title"
+
+17. API DELETE: /posts/1
+18. VERIFY: Response status is 200
+
+19. SCREENSHOT: api-test-summary
+20. REPORT: "CRUD operations completed. Created post ID: {{newPostId}}"
+```
+
+**Key differences from web scenarios:**
+- **Type is `api`** — uses `{ request }` fixture, not `{ page }`
+- **No Explorer needed** — API scenarios have no UI to explore. The pipeline goes straight to Builder.
+- **No page objects or locator JSONs** — API tests use `request.get()`, `request.post()`, etc. directly
+- **`## API Behavior: mock`** — declares the API is non-persistent (fake). Omit this line or set to `live` for real APIs where POST-then-GET must find the created resource.
+
+### Using a Swagger/OpenAPI Spec
+
+If you have a Swagger spec (JSON or YAML), the framework can generate scenarios from it:
+
+```bash
+# From a local spec file
+node scripts/swagger-parser.js --spec=scenarios/api/swagger-specs/my-api.json
+
+# Download a spec from a URL first
+curl -o scenarios/api/swagger-specs/my-api.json https://your-api.com/swagger/v1/swagger.json
+
+# If the spec URL requires authentication
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     -o scenarios/api/swagger-specs/my-api.json \
+     https://your-api.com/swagger/v1/swagger.json
+```
+
+Common spec URL patterns by framework:
+
+| Backend Framework | Spec URL |
+|------------------|----------|
+| .NET / ASP.NET | `/swagger/v1/swagger.json` |
+| Spring Boot | `/v3/api-docs` |
+| Express (swagger-jsdoc) | `/api-docs` |
+| FastAPI | `/openapi.json` |
+| Django REST | `/swagger.json` or `/openapi/` |
+
+You can also use the Enricher agent with a Swagger spec:
+
+```
+@QE Enricher Parse swagger spec at scenarios/api/swagger-specs/my-api.json and generate API test scenarios
+```
+
+### Authentication
+
+All credentials go in `output/.env` — never hardcoded in scenarios or generated code.
+
+**Bearer Token:**
+```env
+API_BASE_URL=https://your-api.com
+API_TOKEN=your-bearer-token
+```
+
+```markdown
+## Steps
+1. API GET: /users with Authorization: Bearer {{ENV.API_TOKEN}}
+2. VERIFY: Response status is 200
+```
+
+The Builder generates: `request.get('/users', { headers: { Authorization: \`Bearer ${process.env.API_TOKEN}\` } })`
+
+**API Key:**
+```env
+API_KEY=your-api-key
+```
+
+```markdown
+## Steps
+1. API GET: /data with header X-API-Key: {{ENV.API_KEY}}
+```
+
+**Basic Auth:**
+```env
+API_USERNAME=your-username
+API_PASSWORD=your-password
+```
+
+```markdown
+## Steps
+1. API GET: /secure/data with Basic Auth {{ENV.API_USERNAME}} / {{ENV.API_PASSWORD}}
+```
+
+**OAuth2 Client Credentials (token acquisition in Common Setup):**
+```markdown
+## Common Setup
+1. API POST: /oauth/token with body {"grant_type": "client_credentials", "client_id": "{{ENV.CLIENT_ID}}", "client_secret": "{{ENV.CLIENT_SECRET}}"}
+2. VERIFY: Response status is 200
+3. CAPTURE: Response body "access_token" as {{accessToken}}
+
+### Scenario: List Users
+1. API GET: /users with Authorization: Bearer {{accessToken}}
+2. VERIFY: Response status is 200
+```
+
+### Running API Tests
+
+The pipeline for API scenarios is shorter — no Explorer, no MCP browser:
+
+| Step | Where | What to do |
+|------|-------|-----------|
+| **1. Builder** | Copilot or Claude Code | `@QE Builder Run Builder for scenario my-api-test, type api` |
+| **2. Test** | Terminal | `cd output && npx playwright test tests/api/my-api-test.spec.ts` |
+| **3. Executor** | Copilot (only if test fails) | `@QE Executor Run Executor for scenario my-api-test, type api` |
+| **4. Reviewer** | Copilot or Claude Code | `@QE Reviewer Review scenario my-api-test, type api` |
+
+**No Explorer needed.** API scenarios don't have a UI to explore — the Builder reads the scenario `.md` directly and generates the spec. This makes API test automation significantly faster than web.
+
+### Mock vs Live APIs
+
+The `## API Behavior` header in the scenario controls how strictly the framework enforces CRUD persistence:
+
+| Header | Meaning | Guardrail behavior |
+|--------|---------|-------------------|
+| `## API Behavior: mock` | API is fake/non-persistent (e.g., JSONPlaceholder, MockAPI) | POST-then-GET not finding the resource is expected — not flagged as a bug |
+| `## API Behavior: live` or omitted | API is real and persistent | POST returns 201 but GET returns 404 = **flagged as POTENTIAL BUG** |
+
+Always declare `mock` for public test APIs like JSONPlaceholder, ReqRes, or any mock server. Omit it (or set `live`) for your real application APIs.
+
+---
+
 ## Features and Capabilities
 
 ### Test Generation
