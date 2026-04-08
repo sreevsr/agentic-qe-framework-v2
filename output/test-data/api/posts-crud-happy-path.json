@@ -1,0 +1,11 @@
+{
+  "createTitle": "Test Post Title",
+  "createBody": "Test post body content.",
+  "createUserId": 1,
+  "postId": 101,
+  "stableId": 1,
+  "replaceTitle": "Replaced Title",
+  "replaceBody": "Replaced body content.",
+  "replaceUserId": 1,
+  "patchTitle": "Patched Title Only"
+}

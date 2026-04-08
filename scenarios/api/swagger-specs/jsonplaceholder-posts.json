@@ -1,0 +1,257 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "JSONPlaceholder Posts API",
+    "description": "Public fake REST API for testing and prototyping. All CRUD operations return valid responses. POST/PUT/PATCH/DELETE are faked — they return correct status codes and response bodies but do not persist changes on the server.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "JSONPlaceholder",
+      "url": "https://jsonplaceholder.typicode.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jsonplaceholder.typicode.com",
+      "description": "Public API — no authentication required"
+    }
+  ],
+  "paths": {
+    "/posts": {
+      "get": {
+        "operationId": "listPosts",
+        "summary": "List all posts",
+        "description": "Returns an array of 100 posts. Supports filtering by userId query parameter.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filter posts by user ID (1-10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of posts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Post" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPost",
+        "summary": "Create a new post",
+        "description": "Creates a new post. The server assigns id=101 to all new posts (faked — not persisted).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PostCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Post created successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Post" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}": {
+      "get": {
+        "operationId": "getPost",
+        "summary": "Get a single post by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Post ID (1-100)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A single post",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Post" }
+              }
+            }
+          },
+          "404": {
+            "description": "Post not found (id > 100)"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updatePost",
+        "summary": "Replace a post entirely",
+        "description": "Replaces all fields of an existing post. Returns the updated post (faked — not persisted).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PostCreate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Post updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Post" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchPost",
+        "summary": "Partially update a post",
+        "description": "Updates specific fields of an existing post. Returns the merged post (faked — not persisted).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "body": { "type": "string" },
+                  "userId": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Post patched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Post" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePost",
+        "summary": "Delete a post",
+        "description": "Deletes a post by ID. Returns empty object (faked — not persisted).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}/comments": {
+      "get": {
+        "operationId": "getPostComments",
+        "summary": "Get comments for a post",
+        "description": "Returns all comments belonging to a specific post.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Post ID (1-100)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of comments for the post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Comment" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Post": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "integer", "description": "ID of the user who authored the post (1-10)" },
+          "id": { "type": "integer", "description": "Unique post ID (1-100, or 101 for created posts)" },
+          "title": { "type": "string", "description": "Post title" },
+          "body": { "type": "string", "description": "Post body content" }
+        },
+        "required": ["userId", "id", "title", "body"]
+      },
+      "PostCreate": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "description": "Post title" },
+          "body": { "type": "string", "description": "Post body content" },
+          "userId": { "type": "integer", "description": "Author user ID (1-10)" }
+        },
+        "required": ["title", "body", "userId"]
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "postId": { "type": "integer", "description": "ID of the parent post" },
+          "id": { "type": "integer", "description": "Unique comment ID" },
+          "name": { "type": "string", "description": "Comment title/subject" },
+          "email": { "type": "string", "format": "email", "description": "Commenter's email" },
+          "body": { "type": "string", "description": "Comment body content" }
+        },
+        "required": ["postId", "id", "name", "email", "body"]
+      }
+    }
+  }
+}
