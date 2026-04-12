@@ -1,0 +1,23 @@
+{
+  "$schema": "https://aka.ms/vscode-mcp.schema.json",
+  "$comment": "Template MCP server config. Copy this file to .vscode/mcp.json and edit paths/env vars for your local environment. The .vscode/mcp.json file is gitignored so your local paths never leak to source control.",
+  "servers": {
+    "playwright": {
+      "$comment": "Playwright MCP — required by the Explorer for web/hybrid scenarios",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--browser", "chromium"
+      ]
+    },
+    "appium-mcp": {
+      "$comment": "Appium MCP — required by the Explorer for mobile/mobile-hybrid scenarios. Requires: Appium server running on localhost:4723, ANDROID_HOME env var set, device connected via ADB.",
+      "command": "npx",
+      "args": ["-y", "appium-mcp@latest"],
+      "env": {
+        "ANDROID_HOME": "${env:ANDROID_HOME}"
+      }
+    }
+  }
+}

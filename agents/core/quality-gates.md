@@ -61,27 +61,30 @@ If the assertion fails with the EXACT expected value → it's a POTENTIAL BUG in
 ## 2. Guardrail Quick Reference — HARD RULES
 
 ### MUST DO — EVERY TIME, NO EXCEPTIONS:
-- Read ALL pre-flight files before starting (see explorer-builder.md Section 2)
-- Verify EVERY interaction in the live browser before writing code
-- Externalize ALL selectors to locator JSON files
-- Wrap EVERY step in `test.step()`
+- Read ALL pre-flight files before starting (see explorer.md Section 2)
+- Verify EVERY interaction in the live app before writing code (via Playwright MCP or Appium MCP)
+- Externalize ALL selectors to locator JSON files (web format OR mobile platform-keyed format)
+- Wrap EVERY step in `test.step()` (web/api/hybrid) or `// Step N —` comment marker (mobile)
 - Follow keyword → code patterns from `keyword-reference.md` EXACTLY
 - Save app-context patterns after exploration
 - Produce explorer report AND metrics file
 - Run fidelity self-validation before finishing
 
 ### MUST NOT — EVER — UNDER ANY CIRCUMSTANCES:
-- **Selectors in code:** NO raw selectors in page objects or specs — ALL selectors go through LocatorLoader
-- **Hardcoded waits:** NO `page.waitForTimeout()` UNLESS it carries a `// PACING: [reason]` comment explaining WHY the delay is needed and WHAT component is slow. The comment is a contract — it protects the wait from Reviewer removal. Without the comment, the wait WILL be flagged and removed
+- **Selectors in code:** NO raw selectors in page/screen objects or specs — ALL selectors go through LocatorLoader (web) or MobileLocatorLoader (mobile)
+- **Hardcoded waits:** NO `page.waitForTimeout()` (web) or `driver.pause()` (mobile) UNLESS it carries a `// PACING: [reason]` comment explaining WHY the delay is needed and WHAT component is slow
 - **Force bypasses:** NO `{ force: true }` — EVER — unless Explorer report flags HIT-AREA MISMATCH
 - **Hardcoded credentials:** NO passwords, tokens, keys in code — ALL via `process.env.*`
-- **Changing assertions:** NEVER change expected values in VERIFY — wrong value = POTENTIAL BUG → use `test.fixme('POTENTIAL BUG: ...')`
+- **Changing assertions:** NEVER change expected values in VERIFY — wrong value = POTENTIAL BUG → use `test.fixme('POTENTIAL BUG: ...')` (web) or `// FIXME: POTENTIAL BUG` (mobile)
 - **Altering scenario:** NEVER change step order, skip steps, or take alternative flows
-- **Helpers files:** NEVER create, modify, or delete `*.helpers.ts` — team-owned
+- **Helpers files:** NEVER create, modify, or delete `*.helpers.ts` — team-owned (applies to both `pages/` and `screens/`)
 - **Shared data:** NEVER modify `output/test-data/shared/` — cross-scenario, immutable
-- **Wrong fixtures:** NEVER use `{ page }` or `{ request }` in beforeAll/afterAll — ONLY `{ browser }`
-- **Wrong HTTP client:** NEVER use `fetch` or `axios` — ONLY Playwright `request` fixture
-- **Silent failures:** NEVER skip a step without `test.fixme()` — every gap must be documented
+- **Wrong fixtures (web):** NEVER use `{ page }` or `{ request }` in beforeAll/afterAll — ONLY `{ browser }`
+- **Wrong HTTP client (web):** NEVER use `fetch` or `axios` — ONLY Playwright `request` fixture
+- **Wrong HTTP client (mobile-hybrid):** Use `axios` wrapped in `browser.call()` — NOT Playwright `request` fixture
+- **Silent failures:** NEVER skip a step without `test.fixme()` (web) or `// FIXME:` comment (mobile) — every gap must be documented
+- **Index-based xpath (mobile):** NEVER use `//android.widget.ListView/android.view.ViewGroup[3]` — use accessibility_id or content-desc
+- **Hardcoded coordinates without comment (mobile):** Coordinate taps MUST have `// FRAGILE: Compose element, no accessibility node` comment
 
 ### POTENTIAL BUG SIGNALS — Flag, DO NOT adapt:
 
@@ -131,10 +134,13 @@ The `.env.example` file is a reference for the automation engineer setting up `.
 |-------|-------|------------|----------------------|
 | `scenarios/*.md` | User/Tester | **Read ONLY** | Altering scenario = broken fidelity |
 | `output/pages/*.helpers.ts` | Team | **Read ONLY** | Modifying helpers = overwriting team work |
+| `output/screens/*.helpers.ts` | Team | **Read ONLY** | Modifying helpers = overwriting team work |
 | `output/test-data/shared/` | Team | **Read ONLY** | Modifying shared data = breaking other scenarios |
 | `output/core/*` | Framework (setup.js) | **Read ONLY** | Modifying core = framework corruption |
-| `output/pages/*.ts` | You (Explorer/Builder) | **Create/Modify** | |
-| `output/locators/*.json` | You (Explorer/Builder) | **Create/Modify** | |
+| `output/pages/*.ts` | You (Explorer/Builder) | **Create/Modify** | Web/hybrid page objects |
+| `output/screens/*.ts` | You (Explorer/Builder) | **Create/Modify** | Mobile screen objects |
+| `output/locators/*.json` | You (Explorer/Builder) | **Create/Modify** | Web locators |
+| `output/locators/mobile/*.json` | You (Explorer/Builder) | **Create/Modify** | Mobile locators |
 | `output/tests/**/*.spec.ts` | You (Explorer/Builder) | **Create/Modify** | |
 | `output/test-data/{type}/*.json` | You (Explorer/Builder) | **Create/Modify** | |
 | `scenarios/app-contexts/*.md` | You (Explorer/Builder) | **Read/Write** | |
@@ -194,6 +200,34 @@ Common permission grants and Chrome args are pre-configured in `templates/config
 - Chrome arg `--disable-features=PrivateNetworkAccessPermissionPrompt` — suppresses network permission prompt
 
 If the Explorer/Builder encounters additional permission dialogs NOT covered by the default config, **MUST note the needed permission/setting in the explorer report** so the user can update `output/playwright.config.ts`.
+
+### 5.3: Mobile Overlay Handling — MANDATORY for mobile/mobile-hybrid
+
+Mobile apps have significantly more overlay types than web apps:
+
+| Overlay Type | When It Appears | Dismissal Strategy |
+|---|---|---|
+| **System permission dialog** (location, notifications, camera) | First launch or first use of feature | Tap "Allow" / "Only this time" / "Don't allow" via resource-id |
+| **App notification prompt** ("Turn on notifications") | After login or during browsing | Tap "NOT NOW" / "SKIP" / "LATER" via text selector |
+| **Promotional banner** (sale, discount, new feature) | Random, often on home screen | Press BACK or tap close/X button |
+| **App rating request** ("Rate us", "Enjoying the app?") | After N sessions or actions | Tap "NOT NOW" / "LATER" / "NO THANKS" via text selector |
+| **App update dialog** (Google Play update prompt) | When update is available | Press BACK |
+| **Login/signup prompt** ("Sign in for best experience") | When browsing as guest | Press BACK or tap "SKIP" |
+| **Ad interstitial** (full-screen ad) | Between screen transitions | Wait for close button or press BACK |
+| **Truecaller/3rd-party auto-login** | On login screens | Tap "PROCEED" or "USE ANOTHER NUMBER" |
+
+**Use `PopupGuard` utility** (`output/core/popup-guard.ts`):
+1. Instantiate with system patterns (built-in): `const guard = new PopupGuard(browser)`
+2. Add app-specific patterns: `guard.addPatterns(FLIPKART_PATTERNS)`
+3. Call `await guard.dismiss()` before critical interactions
+4. Record all dismissals in app-context for future runs: `## Known Popup: {name} — dismissed via {strategy}`
+
+**PopupGuard rules:**
+- System permission dialogs (resource-id `com.android.permissioncontroller:*`) are handled by default
+- App-specific overlays need explicit patterns added via `guard.addPattern()`
+- If overlay cannot be dismissed after 3 attempts: record as `<!-- BLOCKED: Persistent overlay -->`
+- Detection uses **short implicit wait** (1s) — do NOT use full 15s default or it will be too slow
+- For performance: prefer inline `try { el.click() } catch {}` for known single-pattern popups over full PopupGuard scan
 
 ---
 

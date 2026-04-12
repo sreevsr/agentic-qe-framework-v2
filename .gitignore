@@ -9,9 +9,9 @@ output/**/.env
 *.pem
 *.key
 
-# IDE — keep MCP config, ignore everything else
+# IDE — track only the sanitized MCP example (local mcp.json may contain absolute paths)
 .vscode/*
-!.vscode/mcp.json
+!.vscode/mcp.example.json
 !.vscode/extensions.json
 .idea/
 

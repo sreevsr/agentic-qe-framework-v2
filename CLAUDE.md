@@ -105,11 +105,21 @@ When producing a pipeline summary report, it MUST include: pipeline results tabl
 
 ## MCP Server Configuration
 
-The Explorer requires Playwright MCP for browser interaction and element capture. The Builder does NOT use MCP. Configure in one of:
-- **VS Code:** `.vscode/mcp.json` → add Playwright MCP server
-- **Claude Code CLI:** `~/.claude/mcp_servers.json` or project-level `.mcp.json`
+The Explorer requires MCP servers for live application interaction and element capture. The Builder does NOT use MCP.
+
+| MCP Server | Types | Purpose | npm Package |
+|---|---|---|---|
+| **Playwright MCP** | web, hybrid | Browser interaction + element capture | `@playwright/mcp` |
+| **Appium MCP** | mobile, mobile-hybrid | Native app interaction + element capture | `appium-mcp` (by `appium/appium-mcp`) |
+
+Configure in one of:
+- **VS Code:** `.vscode/mcp.json` → add Playwright MCP and/or Appium MCP servers
+- **Claude Code CLI:** `claude mcp add appium-mcp -- npx -y appium-mcp@latest`
+
+**Appium MCP requires:** Appium server running (localhost:4723), `ANDROID_HOME` env var set, device connected via ADB.
 
 Without Playwright MCP configured, the Explorer CANNOT explore web/hybrid scenarios.
+Without Appium MCP configured, the Explorer CANNOT explore mobile/mobile-hybrid scenarios.
 
 ## Scripts — Use to Save Tokens
 

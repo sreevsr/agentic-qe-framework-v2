@@ -54,6 +54,16 @@
     "$comment": "filename: the app-context file name in scenarios/app-contexts/. ALL agents MUST use this exact filename — do NOT guess from URL, domain, or app name. Change this value when onboarding a different application."
   },
 
+  "mobile": {
+    "appiumHost": "localhost",
+    "appiumPort": 4723,
+    "defaultPlatform": "android",
+    "testTimeoutMs": 240000,
+    "actionTimeoutMs": 45000,
+    "commandTimeoutMs": 60000,
+    "$comment": "Mobile-specific settings. defaultPlatform used when scenario says Platform: both. Mobile timeouts are higher because device interactions are slower than browser."
+  },
+
   "observability": {
     "trackTokens": true,
     "trackContextWindow": true,

@@ -144,6 +144,23 @@ const OUTPUT_DIRS = [
   'screenshots', 'test-results',
   'reports', 'reports/metrics',
   'scout-reports', 'auth',
+  // Mobile (WDIO + Appium) — added for mobile feature parity v1.0
+  'screens', 'tests/mobile', 'test-data/mobile', 'locators/mobile',
+];
+
+// ---------------------------------------------------------------------------
+// Mobile template files (TypeScript only — mobile is WDIO + Appium)
+// Copied in addition to the language-specific config/core files when language === 'typescript'.
+// ---------------------------------------------------------------------------
+const MOBILE_CONFIG_FILES = [
+  { src: 'wdio.conf.ts',   dest: 'wdio.conf.ts' },
+  { src: 'capabilities.ts', dest: path.join('core', 'capabilities.ts') },
+];
+
+const MOBILE_CORE_FILES = [
+  { src: 'base-screen.ts',          dest: path.join('core', 'base-screen.ts') },
+  { src: 'mobile-locator-loader.ts', dest: path.join('core', 'mobile-locator-loader.ts') },
+  { src: 'popup-guard.ts',           dest: path.join('core', 'popup-guard.ts') },
 ];
 
 // ---------------------------------------------------------------------------
@@ -238,6 +255,47 @@ async function main() {
     const existed = fs.existsSync(dest);
     fs.copyFileSync(src, dest);
     console.log(`  ${SYMBOLS.ok} Copied: ${file.dest}${existed ? ' (overwritten)' : ''}`);
+  }
+
+  // Step 4b: Copy mobile templates (TypeScript only — WDIO + Appium support)
+  // Mobile config files (wdio.conf.ts, capabilities.ts) skip if exist (user-customized).
+  // Mobile core files (base-screen, mobile-locator-loader, popup-guard) always overwrite.
+  if (language === 'typescript') {
+    const MOBILE_CONFIG_DIR = path.join(TEMPLATES, 'config-mobile');
+    const MOBILE_CORE_DIR = path.join(TEMPLATES, 'core-mobile');
+
+    if (fs.existsSync(MOBILE_CONFIG_DIR) && fs.existsSync(MOBILE_CORE_DIR)) {
+      console.log(`\n${SYMBOLS.arrow} Copying mobile templates (WDIO + Appium)...`);
+
+      for (const file of MOBILE_CONFIG_FILES) {
+        const src = path.join(MOBILE_CONFIG_DIR, file.src);
+        const dest = path.join(OUTPUT, file.dest);
+        if (!fs.existsSync(src)) {
+          console.log(`  ${SYMBOLS.skip} Mobile template not found: ${file.src} (skipping)`);
+          continue;
+        }
+        if (fs.existsSync(dest)) {
+          console.log(`  ${SYMBOLS.skip} Already exists: ${file.dest} (skipping — will not overwrite user config)`);
+        } else {
+          fs.copyFileSync(src, dest);
+          console.log(`  ${SYMBOLS.ok} Copied: ${file.dest}`);
+        }
+      }
+
+      for (const file of MOBILE_CORE_FILES) {
+        const src = path.join(MOBILE_CORE_DIR, file.src);
+        const dest = path.join(OUTPUT, file.dest);
+        if (!fs.existsSync(src)) {
+          console.log(`  ${SYMBOLS.skip} Mobile template not found: ${file.src} (skipping)`);
+          continue;
+        }
+        const existed = fs.existsSync(dest);
+        fs.copyFileSync(src, dest);
+        console.log(`  ${SYMBOLS.ok} Copied: ${file.dest}${existed ? ' (overwritten)' : ''}`);
+      }
+    } else {
+      console.log(`\n${SYMBOLS.skip} Mobile template directories not found (templates/config-mobile/, templates/core-mobile/) — skipping mobile setup`);
+    }
   }
 
   // Step 5: Create .env from .env.example

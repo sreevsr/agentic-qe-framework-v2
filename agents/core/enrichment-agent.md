@@ -134,6 +134,13 @@ If an app-context file exists for this application:
 8. **If the user mentions "save" or "remember" a value → use CAPTURE keyword**
 9. **If the user mentions "calculate" or "compute" → use CALCULATE keyword**
 10. **Negative tests:** Only include negative/error test cases if the user EXPLICITLY asks ("test wrong password", "test empty form"). DO NOT add them unprompted — the user asked for a specific flow, not a test plan. If you think negatives are important, suggest them in the `## Notes` section as "Consider also testing: [negative cases]"
+11. **Control flow — MANDATORY:** When the user expresses conditional logic, loops, or error handling, use the **Control Flow Keywords** from `keyword-reference.md`. NEVER flatten control flow into sequential steps:
+    - "if popup appears" / "when ... shows" / "in case of" → use **IF / IF_ELSE**
+    - "repeat until done" / "swipe through all" / "for each item" → use **REPEAT_UNTIL** or **FOR_EACH**
+    - "do this N times" → use **REPEAT_TIMES**
+    - "try ... if not found ..." / "attempt ... otherwise" → use **TRY_ELSE**
+    - **NEVER unroll a loop into hardcoded repeated steps.** "Swipe through all photos and screenshot each" is ONE `REPEAT_UNTIL` step, NOT five copy-pasted swipe+screenshot steps. The iteration count is unknown until runtime.
+    - **NEVER flatten a conditional into an unconditional step.** "If the notification appears, dismiss it" is an `IF` step, NOT "dismiss the notification" (which implies it always appears).
 
 ### 4.6: Mobile Scenario Enrichment
 

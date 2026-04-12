@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "dom"],
+    "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework", "expect-webdriverio"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

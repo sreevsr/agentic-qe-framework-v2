@@ -8,41 +8,54 @@
 - **Tags:** [mobile, smoke, regression, P0, etc.]
 
 ## Application
-- **App Package (Android):** {{ENV.ANDROID_APP_PACKAGE}}
-- **App Activity (Android):** {{ENV.ANDROID_APP_ACTIVITY}}
+- **App Package (Android):** {{ENV.APP_PACKAGE}}
+- **App Activity (Android):** {{ENV.APP_ACTIVITY}}
 - **Bundle ID (iOS):** {{ENV.IOS_BUNDLE_ID}}
-- **Device:** {{ENV.DEVICE_NAME}}
+- **Device:** {{ENV.ANDROID_DEVICE}} / {{ENV.IOS_DEVICE}}
+- **Credentials:** {{ENV.MOBILE_USERNAME}} / {{ENV.MOBILE_PASSWORD}} (if applicable)
 
 ## Pre-conditions
 - App installed on device/emulator/simulator
-- Device is connected and accessible
-- Appium server running (or Appium MCP configured)
+- Device is connected and accessible via ADB / Xcode
+- Appium server running (localhost:4723)
+- [App-specific pre-conditions]
 
 ## Steps
 <!-- Mobile action keywords: Tap, Swipe, Long Press, Type, Launch, Navigate Back -->
 <!-- Use accessibility labels for element references when possible -->
 1. Launch the app
-2. Tap "Allow" on permission dialog (if appears)
-3. Type {{ENV.TEST_USERNAME}} in the email field
-4. Type {{ENV.TEST_PASSWORD}} in the password field
-5. Tap Sign In
-6. VERIFY: Dashboard screen is displayed
-7. Swipe up to scroll to the Reports section
-8. Tap on first report item
-9. VERIFY: Report detail screen shows correct data
-10. SCREENSHOT: report-detail
-11. Navigate back
-12. VERIFY: Dashboard screen is displayed
+2. [Handle permission dialogs / overlays if expected]
+3. Tap [element] / Type [text] in [field]
+4. VERIFY: [expected screen/element state]
+5. SCREENSHOT: [name]
 
 ## Test Data
 | Field | Value | Notes |
 |-------|-------|-------|
-| username | {{ENV.TEST_USERNAME}} | From environment |
-| password | {{ENV.TEST_PASSWORD}} | From environment |
+| username | {{ENV.MOBILE_USERNAME}} | From environment |
 
 ## Notes for Explorer
-- Mobile tests use Appium MCP for device interaction
+- [Permission dialogs expected on first launch]
+- [Known overlays / banners to dismiss]
+- [Element identification hints: resource-id, content-desc, accessibility-id]
+- [Timing considerations: animations, network calls, loading spinners]
 - Keyboard MUST be dismissed after typing (may block next element)
-- Permission dialogs (camera, location, notifications) may appear on first launch
-- For WebView screens, context switching (NATIVE_APP ↔ WEBVIEW) is needed
-- Specify platform (Android/iOS) — selector strategies differ between platforms
+- Specify platform-specific behavior differences if Platform: both
+
+<!--
+KEYWORD REFERENCE (mobile):
+  VERIFY          — Assert a condition (becomes expect() assertion via Screen Object)
+  CAPTURE         — Store a runtime value (becomes variable assignment via screen.getText())
+  SCREENSHOT      — Capture screen screenshot (becomes screen.takeScreenshot('name'))
+  REPORT          — Print value to test output (becomes console.log)
+  SAVE            — Persist to shared-state.json (becomes saveState() call)
+  USE_HELPER      — Call team helper method (requires *.helpers.ts file in output/screens/)
+  {{ENV.VAR}}     — Environment variable (becomes process.env.VAR — no fallback defaults)
+
+MOBILE-SPECIFIC RULES:
+  - No driver.pause() — use screen.waitForElement() instead
+  - No direct browser.$() calls — all interactions via Screen Objects
+  - App launch happens via wdio.conf.ts capabilities, not a navigate() call
+  - First action in every test MUST be waitForElement() on a stable screen identifier
+  - Gestures use W3C Actions API via BaseScreen.swipe() — no deprecated touchAction()
+-->

@@ -165,7 +165,18 @@ This reads `classified-changeset.json`, annotates the enriched.md with `<!-- CHA
 
 ### STAGE 1a: Explorer (Flow Verification → enriched.md)
 
-**The Explorer navigates the app following the scenario steps, verifies the flow works, maps steps to pages, and produces the enriched.md file. It does NOT generate code.**
+**The Explorer navigates the app following the scenario steps, verifies the flow works, maps steps to pages/screens, and produces the enriched.md file. It does NOT generate code.**
+
+**Exploration tool by type:**
+- web/hybrid → **Playwright MCP** (`browser_snapshot`, `browser_click`, `browser_type`, etc.)
+- **mobile/mobile-hybrid** → **Appium MCP** (`appium_get_page_source`, `appium_find_element`, `appium_click`, `appium_set_value`, `appium_tap_by_coordinates`, `generate_locators`, etc.)
+
+**Mobile pre-flight (before Explorer for mobile types):**
+1. Verify Appium server is running: `curl http://localhost:4723/status`
+2. Verify device is connected: `adb devices`
+3. Verify app is installed: `adb shell pm list packages | grep {APP_PACKAGE}`
+4. Verify `output/wdio.conf.ts` exists
+5. Verify `output/core/base-screen.ts` and `output/core/mobile-locator-loader.ts` exist
 
 **Skip rules (based on Stage 1-pre pipeline mode):**
 - `FIRST_RUN` → Run Explorer with full exploration (no enriched.md exists yet)
