@@ -12,7 +12,7 @@
  * the Reviewer's job. It provides ground truth that cannot be fabricated.
  *
  * Usage:
- *   node scripts/explorer-post-check.js --scenario=<name> --type=<web|api|hybrid> [--folder=<folder>]
+ *   node scripts/explorer-post-check.js --scenario=<name> --type=<web|api|hybrid|mobile|mobile-hybrid> [--folder=<folder>]
  *
  * Output:
  *   JSON to stdout (Orchestrator reads this directly)
@@ -35,9 +35,11 @@ const type = args.type || 'web';
 const folder = args.folder || null;
 
 if (!scenario) {
-  console.error('Usage: node scripts/explorer-post-check.js --scenario=<name> --type=<web|api|hybrid> [--folder=<folder>]');
+  console.error('Usage: node scripts/explorer-post-check.js --scenario=<name> --type=<web|api|hybrid|mobile|mobile-hybrid> [--folder=<folder>]');
   process.exit(1);
 }
+
+const isMobile = type === 'mobile' || type === 'mobile-hybrid';
 
 // ---------------------------------------------------------------------------
 // Path resolution
@@ -46,14 +48,22 @@ const projectRoot = path.resolve(__dirname, '..');
 const outputDir = path.join(projectRoot, 'output');
 const folderPrefix = folder ? path.join(folder) : '';
 
+// Mobile scenarios always live FLAT under scenarios/mobile/, regardless of variant.
+// Mobile specs live under output/tests/mobile/{folder}/, the same folder convention as web.
+// The web pipeline applies `folder` to BOTH scenario + spec paths; the mobile pipeline
+// applies it ONLY to the spec path.
+const scenarioTypeDir = isMobile ? 'mobile' : type;
+const specTypeDir = isMobile ? 'mobile' : type;
+const scenarioFolderPrefix = isMobile ? '' : folderPrefix;
+
 const paths = {
-  scenarioFile: path.join(projectRoot, 'scenarios', type, folderPrefix, `${scenario}.md`),
-  enrichedFile: path.join(projectRoot, 'scenarios', type, folderPrefix, `${scenario}.enriched.md`),
-  specFile: path.join(outputDir, 'tests', type, folderPrefix, `${scenario}.spec.ts`),
-  specFileJs: path.join(outputDir, 'tests', type, folderPrefix, `${scenario}.spec.js`),
-  testDataFile: path.join(outputDir, 'test-data', type, `${scenario}.json`),
-  locatorsDir: path.join(outputDir, 'locators'),
-  pagesDir: path.join(outputDir, 'pages'),
+  scenarioFile: path.join(projectRoot, 'scenarios', scenarioTypeDir, scenarioFolderPrefix, `${scenario}.md`),
+  enrichedFile: path.join(projectRoot, 'scenarios', scenarioTypeDir, scenarioFolderPrefix, `${scenario}.enriched.md`),
+  specFile: path.join(outputDir, 'tests', specTypeDir, folderPrefix, `${scenario}.spec.ts`),
+  specFileJs: path.join(outputDir, 'tests', specTypeDir, folderPrefix, `${scenario}.spec.js`),
+  testDataFile: path.join(outputDir, 'test-data', isMobile ? 'mobile' : type, `${scenario}.json`),
+  locatorsDir: isMobile ? path.join(outputDir, 'locators', 'mobile') : path.join(outputDir, 'locators'),
+  pagesDir: isMobile ? path.join(outputDir, 'screens') : path.join(outputDir, 'pages'),
   explorerReport: path.join(outputDir, 'reports', folderPrefix, `explorer-report-${scenario}.md`),
   explorerMetrics: path.join(outputDir, 'reports', 'metrics', `explorer-metrics-${scenario}.json`),
 };
@@ -82,6 +92,27 @@ function listJsonFiles(dir) {
 function listPageFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter(f => f.endsWith('Page.ts') || f.endsWith('Page.js'));
+}
+
+function listScreenFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(f =>
+    (f.endsWith('Screen.ts') || f.endsWith('Screen.js')) && !f.includes('.helpers.'),
+  );
+}
+
+function countMobileElementSelectors(entry) {
+  // Returns the number of distinct strategies provided across all platforms.
+  // A "good" mobile entry has at least 2 strategies for at least one platform.
+  let total = 0;
+  for (const platformKey of ['android', 'ios']) {
+    const platformEntry = entry[platformKey];
+    if (!platformEntry || typeof platformEntry !== 'object') continue;
+    for (const k of Object.keys(platformEntry)) {
+      if (!k.startsWith('_') && platformEntry[k]) total++;
+    }
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,11 +146,20 @@ for (const file of locatorFiles) {
     const elementCount = Object.keys(json).length;
     totalLocatorElements += elementCount;
 
-    // Check fallbacks
     let missingFallbacks = 0;
-    for (const [key, value] of Object.entries(json)) {
-      if (!value.fallbacks || value.fallbacks.length < 2) {
-        missingFallbacks++;
+    if (isMobile) {
+      // Mobile entries: check that at least one platform has >= 1 strategy.
+      // Soft "fallback" check: an element with only 1 strategy across all
+      // platforms is flagged as low-quality.
+      for (const [_key, value] of Object.entries(json)) {
+        if (countMobileElementSelectors(value) < 2) missingFallbacks++;
+      }
+    } else {
+      // Web entries: check that fallbacks[] has >= 2 entries.
+      for (const [_key, value] of Object.entries(json)) {
+        if (!value.fallbacks || value.fallbacks.length < 2) {
+          missingFallbacks++;
+        }
       }
     }
 
@@ -134,9 +174,11 @@ for (const file of locatorFiles) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Page object inventory
+// 3. Page/Screen object inventory
 // ---------------------------------------------------------------------------
-const pageFiles = listPageFiles(paths.pagesDir);
+const pageFiles = isMobile
+  ? listScreenFiles(paths.pagesDir)
+  : listPageFiles(paths.pagesDir);
 
 // ---------------------------------------------------------------------------
 // 4. Scenario step count (mechanical — count numbered lines under ## Steps)
@@ -184,15 +226,25 @@ let specKeywords = {
 };
 
 if (specContent) {
-  // Count top-level test.step() calls (Step N pattern)
-  specStepCount = countPattern(specContent, /await test\.step\([`'"]Step \d+/g);
+  if (isMobile) {
+    // Mobile spec: count `// Step N — ...` comment markers (no test.step() in WDIO/Mocha)
+    specStepCount = countPattern(specContent, /^\s*\/\/\s*Step\s+\d+\s*—/gm);
 
-  // Count keyword implementations
-  specKeywords.expect = countPattern(specContent, /\bexpect\(/g);
-  specKeywords.expectSoft = countPattern(specContent, /\bexpect\.soft\(/g);
-  specKeywords.screenshot = countPattern(specContent, /page\.screenshot\(/g);
-  specKeywords.annotationsPush = countPattern(specContent, /annotations\.push\(/g);
-  specKeywords.attach = countPattern(specContent, /test\.info\(\)\.attach\(/g);
+    specKeywords.expect = countPattern(specContent, /\bexpect\(/g);
+    specKeywords.expectSoft = countPattern(specContent, /softAssertions\.push\(/g);
+    specKeywords.screenshot = countPattern(specContent, /\.takeScreenshot\(/g);
+    specKeywords.annotationsPush = countPattern(specContent, /console\.log\(/g);
+    specKeywords.attach = 0;
+  } else {
+    // Web/api/hybrid: count top-level test.step('Step N ...') calls
+    specStepCount = countPattern(specContent, /await test\.step\([`'"]Step \d+/g);
+
+    specKeywords.expect = countPattern(specContent, /\bexpect\(/g);
+    specKeywords.expectSoft = countPattern(specContent, /\bexpect\.soft\(/g);
+    specKeywords.screenshot = countPattern(specContent, /page\.screenshot\(/g);
+    specKeywords.annotationsPush = countPattern(specContent, /annotations\.push\(/g);
+    specKeywords.attach = countPattern(specContent, /test\.info\(\)\.attach\(/g);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -210,8 +262,15 @@ const fidelity = {
 // ---------------------------------------------------------------------------
 let rawSelectorsInSpec = 0;
 if (specContent) {
-  // page.locator('...') calls that are NOT through a page object
-  rawSelectorsInSpec = countPattern(specContent, /page\.locator\(/g);
+  if (isMobile) {
+    // Mobile spec: raw driver.$('...') / browser.$('...') calls (NOT through a screen object)
+    rawSelectorsInSpec =
+      countPattern(specContent, /\bdriver\.\$\(/g) +
+      countPattern(specContent, /\bbrowser\.\$\(/g);
+  } else {
+    // Web/api/hybrid: page.locator('...') calls
+    rawSelectorsInSpec = countPattern(specContent, /page\.locator\(/g);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -257,11 +316,13 @@ if (!fidelity.stepCountMatch) {
   result.warnings.push(`MISMATCH: scenario has ${scenarioStepCount} steps but spec has ${specStepCount} test.step() calls (delta: ${fidelity.delta})`);
 }
 if (rawSelectorsInSpec > 0) {
-  result.warnings.push(`RAW SELECTORS: ${rawSelectorsInSpec} page.locator() calls found in spec file`);
+  const callDesc = isMobile ? 'driver.$()/browser.$()' : 'page.locator()';
+  result.warnings.push(`RAW SELECTORS: ${rawSelectorsInSpec} ${callDesc} calls found in spec file`);
 }
 for (const loc of locatorInventory) {
   if (loc.missingFallbacks > 0) {
-    result.warnings.push(`FALLBACKS: ${loc.file} has ${loc.missingFallbacks} elements with fewer than 2 fallbacks`);
+    const noun = isMobile ? 'strategies (across all platforms)' : 'fallbacks';
+    result.warnings.push(`FALLBACKS: ${loc.file} has ${loc.missingFallbacks} elements with fewer than 2 ${noun}`);
   }
 }
 

@@ -1,0 +1,13 @@
+{
+  "searchQuery": "height adjustable computer table",
+  "expectedBrand": "LUKZER",
+  "searchSuggestionKeyword": "computer table",
+  "deliveryAddress": "Flat no. 203, B Block, Tapovan Saraswathi Apartment",
+  "deliveryAddressSubstring": "Flat no. 203, B Block, Tapovan",
+  "timeouts": {
+    "actionMs": 45000,
+    "screenLoadMs": 15000,
+    "webViewMs": 20000,
+    "carouselSwipeMs": 1000
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "screenTitle": {
+    "android": {
+      "resource-id": "com.flipkart.android:id/title_action_bar",
+      "uiautomator": "new UiSelector().resourceId(\"com.flipkart.android:id/title_action_bar\").text(\"Order Summary\")",
+      "xpath": "//android.widget.TextView[@resource-id='com.flipkart.android:id/title_action_bar' and @text='Order Summary']"
+    },
+    "description": "Order Summary screen title in action bar — confirms screen is loaded",
+    "type": "structural"
+  },
+  "confirmedDeliveryAddress": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"Flat no. 203, B Block, Tapovan Saraswathi\")",
+      "xpath": "//android.widget.TextView[contains(@text,'Flat no. 203, B Block, Tapovan Saraswathi')]"
+    },
+    "description": "Full delivery address in Order Summary — multi-line text block; auto-selected when default HOME address configured",
+    "type": "text"
+  },
+  "continueButton": {
+    "android": {
+      "uiautomator": "new UiSelector().description(\"Continue \")",
+      "xpath": "//*[@content-desc='Continue ']"
+    },
+    "description": "Continue CTA — navigates to Payments screen; content-desc has intentional trailing space (UiSelector.text('Continue') FAILS)",
+    "type": "button"
+  }
+}

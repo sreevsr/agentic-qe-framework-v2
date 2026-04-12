@@ -15,11 +15,12 @@
  * - If the JSON file doesn't exist, the Executor falls back to terminal output
  *
  * Usage:
- *   node scripts/test-results-parser.js [--json-path=<path>] [--output-path=<path>]
+ *   node scripts/test-results-parser.js [--json-path=<path>] [--output-path=<path>] [--runner=playwright|wdio]
  *
  * Defaults:
  *   --json-path=output/test-results/last-run.json
  *   --output-path=output/test-results/last-run-parsed.json
+ *   --runner: auto-detected from JSON shape (Playwright vs WDIO/Mocha)
  */
 
 const fs = require('fs');
@@ -107,6 +108,13 @@ const CATEGORY_PATTERNS = [
   { pattern: /response\.status\(\)|response\.ok\(\)|API.*\d{3}/i, hint: 'G', label: 'API Response Error' },
   { pattern: /Target page.*closed|browser has been closed|context has been closed/i, hint: 'D', label: 'Page/Context Closed' },
   { pattern: /waitForTimeout|PACING/i, hint: 'K', label: 'Pacing Issue' },
+
+  // Mobile-specific (see scripts/failure-classifier.js + agents/core/executor.md Section 7)
+  { pattern: /(?:could not be resolved|Element ".*" on screen ".*").*Tried:/i, hint: 'M1', label: 'Mobile: locator unresolved (all strategies failed)' },
+  { pattern: /waiting for app to be idle|UiAutomator2.*idle/i, hint: 'M2', label: 'Mobile: UiAutomator idle timeout (RN app)' },
+  { pattern: /no such element.*WEBVIEW|getContexts.*WEBVIEW/i, hint: 'M3', label: 'Mobile: WebView vs Native mismatch' },
+  { pattern: /keyboard.*shown|hideKeyboard/i, hint: 'M4', label: 'Mobile: keyboard blocking interaction' },
+  { pattern: /Activity ".*" not reached/i, hint: 'M5', label: 'Mobile: Activity navigation timeout' },
 ];
 
 function classifyError(errorMessage) {
@@ -185,13 +193,105 @@ function countSteps(steps) {
 }
 
 // ---------------------------------------------------------------------------
+// Format detection
+// ---------------------------------------------------------------------------
+function detectRunner(report) {
+  if (args.runner) return args.runner;
+  // Playwright JSON: { config, suites: [{ specs: [...] }], stats: {...} }
+  if (report.config && Array.isArray(report.suites) && report.suites.some((s) => s.specs)) {
+    return 'playwright';
+  }
+  // WDIO @wdio/json-reporter: { framework: 'mocha'|..., state, suites: [{ tests: [...] }], capabilities }
+  if (report.framework || report.capabilities || (Array.isArray(report.suites) && report.suites.some((s) => s.tests))) {
+    return 'wdio';
+  }
+  return 'playwright';
+}
+
+// ---------------------------------------------------------------------------
+// WDIO @wdio/json-reporter parser
+// ---------------------------------------------------------------------------
+function parseWdio(report) {
+  const failures = [];
+  const passes = [];
+  let total = 0;
+  let passed = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  function walkSuites(suites, parentName = '') {
+    for (const suite of suites || []) {
+      const suiteName = parentName ? `${parentName} > ${suite.name || suite.title || ''}` : (suite.name || suite.title || '');
+      for (const t of suite.tests || []) {
+        total++;
+        const tags = (t.name || '').match(/@\w+/g) || [];
+        const baseInfo = {
+          testName: t.name || t.title || '(unnamed test)',
+          file: suite.file || null,
+          tags,
+          status: t.state || t.status,
+          duration: t.duration || 0,
+        };
+
+        if (t.state === 'passed') {
+          passed++;
+          passes.push({ ...baseInfo, stepCount: null });
+        } else if (t.state === 'failed') {
+          failed++;
+          const errObj = (t.errors && t.errors[0]) || t.error || {};
+          const errorMessage = errObj.message || errObj.actual || 'No error message captured';
+          const errorStack = errObj.stack || '';
+          const classification = classifyError(errorMessage);
+          const fileLocation = extractFileLocation(errorStack);
+          failures.push({
+            ...baseInfo,
+            failedStep: 'Mocha test (no nested step tree)',
+            failedStepNumber: null,
+            error: {
+              message: truncate(errorMessage, 500),
+              category_hint: classification.hint,
+              category_label: classification.label,
+              file: fileLocation?.file || null,
+              line: fileLocation?.line || null,
+            },
+            // Mocha tests don't expose nested step counts in the JSON reporter
+            passedStepCount: null,
+            failedStepCount: null,
+            totalStepCount: null,
+            passedSteps: [],
+          });
+        } else if (t.state === 'skipped' || t.state === 'pending') {
+          skipped++;
+        }
+      }
+      if (suite.suites) walkSuites(suite.suites, suiteName);
+    }
+  }
+
+  walkSuites(report.suites || []);
+
+  return {
+    summary: {
+      total,
+      passed,
+      failed,
+      skipped,
+      flaky: 0,
+      duration: Math.round(report.duration || 0),
+    },
+    failures,
+    passes,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main parser
 // ---------------------------------------------------------------------------
 function main() {
-  // Read the Playwright JSON report
   if (!fs.existsSync(jsonPath)) {
     console.error(`[test-results-parser] JSON file not found: ${jsonPath}`);
-    console.error('[test-results-parser] Run tests with: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/last-run.json npx playwright test ... --reporter=list,json');
+    console.error('[test-results-parser] Playwright: PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/last-run.json npx playwright test ... --reporter=list,json');
+    console.error('[test-results-parser] WDIO: ensure @wdio/json-reporter is configured in wdio.conf.ts (output/test-results/mobile-results.json)');
     process.exit(1);
   }
 
@@ -203,7 +303,41 @@ function main() {
     process.exit(1);
   }
 
-  // Extract stats
+  const runner = detectRunner(report);
+
+  if (runner === 'wdio') {
+    const wdioParsed = parseWdio(report);
+    const categoryDrift = computeCategoryDrift();
+    const parsed = {
+      version: '1.0',
+      runner: 'wdio',
+      parsedAt: new Date().toISOString(),
+      jsonSource: path.relative(ROOT, jsonPath),
+      summary: wdioParsed.summary,
+      allPassing: wdioParsed.summary.failed === 0 && wdioParsed.summary.total > 0,
+      categoryDrift: categoryDrift || null,
+      failures: wdioParsed.failures,
+      passes: wdioParsed.passes.map((p) => ({ testName: p.testName, duration: p.duration })),
+    };
+
+    const outputDir = path.dirname(outputPath);
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(outputPath, JSON.stringify(parsed, null, 2));
+
+    if (categoryDrift) console.warn(`[test-results-parser] WARNING: ${categoryDrift.message}`);
+    const icon = parsed.allPassing ? '✓' : '✗';
+    console.log(`[test-results-parser] (wdio) ${icon} ${parsed.summary.passed}/${parsed.summary.total} passed | ${parsed.summary.failed} failed | ${parsed.summary.duration}ms`);
+    for (const f of parsed.failures) {
+      console.log(`  FAIL: ${f.testName}`);
+      console.log(`        Error: ${f.error.message.slice(0, 120)}`);
+      console.log(`        Hint: Category ${f.error.category_hint} (${f.error.category_label})`);
+      if (f.error.file) console.log(`        File: ${f.error.file}:${f.error.line}`);
+    }
+    console.log(`[test-results-parser] Parsed output saved to ${path.relative(ROOT, outputPath)}`);
+    return;
+  }
+
+  // Playwright path (original behavior)
   const stats = report.stats || {};
   const summary = {
     total: (stats.expected || 0) + (stats.unexpected || 0) + (stats.skipped || 0) + (stats.flaky || 0),
@@ -287,6 +421,7 @@ function main() {
   // Build the parsed output
   const parsed = {
     version: '1.0',
+    runner: 'playwright',
     parsedAt: new Date().toISOString(),
     jsonSource: path.relative(ROOT, jsonPath),
     summary,

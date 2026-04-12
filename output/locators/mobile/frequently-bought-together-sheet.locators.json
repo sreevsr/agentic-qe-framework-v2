@@ -1,0 +1,10 @@
+{
+  "skipAndContinue": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"SKIP & CONTINUE\")",
+      "xpath": "//android.widget.TextView[@text='SKIP & CONTINUE']"
+    },
+    "description": "Skip the Frequently Bought Together upsell and proceed to checkout — native button at bounds [377,1430][688,1510]",
+    "type": "button"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "mobileTestUser": {
+    "username": "test-user@example.com",
+    "displayName": "Mobile Test User",
+    "role": "framework-verification"
+  }
+}

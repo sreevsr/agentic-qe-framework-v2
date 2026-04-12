@@ -1,0 +1,25 @@
+{
+  "screenHeader": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"Payments\")",
+      "xpath": "//android.widget.TextView[@text='Payments']"
+    },
+    "description": "Payments screen header — confirms we're on Step 3 of 3 checkout",
+    "type": "text"
+  },
+  "totalAmountLabel": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"Total Amount\")",
+      "xpath": "//android.widget.TextView[@text='Total Amount']"
+    },
+    "description": "Total Amount row label — anchor for finding the amount value",
+    "type": "text"
+  },
+  "totalAmountValue": {
+    "android": {
+      "xpath": "//android.widget.TextView[@text='Total Amount']/..//android.widget.TextView[starts-with(@text,'₹')]"
+    },
+    "description": "Total Amount value (₹N,NNN) — sibling TextView in the same row as the 'Total Amount' label. Generic locator — works for any product/price.",
+    "type": "text"
+  }
+}

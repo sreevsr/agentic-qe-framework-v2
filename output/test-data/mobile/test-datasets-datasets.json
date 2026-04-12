@@ -1,0 +1,5 @@
+[
+  { "caseId": "ds-1", "label": "first-data-row", "expectedVisible": true },
+  { "caseId": "ds-2", "label": "second-data-row", "expectedVisible": true },
+  { "caseId": "ds-3", "label": "third-data-row", "expectedVisible": true }
+]

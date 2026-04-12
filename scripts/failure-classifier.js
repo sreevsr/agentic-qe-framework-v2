@@ -47,10 +47,40 @@ if (fs.existsSync(historyFile)) {
 }
 
 /**
- * Categorize error message into failure types
+ * Categorize error message into failure types.
+ *
+ * Mobile categories (mapped to agents/core/executor.md Section 7 — Mobile Failure Signatures):
+ *   GLIDE_TYPING_INJECTION       — keyboard visible during swipe; text grows in EditText
+ *   MULTI_ELEMENT_TEXT_MATCH     — locator text spans two TextView elements
+ *   COMPOSE_NO_ACCESSIBILITY_NODE — element rendered as Canvas, no a11y node
+ *   WEBVIEW_VS_NATIVE_MISMATCH   — code switches to WEBVIEW context but screen is native
+ *   UIAUTOMATOR_IDLE_TIMEOUT     — Appium waiting for app to be idle (RN apps)
+ *   KEYBOARD_BLOCKING            — element not tappable because keyboard covers it
+ *   STALE_NAVIGATION_STACK       — app in unexpected state, needs force-stop + relaunch
  */
 function categorizeError(errorMsg) {
   const msg = errorMsg.toLowerCase();
+
+  // Mobile-specific signatures (check first — they include patterns that overlap with web)
+  if (msg.includes('waiting for app to be idle') || msg.includes('uiautomator') && msg.includes('idle')) return 'UIAUTOMATOR_IDLE_TIMEOUT';
+  if (msg.includes('webview') || msg.includes('switchcontext')) return 'WEBVIEW_VS_NATIVE_MISMATCH';
+  if (msg.includes('keyboard') && (msg.includes('covers') || msg.includes('blocking') || msg.includes('shown'))) return 'KEYBOARD_BLOCKING';
+  if (msg.includes('activity') && msg.includes('not reached')) return 'STALE_NAVIGATION_STACK';
+  if (msg.includes('could not be resolved') && msg.includes('tried:')) {
+    // MobileLocatorLoader's "all strategies failed" error — could be multi-element or just stale.
+    // Multi-element heuristic: extract the textContains("...") argument and check its length.
+    // A TextView rarely renders >25 chars of plain text without wrapping; longer values mean
+    // the locator is trying to match across multiple TextView elements.
+    const textContainsMatch = errorMsg.match(/textContains\("([^"]+)"\)/i);
+    if (textContainsMatch && textContainsMatch[1].length > 25) {
+      return 'MULTI_ELEMENT_TEXT_MATCH';
+    }
+    return 'ELEMENT_NOT_FOUND';
+  }
+  if (msg.includes('no a11y node') || msg.includes('compose element')) return 'COMPOSE_NO_ACCESSIBILITY_NODE';
+  if (msg.match(/by\s+by\s+by/i) || msg.includes('glide typing')) return 'GLIDE_TYPING_INJECTION';
+
+  // Web/api signatures
   if (msg.includes('waiting for locator') || msg.includes('element not found') || msg.includes('no element matches')) return 'ELEMENT_NOT_FOUND';
   if (msg.includes('timeout') || msg.includes('exceeded') || msg.includes('timed out')) return 'TIMEOUT';
   if (msg.includes('expect(') || msg.includes('expected') || msg.includes('tobe(') || msg.includes('tocontain(') || msg.includes('tohaveurl')) return 'ASSERTION_FAILURE';
@@ -65,7 +95,12 @@ function categorizeError(errorMsg) {
  */
 function classifyFailure(failure) {
   const testId = failure.testName || failure.title || 'unknown';
-  const errorMsg = failure.error || failure.errorMessage || '';
+  // Support both shapes: legacy `failure.error: string` and the
+  // test-results-parser.js shape `failure.error: { message, ... }`
+  const rawError = failure.error;
+  const errorMsg = (rawError && typeof rawError === 'object' && rawError.message)
+    ? rawError.message
+    : (typeof rawError === 'string' ? rawError : (failure.errorMessage || ''));
   const errorType = categorizeError(errorMsg);
 
   // 1. Stability check — known flaky?
@@ -85,6 +120,26 @@ function classifyFailure(failure) {
   // 3. Selector/locator issue
   if (errorType === 'ELEMENT_NOT_FOUND' || errorType === 'TIMEOUT') {
     return { testId, action: 'SELECTOR_ISSUE', confidence: 'medium', reason: 'Element not found or timeout — likely stale selector', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+
+  // 3a. Mobile-specific signatures with deterministic fixes
+  if (errorType === 'MULTI_ELEMENT_TEXT_MATCH') {
+    return { testId, action: 'SELECTOR_ISSUE', confidence: 'high', reason: 'Mobile: locator text spans multiple TextView elements — split into two locators using a structural anchor', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+  if (errorType === 'COMPOSE_NO_ACCESSIBILITY_NODE') {
+    return { testId, action: 'SELECTOR_ISSUE', confidence: 'high', reason: 'Mobile: Compose/Canvas element has no a11y node — switch to coordinate tap with FRAGILE comment', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+  if (errorType === 'WEBVIEW_VS_NATIVE_MISMATCH') {
+    return { testId, action: 'CODE_ERROR', confidence: 'high', reason: 'Mobile: WebView context-switching code on a native screen — remove getContexts/switchContext and use native locators', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+  if (errorType === 'KEYBOARD_BLOCKING' || errorType === 'GLIDE_TYPING_INJECTION') {
+    return { testId, action: 'CODE_ERROR', confidence: 'high', reason: 'Mobile: keyboard not dismissed before next interaction — use BaseScreen.typeText (auto-hides) or call hideKeyboard()', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+  if (errorType === 'UIAUTOMATOR_IDLE_TIMEOUT') {
+    return { testId, action: 'ENVIRONMENT_ISSUE', confidence: 'high', reason: 'Mobile: UiAutomator2 waiting for app idle on a React Native app — apply waitForIdleTimeout: 0 in wdio.conf.ts before() hook', errorType, errorMessage: errorMsg.substring(0, 1000) };
+  }
+  if (errorType === 'STALE_NAVIGATION_STACK') {
+    return { testId, action: 'AUTO_RETRY', confidence: 'medium', reason: 'Mobile: app in unexpected state — add force-stop + relaunch in before() hook', errorType, errorMessage: errorMsg.substring(0, 1000) };
   }
 
   // 4. Assertion failure — likely regression

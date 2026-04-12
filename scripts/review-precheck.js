@@ -15,7 +15,7 @@
  * - The pipeline never breaks if this script is outdated — it just runs slower.
  *
  * Usage:
- *   node scripts/review-precheck.js --scenario=<name> --type=<web|api|hybrid> [--folder=<folder>]
+ *   node scripts/review-precheck.js --scenario=<name> --type=<web|api|hybrid|mobile|mobile-hybrid> [--folder=<folder>]
  *
  * Output:
  *   output/[{folder}/]precheck-report-{scenario}.json
@@ -45,10 +45,17 @@ if (process.argv.includes('--rehash')) {
 }
 
 if (!scenario) {
-  console.error('Usage: node scripts/review-precheck.js --scenario=<name> --type=<web|api|hybrid> [--folder=<folder>]');
+  console.error('Usage: node scripts/review-precheck.js --scenario=<name> --type=<web|api|hybrid|mobile|mobile-hybrid> [--folder=<folder>]');
   console.error('       node scripts/review-precheck.js --rehash');
   process.exit(1);
 }
+
+const isMobile = type === 'mobile' || type === 'mobile-hybrid';
+// Mobile scenarios + specs always live under the `mobile/` subtree, regardless of variant.
+// Mobile scenarios are FLAT (`scenarios/mobile/{scenario}.md`) — folder is NOT applied
+// to the scenario path. Mobile specs DO use folder subdirs (`output/tests/mobile/{folder}/...`).
+const sceneTypeDir = isMobile ? 'mobile' : type;
+const scenarioFolderForResolve = isMobile ? null : folder;
 
 // ---------------------------------------------------------------------------
 // Path resolution (mirrors agents/_shared/path-resolution.md)
@@ -62,16 +69,17 @@ function resolve(...segments) {
 
 const paths = {
   dimensionsMd: resolve('agents', '04-reviewer', 'dimensions.md'),
-  scenarioMd: folder
-    ? resolve('scenarios', type, folder, `${scenario}.md`)
-    : resolve('scenarios', type, `${scenario}.md`),
+  scenarioMd: scenarioFolderForResolve
+    ? resolve('scenarios', sceneTypeDir, scenarioFolderForResolve, `${scenario}.md`)
+    : resolve('scenarios', sceneTypeDir, `${scenario}.md`),
   explorerReport: folder
     ? path.join(OUTPUT, 'reports', folder, `explorer-report-${scenario}.md`)
     : path.join(OUTPUT, 'reports', `explorer-report-${scenario}.md`),
   specFile: folder
-    ? path.join(OUTPUT, 'tests', type, folder, `${scenario}.spec.ts`)
-    : path.join(OUTPUT, 'tests', type, `${scenario}.spec.ts`),
+    ? path.join(OUTPUT, 'tests', sceneTypeDir, folder, `${scenario}.spec.ts`)
+    : path.join(OUTPUT, 'tests', sceneTypeDir, `${scenario}.spec.ts`),
   playwrightConfig: path.join(OUTPUT, 'playwright.config.ts'),
+  wdioConfig: path.join(OUTPUT, 'wdio.conf.ts'),
   packageJson: path.join(OUTPUT, 'package.json'),
   envExample: path.join(OUTPUT, '.env.example'),
   executorReport: folder
@@ -253,6 +261,8 @@ function parseExplorerManifest() {
       if (fp.includes('/locators/') && fp.endsWith('.json')) locatorFiles.push(path.join(ROOT, fp));
       else if (fp.includes('/pages/') && fp.endsWith('.helpers.ts')) helperFiles.push(path.join(ROOT, fp));
       else if (fp.includes('/pages/') && fp.endsWith('.ts')) pageFiles.push(path.join(ROOT, fp));
+      else if (fp.includes('/screens/') && fp.endsWith('.helpers.ts')) helperFiles.push(path.join(ROOT, fp));
+      else if (fp.includes('/screens/') && fp.endsWith('.ts')) pageFiles.push(path.join(ROOT, fp));
       else if (fp.includes('/test-data/') && fp.endsWith('.json')) testDataFiles.push(path.join(ROOT, fp));
     }
   }
@@ -271,7 +281,7 @@ function collectDim1_LocatorQuality(manifest) {
     rawSelectorsInPages: [],
   };
 
-  // Check each locator JSON for primary + fallbacks
+  // Check each locator JSON for primary + fallbacks (web) or platform strategies (mobile)
   for (const fp of manifest.locatorFiles) {
     const content = readFile(fp);
     if (!content) {
@@ -281,44 +291,101 @@ function collectDim1_LocatorQuality(manifest) {
     try {
       const json = JSON.parse(content);
       const elements = Object.entries(json);
-      let minFallbacks = Infinity;
-      let maxFallbacks = 0;
-      let missingPrimary = [];
-      let missingFallbacks = [];
+      const isMobileLocator = isMobile || fp.includes(`${path.sep}locators${path.sep}mobile${path.sep}`)
+        || fp.includes('/locators/mobile/');
 
-      for (const [name, entry] of elements) {
-        if (!entry.primary) missingPrimary.push(name);
-        const fallbackCount = Array.isArray(entry.fallbacks) ? entry.fallbacks.length : 0;
-        if (fallbackCount < 2) missingFallbacks.push({ name, fallbackCount });
-        minFallbacks = Math.min(minFallbacks, fallbackCount);
-        maxFallbacks = Math.max(maxFallbacks, fallbackCount);
+      if (isMobileLocator) {
+        let minStrategies = Infinity;
+        let maxStrategies = 0;
+        const missingFallbacks = [];
+        const hardcodedTestValues = [];
+
+        for (const [name, entry] of elements) {
+          let count = 0;
+          for (const platform of ['android', 'ios']) {
+            const pe = entry[platform];
+            if (pe && typeof pe === 'object') {
+              for (const k of Object.keys(pe)) {
+                if (!k.startsWith('_') && pe[k]) count++;
+              }
+            }
+          }
+          if (count < 2) missingFallbacks.push({ name, strategyCount: count });
+          minStrategies = Math.min(minStrategies, count);
+          maxStrategies = Math.max(maxStrategies, count);
+
+          // Heuristic: flag obvious AP-1 (hardcoded test values) — currency symbols + digits,
+          // long product-name fragments, etc. LLM will read the file for the final call.
+          const text = JSON.stringify(entry);
+          if (/textContains\("[^"]{20,}"\)/.test(text)) {
+            hardcodedTestValues.push({ name, hint: 'long textContains() string — possible AP-1' });
+          }
+          if (/text\("[₹$€£][\d,.]+"\)/.test(text)) {
+            hardcodedTestValues.push({ name, hint: 'price literal — possible AP-1' });
+          }
+        }
+
+        evidence.locatorFiles.push({
+          file: path.relative(ROOT, fp),
+          format: 'mobile',
+          exists: true,
+          elementCount: elements.length,
+          minStrategies: minStrategies === Infinity ? 0 : minStrategies,
+          maxStrategies,
+          missingFallbacks,
+          hardcodedTestValues,
+        });
+      } else {
+        let minFallbacks = Infinity;
+        let maxFallbacks = 0;
+        const missingPrimary = [];
+        const missingFallbacks = [];
+
+        for (const [name, entry] of elements) {
+          if (!entry.primary) missingPrimary.push(name);
+          const fallbackCount = Array.isArray(entry.fallbacks) ? entry.fallbacks.length : 0;
+          if (fallbackCount < 2) missingFallbacks.push({ name, fallbackCount });
+          minFallbacks = Math.min(minFallbacks, fallbackCount);
+          maxFallbacks = Math.max(maxFallbacks, fallbackCount);
+        }
+
+        evidence.locatorFiles.push({
+          file: path.relative(ROOT, fp),
+          format: 'web',
+          exists: true,
+          elementCount: elements.length,
+          minFallbacks: minFallbacks === Infinity ? 0 : minFallbacks,
+          maxFallbacks,
+          missingPrimary,
+          missingFallbacks,
+        });
       }
-
-      evidence.locatorFiles.push({
-        file: path.relative(ROOT, fp),
-        exists: true,
-        elementCount: elements.length,
-        minFallbacks: minFallbacks === Infinity ? 0 : minFallbacks,
-        maxFallbacks,
-        missingPrimary,
-        missingFallbacks,
-      });
     } catch (e) {
       evidence.locatorFiles.push({ file: path.relative(ROOT, fp), exists: true, parseError: e.message });
     }
   }
 
-  // Grep for raw selectors in spec (page.locator, page.$(, page.$$()
-  const rawSelectorPattern = /page\.(locator|getByRole|getByText|getByLabel|getByTestId|getByPlaceholder)\s*\(/;
+  // Raw selectors in spec
   if (fileExists(paths.specFile)) {
-    evidence.rawSelectorsInSpec = grepFile(paths.specFile, rawSelectorPattern)
-      .map(m => ({ file: path.relative(ROOT, paths.specFile), ...m }));
+    if (isMobile) {
+      // Mobile spec: raw driver.$('...') / browser.$('...') outside of loc.get()
+      const mobileRawPattern = /\b(driver|browser)\.\$\(/;
+      evidence.rawSelectorsInSpec = grepFile(paths.specFile, mobileRawPattern)
+        .map(m => ({ file: path.relative(ROOT, paths.specFile), ...m }));
+    } else {
+      const rawSelectorPattern = /page\.(locator|getByRole|getByText|getByLabel|getByTestId|getByPlaceholder)\s*\(/;
+      evidence.rawSelectorsInSpec = grepFile(paths.specFile, rawSelectorPattern)
+        .map(m => ({ file: path.relative(ROOT, paths.specFile), ...m }));
+    }
   }
 
-  // Grep for raw selectors in page objects (this.page.locator instead of this.loc.get)
-  const rawInPagePattern = /this\.page\.(locator|getByRole|getByText|getByLabel|getByTestId|getByPlaceholder)\s*\(/;
+  // Raw selectors in page/screen objects
   for (const fp of manifest.pageFiles) {
-    const matches = grepFile(fp, rawInPagePattern);
+    const isScreen = fp.endsWith('Screen.ts') || fp.endsWith('Screen.js');
+    const pattern = isScreen
+      ? /this\.driver\.\$\(/
+      : /this\.page\.(locator|getByRole|getByText|getByLabel|getByTestId|getByPlaceholder)\s*\(/;
+    const matches = grepFile(fp, pattern);
     if (matches.length > 0) {
       evidence.rawSelectorsInPages.push(
         ...matches.map(m => ({ file: path.relative(ROOT, fp), ...m }))
@@ -332,14 +399,19 @@ function collectDim1_LocatorQuality(manifest) {
 function collectDim2_WaitStrategy(manifest) {
   const allFiles = [paths.specFile, ...manifest.pageFiles].filter(fileExists);
 
-  // Grep for waitForTimeout (with PACING context)
+  // For mobile, look for browser.pause()/driver.pause() (the WDIO equivalent of waitForTimeout).
+  // For web, look for page.waitForTimeout().
+  const pauseRegex = isMobile
+    ? /\b(?:browser|driver)\.pause\s*\(/
+    : /waitForTimeout\s*\(/;
+
   const waitForTimeoutMatches = [];
   for (const fp of allFiles) {
     const content = readFile(fp);
     if (!content) continue;
     const lines = content.split('\n');
     lines.forEach((line, i) => {
-      if (/waitForTimeout\s*\(/.test(line)) {
+      if (pauseRegex.test(line)) {
         const prevLine = i > 0 ? lines[i - 1] : '';
         const hasPacingComment = /\/\/\s*PACING:/i.test(prevLine) || /\/\/\s*PACING:/i.test(line);
         waitForTimeoutMatches.push({
@@ -352,7 +424,7 @@ function collectDim2_WaitStrategy(manifest) {
     });
   }
 
-  // Grep for setTimeout
+  // Grep for setTimeout (applies to both)
   const setTimeoutMatches = grepFiles(allFiles, /setTimeout\s*\(/);
 
   return {
@@ -367,14 +439,26 @@ function collectDim3_TestArchitecture(manifest) {
   const evidence = {};
 
   if (specContent) {
-    // Tags present on test() calls
-    evidence.testsWithTags = countPattern(specContent, /test\s*\(\s*['"`][^'"`]+['"`]\s*,\s*\{[^}]*tag\s*:/g);
-    evidence.testsWithoutTags = countPattern(specContent, /test\s*\(\s*['"`][^'"`]+['"`]\s*,\s*async/g);
-    evidence.hasTestDescribe = /test\.describe\s*\(/.test(specContent);
-    evidence.hasBeforeEach = /test\.beforeEach\s*\(/.test(specContent);
-    evidence.hasBeforeAll = /test\.beforeAll\s*\(/.test(specContent);
-    evidence.hasAfterEach = /test\.afterEach\s*\(/.test(specContent);
-    evidence.hasAfterAll = /test\.afterAll\s*\(/.test(specContent);
+    if (isMobile) {
+      // Mocha: tags appear in the it() title string (e.g. it('test @smoke @P0', ...))
+      const itCalls = specContent.match(/\bit\s*\(\s*[`'"][^`'"]+[`'"]/g) || [];
+      evidence.testsWithTags = itCalls.filter((s) => /@\w+/.test(s)).length;
+      evidence.testsWithoutTags = itCalls.length - evidence.testsWithTags;
+      evidence.hasTestDescribe = /\bdescribe\s*\(/.test(specContent);
+      evidence.hasBeforeEach = /\bbeforeEach\s*\(/.test(specContent);
+      evidence.hasBeforeAll = /\bbefore\s*\(/.test(specContent);
+      evidence.hasAfterEach = /\bafterEach\s*\(/.test(specContent);
+      evidence.hasAfterAll = /\bafter\s*\(/.test(specContent);
+    } else {
+      // Tags present on test() calls
+      evidence.testsWithTags = countPattern(specContent, /test\s*\(\s*['"`][^'"`]+['"`]\s*,\s*\{[^}]*tag\s*:/g);
+      evidence.testsWithoutTags = countPattern(specContent, /test\s*\(\s*['"`][^'"`]+['"`]\s*,\s*async/g);
+      evidence.hasTestDescribe = /test\.describe\s*\(/.test(specContent);
+      evidence.hasBeforeEach = /test\.beforeEach\s*\(/.test(specContent);
+      evidence.hasBeforeAll = /test\.beforeAll\s*\(/.test(specContent);
+      evidence.hasAfterEach = /test\.afterEach\s*\(/.test(specContent);
+      evidence.hasAfterAll = /test\.afterAll\s*\(/.test(specContent);
+    }
 
     // loadTestData or loadSharedData import
     evidence.hasLoadTestData = /loadTestData|loadSharedData/.test(specContent);
@@ -390,7 +474,7 @@ function collectDim3_TestArchitecture(manifest) {
   evidence.helperFiles = [];
   for (const hp of manifest.helperFiles) {
     const baseName = path.basename(hp, '.helpers.ts');
-    const imported = specContent ? new RegExp(`${baseName}WithHelpers|from.*${baseName}\\.helpers`).test(specContent) : false;
+    const imported = specContent ? new RegExp(`${baseName}WithHelpers|applyHelpers|from.*${baseName}\\.helpers`).test(specContent) : false;
     evidence.helperFiles.push({
       file: path.relative(ROOT, hp),
       exists: fileExists(hp),
@@ -402,6 +486,24 @@ function collectDim3_TestArchitecture(manifest) {
 }
 
 function collectDim4_Configuration() {
+  if (isMobile) {
+    const wdioContent = readFile(paths.wdioConfig);
+    if (!wdioContent) return { configExists: false, configFile: 'wdio.conf.ts' };
+
+    return {
+      configExists: true,
+      configFile: 'wdio.conf.ts',
+      mochaTimeout: (wdioContent.match(/timeout:\s*(\d[\d_]*)/)||[])[1] || null,
+      hasBeforeHook: /\bbefore\s*\(/.test(wdioContent) || /async before\s*\(\s*\)/.test(wdioContent),
+      hasUiAutomatorIdleTimeout: /waitForIdleTimeout\s*:\s*0/.test(wdioContent),
+      hasAfterTestScreenshot: /saveScreenshot\s*\(/.test(wdioContent),
+      hasAfterTestPageSource: /getPageSource\s*\(/.test(wdioContent),
+      hasAfterTestVideo: /stopRecordingScreen\s*\(/.test(wdioContent),
+      hasAllureReporter: /['"]allure['"]/.test(wdioContent),
+      hasJsonReporter: /['"]json['"]/.test(wdioContent),
+    };
+  }
+
   const configContent = readFile(paths.playwrightConfig);
   if (!configContent) return { configExists: false };
 
@@ -504,10 +606,26 @@ function collectDim7_Security() {
 }
 
 function collectDim8_ApiTestQuality() {
-  if (type === 'web') return { applicable: false };
+  if (type === 'web' || type === 'mobile') return { applicable: false };
 
   const specContent = readFile(paths.specFile);
   if (!specContent) return { applicable: true, specExists: false };
+
+  if (type === 'mobile-hybrid') {
+    // mobile-hybrid wraps API calls in browser.call() with axios; no Playwright `request` fixture
+    return {
+      applicable: true,
+      specExists: true,
+      usesBrowserCall: /\bbrowser\.call\s*\(/.test(specContent),
+      usesAxios: /require\s*\(\s*['"]axios['"]\)|import.*from\s*['"]axios['"]/.test(specContent),
+      usesFetch: /\bfetch\s*\(/.test(specContent),
+      axiosPostCalls: countPattern(specContent, /axios\.post\s*\(/g),
+      axiosGetCalls: countPattern(specContent, /axios\.get\s*\(/g),
+      axiosPutCalls: countPattern(specContent, /axios\.put\s*\(/g),
+      axiosPatchCalls: countPattern(specContent, /axios\.patch\s*\(/g),
+      axiosDeleteCalls: countPattern(specContent, /axios\.delete\s*\(/g),
+    };
+  }
 
   return {
     applicable: true,
@@ -638,47 +756,88 @@ function collectDim9_Fidelity() {
 
   // --- Count spec patterns ---
   if (specContent) {
-    evidence.specTestSteps = countPattern(specContent, /test\.step\s*\(/g);
-    evidence.specTestStepsNote = 'Includes nested test.step() calls (e.g., multi-assertion VERIFY blocks). Compare with scenarioSteps.total for fidelity — a delta may be expected when steps use nested sub-assertions.';
+    if (isMobile) {
+      // Mobile specs use `// Step N — ...` comment markers (no test.step() in WDIO/Mocha)
+      evidence.specTestSteps = countPattern(specContent, /^\s*\/\/\s*Step\s+\d+\s*—/gm);
+      evidence.specTestStepsNote = 'Mobile: counted `// Step N —` comment markers (WDIO/Mocha has no test.step()).';
 
-    // Keywords in spec
-    evidence.keywords.VERIFY = {
-      ...evidence.keywords.VERIFY,
-      spec_expect: countPattern(specContent, /\bexpect\s*\(/g),
-    };
-    evidence.keywords.VERIFY_SOFT = {
-      ...evidence.keywords.VERIFY_SOFT,
-      spec_expectSoft: countPattern(specContent, /\bexpect\.soft\s*\(/g),
-    };
-    evidence.keywords.CAPTURE = {
-      ...evidence.keywords.CAPTURE,
-      spec_note: 'Variable assignments — LLM must verify semantics',
-    };
-    evidence.keywords.SCREENSHOT = {
-      ...evidence.keywords.SCREENSHOT,
-      spec_screenshot: countPattern(specContent, /page\.screenshot\s*\(/g),
-      spec_attach: countPattern(specContent, /test\.info\(\)\.attach\s*\(/g),
-    };
-    evidence.keywords.REPORT = {
-      ...evidence.keywords.REPORT,
-      spec_annotationsPush: countPattern(specContent, /test\.info\(\)\.annotations\.push\s*\(/g),
-    };
-    evidence.keywords.SAVE = {
-      ...evidence.keywords.SAVE,
-      spec_saveState: countPattern(specContent, /saveState\s*\(/g),
-    };
-    evidence.keywords.API_steps = {
-      ...evidence.keywords.API_steps,
-      spec_requestCalls: countPattern(specContent, /request\.(post|get|put|patch|delete)\s*\(/g),
-    };
+      evidence.keywords.VERIFY = {
+        ...evidence.keywords.VERIFY,
+        spec_expect: countPattern(specContent, /\bexpect\s*\(/g),
+      };
+      evidence.keywords.VERIFY_SOFT = {
+        ...evidence.keywords.VERIFY_SOFT,
+        spec_softAssertionsPush: countPattern(specContent, /softAssertions\.push\s*\(/g),
+        spec_recordSoftFailure: countPattern(specContent, /\.recordSoftFailure\s*\(/g),
+      };
+      evidence.keywords.CAPTURE = {
+        ...evidence.keywords.CAPTURE,
+        spec_note: 'Variable assignments — LLM must verify semantics',
+      };
+      evidence.keywords.SCREENSHOT = {
+        ...evidence.keywords.SCREENSHOT,
+        spec_takeScreenshot: countPattern(specContent, /\.takeScreenshot\s*\(/g),
+      };
+      evidence.keywords.REPORT = {
+        ...evidence.keywords.REPORT,
+        spec_consoleLog: countPattern(specContent, /\bconsole\.log\s*\(/g),
+      };
+      evidence.keywords.SAVE = {
+        ...evidence.keywords.SAVE,
+        spec_saveState: countPattern(specContent, /saveState\s*\(/g),
+      };
+      evidence.keywords.API_steps = {
+        ...evidence.keywords.API_steps,
+        spec_browserCallAxios: countPattern(specContent, /browser\.call\s*\(/g),
+      };
 
-    // Lifecycle hooks in spec
-    evidence.lifecycleHooks.spec = {
-      beforeAll: /test\.beforeAll\s*\(/.test(specContent),
-      beforeEach: /test\.beforeEach\s*\(/.test(specContent),
-      afterEach: /test\.afterEach\s*\(/.test(specContent),
-      afterAll: /test\.afterAll\s*\(/.test(specContent),
-    };
+      evidence.lifecycleHooks.spec = {
+        beforeAll: /\bbefore\s*\(/.test(specContent),
+        beforeEach: /\bbeforeEach\s*\(/.test(specContent),
+        afterEach: /\bafterEach\s*\(/.test(specContent),
+        afterAll: /\bafter\s*\(/.test(specContent),
+      };
+    } else {
+      evidence.specTestSteps = countPattern(specContent, /test\.step\s*\(/g);
+      evidence.specTestStepsNote = 'Includes nested test.step() calls (e.g., multi-assertion VERIFY blocks). Compare with scenarioSteps.total for fidelity — a delta may be expected when steps use nested sub-assertions.';
+
+      evidence.keywords.VERIFY = {
+        ...evidence.keywords.VERIFY,
+        spec_expect: countPattern(specContent, /\bexpect\s*\(/g),
+      };
+      evidence.keywords.VERIFY_SOFT = {
+        ...evidence.keywords.VERIFY_SOFT,
+        spec_expectSoft: countPattern(specContent, /\bexpect\.soft\s*\(/g),
+      };
+      evidence.keywords.CAPTURE = {
+        ...evidence.keywords.CAPTURE,
+        spec_note: 'Variable assignments — LLM must verify semantics',
+      };
+      evidence.keywords.SCREENSHOT = {
+        ...evidence.keywords.SCREENSHOT,
+        spec_screenshot: countPattern(specContent, /page\.screenshot\s*\(/g),
+        spec_attach: countPattern(specContent, /test\.info\(\)\.attach\s*\(/g),
+      };
+      evidence.keywords.REPORT = {
+        ...evidence.keywords.REPORT,
+        spec_annotationsPush: countPattern(specContent, /test\.info\(\)\.annotations\.push\s*\(/g),
+      };
+      evidence.keywords.SAVE = {
+        ...evidence.keywords.SAVE,
+        spec_saveState: countPattern(specContent, /saveState\s*\(/g),
+      };
+      evidence.keywords.API_steps = {
+        ...evidence.keywords.API_steps,
+        spec_requestCalls: countPattern(specContent, /request\.(post|get|put|patch|delete)\s*\(/g),
+      };
+
+      evidence.lifecycleHooks.spec = {
+        beforeAll: /test\.beforeAll\s*\(/.test(specContent),
+        beforeEach: /test\.beforeEach\s*\(/.test(specContent),
+        afterEach: /test\.afterEach\s*\(/.test(specContent),
+        afterAll: /test\.afterAll\s*\(/.test(specContent),
+      };
+    }
 
     // SHARED_DATA in spec
     evidence.specHasLoadTestData = /loadTestData|loadSharedData/.test(specContent);
@@ -710,7 +869,9 @@ function main() {
 
   // If manifest is empty, try to discover files from output/ directly
   if (manifest.locatorFiles.length === 0) {
-    const locatorsDir = path.join(OUTPUT, 'locators');
+    const locatorsDir = isMobile
+      ? path.join(OUTPUT, 'locators', 'mobile')
+      : path.join(OUTPUT, 'locators');
     if (fs.existsSync(locatorsDir)) {
       fs.readdirSync(locatorsDir)
         .filter(f => f.endsWith('.locators.json'))
@@ -718,19 +879,19 @@ function main() {
     }
   }
   if (manifest.pageFiles.length === 0) {
-    const pagesDir = path.join(OUTPUT, 'pages');
-    if (fs.existsSync(pagesDir)) {
-      fs.readdirSync(pagesDir)
+    const objectsDir = isMobile ? path.join(OUTPUT, 'screens') : path.join(OUTPUT, 'pages');
+    if (fs.existsSync(objectsDir)) {
+      fs.readdirSync(objectsDir)
         .filter(f => f.endsWith('.ts') && !f.endsWith('.helpers.ts'))
-        .forEach(f => manifest.pageFiles.push(path.join(pagesDir, f)));
+        .forEach(f => manifest.pageFiles.push(path.join(objectsDir, f)));
     }
   }
   if (manifest.helperFiles.length === 0) {
-    const pagesDir = path.join(OUTPUT, 'pages');
-    if (fs.existsSync(pagesDir)) {
-      fs.readdirSync(pagesDir)
+    const objectsDir = isMobile ? path.join(OUTPUT, 'screens') : path.join(OUTPUT, 'pages');
+    if (fs.existsSync(objectsDir)) {
+      fs.readdirSync(objectsDir)
         .filter(f => f.endsWith('.helpers.ts'))
-        .forEach(f => manifest.helperFiles.push(path.join(pagesDir, f)));
+        .forEach(f => manifest.helperFiles.push(path.join(objectsDir, f)));
     }
   }
 

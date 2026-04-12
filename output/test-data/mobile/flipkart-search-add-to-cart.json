@@ -1,0 +1,15 @@
+{
+  "onboarding": {
+    "locationPermission": "Only this time",
+    "language": "English"
+  },
+  "search": {
+    "query": "wireless earbuds",
+    "firstProductKeyword": "boAt"
+  },
+  "timeouts": {
+    "searchResultsMs": 15000,
+    "productLoadMs": 15000,
+    "cartLoadMs": 15000
+  }
+}

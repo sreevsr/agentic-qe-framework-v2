@@ -1,0 +1,18 @@
+{
+  "searchInput": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.EditText\")",
+      "xpath": "//android.widget.EditText"
+    },
+    "description": "Search text input field — appears after tapping search bar",
+    "type": "input"
+  },
+  "searchSuggestion": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"computer table\")",
+      "xpath": "//android.widget.TextView[contains(@text,'computer table')]"
+    },
+    "description": "Search suggestion item — app reorders query words (e.g. 'height adjustable computer table' \u2192 'computer table height adjustable'); use textContains with stable subset",
+    "type": "listItem"
+  }
+}

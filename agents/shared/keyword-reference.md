@@ -229,6 +229,236 @@ await cartPage.validateAllCartPrices();
 
 ---
 
+## Control Flow Keywords — Conditional Logic, Loops, and Error Handling
+
+**These keywords apply to ALL scenario types (web, api, hybrid, mobile, mobile-hybrid).** They express runtime control flow that cannot be represented as flat sequential steps.
+
+### Enricher MUST use these when the user writes:
+- "if ... then ..." / "when ... appears" / "in case of" → **IF / IF_ELSE**
+- "repeat" / "for each" / "do this for every" / "swipe through all" → **REPEAT_UNTIL / FOR_EACH**
+- "do this N times" → **REPEAT_TIMES**
+- "try ... if not found ..." / "attempt ... otherwise" → **TRY_ELSE**
+
+### Enricher MUST NOT:
+- Unroll loops into hardcoded repeated steps (e.g., expanding "swipe through all photos" into 5 identical swipe+screenshot steps)
+- Assume a fixed iteration count unless the user explicitly states one
+- Flatten conditionals into unconditional steps (e.g., converting "if popup appears, dismiss it" into "dismiss popup")
+
+---
+
+### IF / IF_ELSE — Conditional Execution
+
+**Scenario writes:**
+```markdown
+15. IF: A notification popup appears ("Allow notifications")
+    a. Tap "Not Now" to dismiss it
+16. Continue with the main flow
+```
+
+**Or with ELSE:**
+```markdown
+15. IF: The "Add to Cart" button is visible
+    a. Tap "Add to Cart"
+    ELSE:
+    a. Tap "Go to Cart" (item already added from previous run)
+```
+
+**Builder generates (web):**
+```typescript
+await test.step('Step 15 — Handle Add to Cart state', async () => {
+  const addToCart = page.locator(loc.get('addToCartButton'));
+  if (await addToCart.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await addToCart.click();
+  } else {
+    await page.locator(loc.get('goToCartButton')).click();
+  }
+});
+```
+
+**Builder generates (mobile):**
+```typescript
+// Step 15 — Handle Add to Cart state
+if (await productScreen.isVisible('addToCartButton')) {
+  await productScreen.tap('addToCartButton');
+} else {
+  await productScreen.tap('goToCartButton');
+}
+```
+
+---
+
+### REPEAT_UNTIL — Loop Until a Condition is Met
+
+**Scenario writes:**
+```markdown
+20. REPEAT_UNTIL: No more photos in the carousel
+    a. SCREENSHOT: product-photo-{index}
+    b. Swipe left on the product photo carousel
+```
+
+**Or:**
+```markdown
+12. REPEAT_UNTIL: The "Load More" button is no longer visible
+    a. Scroll down
+    b. CAPTURE: Number of visible items
+```
+
+**Builder generates (web):**
+```typescript
+await test.step('Step 20 — Capture all product photos', async () => {
+  let index = 1;
+  const maxIterations = 20; // Safety limit
+  while (index <= maxIterations) {
+    const screenshot = await page.screenshot({ fullPage: false });
+    await test.info().attach(`product-photo-${index}`, { body: screenshot, contentType: 'image/png' });
+    // Try to swipe — if no more photos, the carousel won't change
+    const beforeSrc = await page.locator(loc.get('carouselImage')).getAttribute('src');
+    await page.locator(loc.get('carouselNextArrow')).click().catch(() => {});
+    await page.waitForTimeout(500);
+    const afterSrc = await page.locator(loc.get('carouselImage')).getAttribute('src');
+    if (beforeSrc === afterSrc) break; // No more photos
+    index++;
+  }
+});
+```
+
+**Builder generates (mobile):**
+```typescript
+// Step 20 — Capture all product photos
+let photoIndex = 1;
+const maxPhotos = 20; // Safety limit
+while (photoIndex <= maxPhotos) {
+  await productScreen.takeScreenshot(`product-photo-${photoIndex}`);
+  const beforeDesc = await productScreen.getAttribute('productImage', 'content-desc');
+  await productScreen.swipe('left');
+  await browser.pause(500);
+  const afterDesc = await productScreen.getAttribute('productImage', 'content-desc');
+  if (beforeDesc === afterDesc) break; // No more photos
+  photoIndex++;
+}
+```
+
+**Rules:**
+- **MUST include a safety limit** (`maxIterations`) to prevent infinite loops — default 20
+- **MUST detect the termination condition** at runtime (element disappeared, content unchanged, counter reached)
+- The `{index}` placeholder in step text is replaced by the loop counter in generated code
+
+---
+
+### REPEAT_TIMES — Fixed Count Loop
+
+**Scenario writes:**
+```markdown
+8. REPEAT_TIMES: 3
+    a. Tap the "Add" button to increase quantity
+```
+
+**Builder generates:**
+```typescript
+// Step 8 — Increase quantity 3 times
+for (let i = 0; i < 3; i++) {
+  await screen.tap('addButton');
+  await browser.pause(300);
+}
+```
+
+---
+
+### FOR_EACH — Iterate Over a Collection of Elements
+
+**Scenario writes:**
+```markdown
+10. FOR_EACH: Item in the search results list (first 5 items)
+    a. VERIFY: Item has a price displayed
+    b. VERIFY: Item has a product image
+```
+
+**Or:**
+```markdown
+7. FOR_EACH: Row in the data table
+    a. CAPTURE: The value in column "Status"
+    b. VERIFY: Status is not empty
+```
+
+**Builder generates (web):**
+```typescript
+await test.step('Step 10 — Verify search result items', async () => {
+  const items = await page.locator(loc.get('searchResultItems')).all();
+  const limit = Math.min(items.length, 5);
+  for (let i = 0; i < limit; i++) {
+    const item = items[i];
+    expect(await item.locator(loc.get('itemPrice')).isVisible()).toBe(true);
+    expect(await item.locator(loc.get('itemImage')).isVisible()).toBe(true);
+  }
+});
+```
+
+**Builder generates (mobile):**
+```typescript
+// Step 10 — Verify search result items
+// Note: Mobile FOR_EACH uses scrolling to iterate — elements may not all be in view
+for (let i = 0; i < 5; i++) {
+  const priceVisible = await resultsScreen.isVisible('itemPrice');
+  expect(priceVisible).toBe(true);
+  await resultsScreen.swipe('up'); // Scroll to next item
+  await browser.pause(500);
+}
+```
+
+**Rules:**
+- If the user specifies a limit ("first 5 items"), use it. Otherwise default to all items up to safety limit of 20.
+- For mobile, elements may not all be accessible at once — use scroll+check pattern instead of `.all()`
+
+---
+
+### TRY_ELSE — Attempt With Fallback
+
+**Scenario writes:**
+```markdown
+5. TRY: Tap the "Accept Cookies" banner
+   ELSE: Continue (no cookie banner present)
+```
+
+**Or:**
+```markdown
+12. TRY: Find the search bar by accessibility ID
+    ELSE: Tap the search area by coordinates (300, 348)
+```
+
+**Builder generates (web):**
+```typescript
+await test.step('Step 5 — Dismiss cookie banner if present', async () => {
+  try {
+    const banner = page.locator(loc.get('cookieAcceptButton'));
+    if (await banner.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await banner.click();
+    }
+  } catch {
+    // No cookie banner — continue
+  }
+});
+```
+
+**Builder generates (mobile):**
+```typescript
+// Step 12 — Find search bar with fallback
+try {
+  await homeScreen.tap('searchBar');
+} catch {
+  // FRAGILE: Search bar has rotating content-desc, fallback to coordinates
+  await browser.action('pointer')
+    .move({ duration: 0, origin: 'viewport', x: 300, y: 348 })
+    .down({ button: 0 }).pause(100).up({ button: 0 }).perform();
+}
+```
+
+**Rules:**
+- TRY_ELSE is for **expected variability** — elements that may or may not be present
+- DO NOT use TRY_ELSE for assertions — if a VERIFY fails, it should fail the test, not silently catch
+- The ELSE branch MUST either continue normally or document why it's acceptable to skip
+
+---
+
 ## File Download — Capture and Verify Downloaded Files
 
 **Scenario:** `Click "Download Invoice" button` followed by `VERIFY: Invoice file is downloaded successfully to OS' default Downloads folder`
@@ -346,12 +576,14 @@ process.env.BASE_URL
 
 ### Lifecycle Hooks
 
-| Section in `.md` | Playwright Hook | Runs | Fixtures Available |
-|-------------------|----------------|------|--------------------|
-| `## Common Setup Once` | `test.beforeAll()` | Once before all scenarios | `{ browser }` only — no `page` or `request` |
-| `## Common Setup` | `test.beforeEach()` | Before each scenario | `{ page }` / `{ request }` / `{ page, request }` per type |
-| `## Common Teardown` | `test.afterEach()` | After each scenario | `{ page }` / `{ request }` / `{ page, request }` per type |
-| `## Common Teardown Once` | `test.afterAll()` | Once after all scenarios | `{ browser }` only — no `page` or `request` |
+| Section in `.md` | Playwright Hook (web/api/hybrid) | Mocha Hook (mobile/mobile-hybrid) | Runs | Fixtures Available |
+|-------------------|----------------|----------------|------|--------------------|
+| `## Common Setup Once` | `test.beforeAll()` | `before()` | Once before all scenarios | Web/api/hybrid: `{ browser }` only. Mobile: global `browser` (always available) |
+| `## Common Setup` | `test.beforeEach()` | `beforeEach()` | Before each scenario | Web/api/hybrid: `{ page }` / `{ request }` / `{ page, request }` per type. Mobile: global `browser` |
+| `## Common Teardown` | `test.afterEach()` | `afterEach()` | After each scenario | Same as Common Setup |
+| `## Common Teardown Once` | `test.afterAll()` | `after()` | Once after all scenarios | Same as Common Setup Once |
+
+**Mobile fixture constraint:** None — WDIO `browser` is a global that is available in every Mocha hook (`before`, `beforeEach`, `afterEach`, `after`) and inside `it()` blocks. No need for `await browser.newPage()` or context creation.
 
 All four sections are optional. Only generate the corresponding hook if the section exists in the scenario file.
 
@@ -400,32 +632,74 @@ test.describe('Feature Name', () => {
 
 ## Mobile Action Keywords — Mobile Scenario Mapping
 
-For mobile scenarios (type: `mobile` or `mobile-hybrid`), testers use mobile-specific verbs. The Explorer MUST translate these to the appropriate Appium/WDIO code:
+For mobile scenarios (type: `mobile` or `mobile-hybrid`), testers use mobile-specific verbs. The **Builder** translates these to Screen Object method calls (NOT raw WDIO/Appium commands). The Explorer captures element data via **Appium MCP**.
 
-| Scenario writes | Maps to | Generated code (WDIO + Appium) |
-|----------------|---------|-------------------------------|
-| "Tap [element]" | mobile/interact (tap) | `await $('~elementId').click()` |
-| "Long press [element]" | mobile/interact (longPress) | `await driver.touchAction([{action: 'longPress', element: await $('~elementId')}, {action: 'release'}])` |
-| "Swipe up / down / left / right" | mobile/interact (swipe) | `await driver.execute('mobile: swipe', { direction: 'up' })` |
-| "Scroll to [element]" | mobile/interact (scroll) | `await driver.execute('mobile: scrollGesture', { direction: 'down', percent: 0.75 })` |
-| "Type [text] in [field]" | mobile/interact (type) | `const field = await $('~fieldId'); await field.clearValue(); await field.setValue(text);` |
-| "VERIFY: [element] is displayed" | mobile/verify | `expect(await $('~elementId').isDisplayed()).toBe(true)` |
-| "VERIFY: [element] text is [value]" | mobile/verify | `expect(await $('~elementId').getText()).toBe(value)` |
-| "Launch app" | mobile/navigate | `await driver.launchApp()` |
-| "Navigate back" | mobile/navigate | `await driver.back()` |
-| "Switch to WebView" | mobile/navigate | `await driver.switchContext('WEBVIEW_...')` |
+### Mobile Action → Screen Object Code
 
-**MANDATORY:** After typing in any field, **MUST** hide keyboard: `await driver.hideKeyboard()` — keyboard may block the next element.
+| Scenario writes | Generated code (via Screen Object) |
+|----------------|-------------------------------|
+| "Tap [element]" | `await screen.tap('elementKey')` |
+| "Long press [element]" | `await screen.longPress('elementKey')` |
+| "Swipe up / down / left / right" | `await screen.swipe('up')` |
+| "Scroll to [element]" | `await screen.scrollToElement('elementKey')` |
+| "Type [text] in [field]" | `await screen.typeText('elementKey', text)` (auto-hides keyboard) |
+| "Navigate back" | `await screen.goBack()` |
+| "VERIFY: [element] is displayed" | `expect(await screen.isVisible('elementKey')).toBe(true)` |
+| "VERIFY: [element] text is [value]" | `expect(await screen.getText('elementKey')).toBe(value)` |
+| "SCREENSHOT: [name]" | `await screen.takeScreenshot('name')` |
+| "CAPTURE: [element] as {{var}}" | `capturedVar = await screen.getText('elementKey')` |
+| "Dismiss overlays" | `await guard.dismiss()` (PopupGuard) |
+| "Restart app" | `force-stop + relaunch` via `mobile: shell` |
 
-**Locator priority for mobile:** `accessibility_id` (`~elementId`) > `id` > `-ios class chain` / `UiSelector` > xpath (LAST resort)
+### Mobile VERIFY Patterns (detailed)
+
+```typescript
+// VERIFY: element displayed
+expect(await screen.isVisible('elementKey')).toBe(true);
+
+// VERIFY: text value
+expect(await screen.getText('elementKey')).toBe('expected');
+
+// VERIFY: text contains (use toLowerCase for case-insensitive)
+const text = await screen.getText('elementKey');
+expect(text.toLowerCase()).toContain('expected');
+
+// VERIFY: numeric value > 0
+const speed = await screen.getText('downloadSpeed');
+expect(parseFloat(speed)).toBeGreaterThan(0);
+```
+
+### Mobile SCREENSHOT Pattern
+
+```typescript
+await screen.takeScreenshot('screenshot-name');
+// Saves PNG to test-results/screenshots/screenshot-name.png
+```
+
+### Mobile CAPTURE Pattern
+
+```typescript
+let downloadSpeed: string;
+// Inside it():
+downloadSpeed = await resultsScreen.getText('downloadSpeedValue');
+console.log(`Download speed: ${downloadSpeed}`);
+```
+
+**MANDATORY:** `typeText()` in `BaseScreen` automatically hides keyboard after typing. If using raw driver commands, **MUST** call `await browser.hideKeyboard()` explicitly.
+
+**Locator priority for mobile:** `accessibility_id` > `id` > `uiautomator`/`class_chain` > xpath (LAST resort, NEVER index-based)
+
+**Appium MCP tools for Explorer:** `select_device` → `create_session` → `appium_get_page_source`/`generate_locators` → `appium_find_element` → `appium_click`/`appium_set_value` → `appium_screenshot` → `delete_session`
 
 ---
 
 ## Step Completeness Rule — MANDATORY
 
-**HARD STOP: Every step in the source scenario MUST produce a corresponding `await test.step('Step N — [description]', async () => { ... })` block in the test spec.** NEVER combine, merge, or skip steps — navigation and wait steps matter as much as actions.
+**For web/api/hybrid:** Every step in the source scenario MUST produce a corresponding `await test.step('Step N — [description]', async () => { ... })` block in the test spec. NEVER combine, merge, or skip steps.
 
-After writing the spec, count `test.step()` calls vs source steps — they **MUST match exactly**.
+**For mobile/mobile-hybrid:** Every step MUST produce a `// Step N — [description]` comment marker (no `test.step()` in WDIO/Mocha). Count comment markers vs source steps — they **MUST match exactly**.
+
+After writing the spec, count step markers vs source steps — they **MUST match exactly**.
 
 **Step numbering is positional, not user-authored.** The user's step numbers in the scenario .md file may be incorrect, duplicated, out of order, or missing. Do NOT rely on them. Instead:
 - Read the scenario top-to-bottom
@@ -434,3 +708,304 @@ After writing the spec, count `test.step()` calls vs source steps — they **MUS
 - The `test.step('Step N — ...')` in the generated spec uses these positional numbers, NOT the user's original numbers
 - The total count of `test.step()` calls must equal the total count of steps encountered positionally
 - Lifecycle hook steps use semantic prefixes (`[Setup]`, `[Before Each]`, etc.) — NOT step numbers
+
+---
+
+## Mobile-Specific Cross-Cutting Keyword Patterns
+
+The following keywords have mobile-specific generation patterns. The web sections above are authoritative for Playwright; this section is authoritative for WDIO/Mocha.
+
+### Mobile Lifecycle Hooks — Code Pattern
+
+```typescript
+import { browser } from '@wdio/globals';
+import { LoginScreen } from '../../../screens/LoginScreen';
+
+describe('Feature Name @smoke', () => {
+  let loginScreen: LoginScreen;
+
+  before(async () => {
+    // Common Setup Once steps (e.g. one-time login, test data load)
+  });
+
+  beforeEach(async () => {
+    // Common Setup steps (e.g. force-stop + relaunch app, reset state)
+    loginScreen = new LoginScreen(browser);
+  });
+
+  it('Scenario 1 @smoke', async () => { /* ... */ });
+  it('Scenario 2 @regression', async () => { /* ... */ });
+
+  afterEach(async () => {
+    // Common Teardown steps (e.g. capture screenshot on failure — already auto)
+  });
+
+  after(async () => {
+    // Common Teardown Once steps (e.g. cleanup test users)
+  });
+});
+```
+
+**Reviewer check (mobile):** `before`/`after` MUST NOT use Playwright fixtures. `browser` is a global; no destructuring required.
+
+---
+
+### VERIFY_SOFT — Mobile Pattern
+
+WDIO's `expect-webdriverio` does NOT have `expect.soft()`. The mobile pattern uses a try/catch + a `softAssertions: string[]` array declared at outer describe scope, and a final throw at the end of `it()` if any soft failures occurred. `BaseScreen.recordSoftFailure()` handles the screenshot + message formatting.
+
+```typescript
+describe('Cart verification @regression', () => {
+  let cartScreen: CartScreen;
+  let softAssertions: string[];
+
+  beforeEach(async () => {
+    cartScreen = new CartScreen(browser);
+    softAssertions = [];
+  });
+
+  it('Cart shows correct items @regression', async () => {
+    // ... setup steps ...
+
+    // VERIFY_SOFT: Cart badge shows "2"
+    try {
+      expect(await cartScreen.getCount('cartBadge')).toBe(2);
+    } catch (err) {
+      softAssertions.push(await cartScreen.recordSoftFailure('cart-badge', err));
+    }
+
+    // VERIFY_SOFT: Subtotal is "$29.98"
+    try {
+      expect(await cartScreen.getText('subtotal')).toBe('$29.98');
+    } catch (err) {
+      softAssertions.push(await cartScreen.recordSoftFailure('subtotal', err));
+    }
+
+    if (softAssertions.length > 0) {
+      throw new Error(
+        `${softAssertions.length} soft assertion(s) failed:\n` + softAssertions.join('\n'),
+      );
+    }
+  });
+});
+```
+
+**MANDATORY:** `softAssertions` MUST be re-initialized in `beforeEach` so failures from one scenario don't bleed into the next. The final throw MUST be the LAST statement of the `it()` block.
+
+**Reviewer check:** A mobile spec containing a `VERIFY_SOFT` step MUST declare `softAssertions: string[]` at the describe scope, reset it in `beforeEach`, and end every test that contains any VERIFY_SOFT with the conditional throw. Each `try/catch` MUST call `recordSoftFailure()` (NOT a custom screenshot — this guarantees the standard label format).
+
+---
+
+### DATASETS — Mobile Pattern
+
+```typescript
+import testData from '../../../test-data/mobile/login-datasets.json';
+import { browser } from '@wdio/globals';
+import { LoginScreen } from '../../../screens/LoginScreen';
+import { HomeScreen } from '../../../screens/HomeScreen';
+
+describe('Login — data-driven @regression', () => {
+  for (const data of testData) {
+    it(`Login: ${data.username || '(empty)'} — expects ${data.expectedResult} @regression`, async () => {
+      const loginScreen = new LoginScreen(browser);
+      await loginScreen.typeText('emailInput', data.username);
+      await loginScreen.typeText('passwordInput', data.password);
+      await loginScreen.tap('signInButton');
+
+      if (data.expectedResult === 'success') {
+        const homeScreen = new HomeScreen(browser);
+        expect(await homeScreen.isVisible('welcomeMessage')).toBe(true);
+      } else {
+        expect(await loginScreen.getText('errorMessage')).toContain(data.expectedError);
+      }
+    });
+  }
+});
+```
+
+**MANDATORY:** The `for...of` loop MUST be inside `describe()` and outside `it()`. Each row produces ONE separate `it()` block. The Mocha runner discovers them at file load time.
+
+---
+
+### SHARED_DATA — Mobile Pattern
+
+The shared `output/core/test-data-loader.ts` is plain TypeScript with `fs.readFileSync` — no Playwright dependency — so it works in WDIO specs unchanged.
+
+```typescript
+// SHARED_DATA: users, products
+import { loadTestData } from '../../../core/test-data-loader';
+const testData = loadTestData('mobile/flipkart-cart', ['mobile-users', 'products']);
+// testData merges shared/mobile-users.json + shared/products.json + mobile/flipkart-cart.json
+```
+
+**Reviewer check:** A mobile spec using `SHARED_DATA` MUST import from `core/test-data-loader` (relative path traverses three levels up: `../../../core/test-data-loader`). Direct JSON imports are forbidden.
+
+---
+
+### USE_HELPER — Mobile Pattern
+
+```typescript
+// USE_HELPER: FlipkartHomeScreen.dismissLoginPrompt
+import { FlipkartHomeScreen } from '../../../screens/FlipkartHomeScreen';
+import { applyHelpers } from '../../../screens/FlipkartHomeScreen.helpers';
+
+const homeScreen = applyHelpers(new FlipkartHomeScreen(browser));
+await homeScreen.dismissLoginPrompt();
+```
+
+The helper file lives at `output/screens/{ScreenName}.helpers.ts` and exports an `applyHelpers(screen)` function (or extends the class). The Builder MUST NOT create or modify helper files — they are team-owned.
+
+**HARD STOP:** Same as web — if the helpers file does not exist or the method is missing:
+- Do NOT create the helpers file
+- Emit warning: `// WARNING: USE_HELPER requested FlipkartHomeScreen.dismissLoginPrompt but FlipkartHomeScreen.helpers.ts not found`
+- Mark the spec with `it.skip('MISSING HELPER: FlipkartHomeScreen.dismissLoginPrompt', ...)`
+
+---
+
+### Running Multiple Mobile Specs in One Command
+
+For enterprise mobile suites (20+ specs), the standard pattern is a single `wdio run` invocation that picks up all specs from `tests/mobile/**/*.spec.ts`. The `wdio.conf.ts` template's `specs` glob already matches the entire mobile tree.
+
+```bash
+# Run ALL mobile specs in one shot
+PLATFORM=android npx wdio run wdio.conf.ts
+
+# Filter by tag (Mocha grep — mobile tags live in describe/it title strings)
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@smoke"
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@P0"
+
+# Run a subtree
+PLATFORM=android npx wdio run wdio.conf.ts --spec 'tests/mobile/flipkart/**/*.spec.ts'
+
+# Run multiple explicit specs (no contamination — see beforeSuite hook below)
+PLATFORM=android npx wdio run wdio.conf.ts \
+  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
+  --spec tests/mobile/parity/test-lifecycle-hooks.spec.ts
+```
+
+**Why this works without per-spec contamination:** `wdio.conf.ts` includes a `beforeSuite` hook that calls `terminateApp` + `activateApp` on `process.env.APP_PACKAGE` before every spec file. With `NO_RESET=true` (required for fast real-device runs), Appium does NOT relaunch the app at session start — it just attaches to whatever the device is currently showing. The `beforeSuite` hook explicitly forces the app back to its launch state regardless of where the previous spec, a prior test run, or normal device usage left things. ~1s per spec on a real device, vs ~15s for a full session restart with `NO_RESET=false`.
+
+**Failure isolation:** WDIO's default `bail: 0` means a failing spec does NOT stop subsequent specs — the worker continues through the entire `specs` list and reports per-spec pass/fail at the end. If you want to stop on first failure (e.g. smoke gate), set `bail: 1` in `wdio.conf.ts`.
+
+**Multi-device parallelism:** WDIO uses the `capabilities: [...]` array — one entry per device. Default behavior is parallel cross-device coverage (each capability runs the FULL spec list, NOT sharding). For sharded speed-up across N devices, run N parallel WDIO processes each with `--shard X/N`. The `beforeSuite` reset still applies per-device because WDIO assigns each capability its own worker + session.
+
+#### Multi-Device Capabilities — Patterns
+
+**Local lab (multiple ADB-connected devices):** drive the capabilities array from an env var. Pass a comma-separated list of device serials and the framework expands them.
+
+```typescript
+// output/core/capabilities.ts (or wdio.conf.ts inline)
+const deviceSerials = (process.env.ANDROID_DEVICES || process.env.ANDROID_DEVICE || '').split(',').filter(Boolean);
+
+export function getAndroidCapabilities() {
+  return deviceSerials.map(serial => ({
+    platformName: 'Android',
+    'appium:automationName': 'UIAutomator2',
+    'appium:deviceName': serial,
+    'appium:appPackage': process.env.APP_PACKAGE,
+    'appium:appActivity': process.env.APP_ACTIVITY,
+    'appium:noReset': process.env.NO_RESET === 'true',
+    'appium:autoGrantPermissions': true,
+  }));
+}
+
+// wdio.conf.ts
+import { getAndroidCapabilities } from './core/capabilities';
+export const config = {
+  maxInstances: 3,                       // parallel session count cap
+  capabilities: getAndroidCapabilities(),
+  // ... rest of config
+};
+```
+
+```bash
+ANDROID_DEVICES=R5CT12345,R5CT67890,R5CT99999 PLATFORM=android npx wdio run wdio.conf.ts
+```
+
+**BrowserStack App Automate:** add `@wdio/browserstack-service`, set `BROWSERSTACK_USERNAME` + `BROWSERSTACK_ACCESS_KEY` env vars, and list device combinations explicitly in `capabilities`.
+
+```typescript
+// wdio.conf.ts
+export const config = {
+  user: process.env.BROWSERSTACK_USERNAME,
+  key: process.env.BROWSERSTACK_ACCESS_KEY,
+  services: [
+    ['browserstack', { app: 'bs://<app-id-from-upload>', browserstackLocal: false }],
+  ],
+  capabilities: [
+    {
+      platformName: 'Android',
+      'bstack:options': {
+        deviceName: 'Google Pixel 8',
+        osVersion: '14.0',
+        projectName: 'agentic-qe',
+        buildName: 'mobile-regression-${BUILD_NUMBER}',
+        sessionName: 'flipkart-checkout',
+        appiumVersion: '2.0.1',
+      },
+    },
+    {
+      platformName: 'Android',
+      'bstack:options': {
+        deviceName: 'Samsung Galaxy S23',
+        osVersion: '13.0',
+        projectName: 'agentic-qe',
+        buildName: 'mobile-regression-${BUILD_NUMBER}',
+        appiumVersion: '2.0.1',
+      },
+    },
+    {
+      platformName: 'iOS',
+      'xcuitest:options': { deviceName: 'iPhone 15', osVersion: '17.0' },
+      'bstack:options': { projectName: 'agentic-qe', appiumVersion: '2.0.1' },
+    },
+  ],
+};
+```
+
+Upload the APK once via `curl -u "$BS_USER:$BS_KEY" -X POST "https://api-cloud.browserstack.com/app-automate/upload" -F "file=@app.apk"` — the response gives the `bs://<app-id>` to put in the `app` key above.
+
+**Sauce Labs:** identical structure, different vendor key + service name. Use `'sauce:options'` instead of `'bstack:options'` and `services: ['sauce']`. Auth: `SAUCE_USERNAME` + `SAUCE_ACCESS_KEY`. App upload via Sauce's `storage:filename=app.apk` convention.
+
+```typescript
+services: ['sauce'],
+capabilities: [
+  {
+    platformName: 'Android',
+    'appium:app': 'storage:filename=app.apk',
+    'sauce:options': {
+      deviceName: 'Google Pixel 8',
+      platformVersion: '14.0',
+      appiumVersion: '2.0.1',
+      build: 'mobile-regression-${BUILD_NUMBER}',
+      name: 'flipkart-checkout',
+    },
+  },
+],
+```
+
+**LambdaTest:** same again — vendor key is `'lt:options'`, service is `wdio-lambdatest-service` (community package, not `@wdio/`-scoped). Auth: `LT_USERNAME` + `LT_ACCESS_KEY`. App upload via LambdaTest's app upload API returns an `lt://APP_ID` reference.
+
+```typescript
+services: ['lambdatest'],
+capabilities: [
+  {
+    platformName: 'Android',
+    'appium:app': 'lt://APP10160541716...',
+    'lt:options': {
+      deviceName: 'Pixel 8',
+      platformVersion: '14',
+      appiumVersion: '2.0.1',
+      project: 'agentic-qe',
+      build: 'mobile-regression-${BUILD_NUMBER}',
+      name: 'flipkart-checkout',
+    },
+  },
+],
+```
+
+**The pattern is identical across BrowserStack, Sauce Labs, and LambdaTest.** You enumerate device combinations in `capabilities`, each entry uses a vendor-specific options key, and a WDIO service handles the cloud connection + result reporting. Default WDIO behavior applies: each capability runs the FULL spec list in parallel (cross-device coverage). For sharding, use `--shard X/N` from N parallel CI jobs.
+
+**AWS Device Farm is different** — you don't list devices in `capabilities`. You package your test project as a zip, upload it, and select a named device pool managed in the AWS console. Device Farm runs the same bundle across every device in the pool. WDIO doesn't integrate directly; use the `aws devicefarm` CLI or SDK from a CI job. The framework `wdio.conf.ts` doesn't need any changes for this pattern.
+
+**The `beforeSuite` reset hook works on every cloud provider** because it operates on the `browser` global, which is the per-session WebDriver client. Whether the session is on `localhost:4723` or a cloud endpoint, `terminateApp` + `activateApp` are standard Appium commands that all major mobile clouds support.

@@ -1,0 +1,90 @@
+{
+  "searchBar": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.view.ViewGroup\").clickable(true).instance(4)",
+      "xpath": "//android.widget.ScrollView/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup[3]"
+    },
+    "description": "Search bar — content-desc rotates (shoes, laptops, etc). No stable text selector. Use coordinate tap (300, 348) as primary strategy.",
+    "type": "button",
+    "_tapCoordinates": { "x": 300, "y": 348 }
+  },
+  "cartTab": {
+    "android": {
+      "uiautomator": "new UiSelector().descriptionContains(\"Cart\")",
+      "xpath": "//android.view.ViewGroup[contains(@content-desc,'Cart')]"
+    },
+    "description": "Cart bottom navigation tab (shows badge count)",
+    "type": "button"
+  },
+  "homeTab": {
+    "android": {
+      "uiautomator": "new UiSelector().description(\"Home\").className(\"android.view.ViewGroup\")",
+      "accessibility_id": "Home"
+    },
+    "description": "Home bottom navigation tab",
+    "type": "button"
+  },
+  "accountTab": {
+    "android": {
+      "uiautomator": "new UiSelector().description(\"Account\")",
+      "accessibility_id": "Account"
+    },
+    "description": "Account bottom navigation tab",
+    "type": "button"
+  },
+  "homeScreenTabRow": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.ImageView\").instance(0)"
+    },
+    "description": "Top navigation tabs row — first ImageView confirms home screen is loaded",
+    "type": "structural"
+  },
+  "flipkartTab": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.ImageView\").instance(0)"
+    },
+    "description": "Flipkart top nav tab — image-only React Native element, no accessibility node; coordinate tap (105,144)",
+    "type": "tab",
+    "_tapCoordinates": { "x": 105, "y": 144 }
+  },
+  "minutesTab": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.ImageView\").instance(1)"
+    },
+    "description": "Minutes top nav tab — content-desc is live countdown (unstable); coordinate tap (275,144) only",
+    "type": "tab",
+    "_tapCoordinates": { "x": 275, "y": 144 }
+  },
+  "travelTab": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.ImageView\").instance(2)"
+    },
+    "description": "Travel top nav tab — image-only React Native element; coordinate tap (445,144)",
+    "type": "tab",
+    "_tapCoordinates": { "x": 445, "y": 144 }
+  },
+  "groceryTab": {
+    "android": {
+      "uiautomator": "new UiSelector().className(\"android.widget.ImageView\").instance(3)"
+    },
+    "description": "Grocery top nav tab — may trigger promo popup; coordinate tap (615,144)",
+    "type": "tab",
+    "_tapCoordinates": { "x": 615, "y": 144 }
+  },
+  "deliveryAddress": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"Flat no. 203, B Block, Tapovan\")",
+      "xpath": "//android.widget.TextView[contains(@text,'Flat no. 203, B Block, Tapovan')]"
+    },
+    "description": "Delivery address row below nav tabs — truncated in UI, use textContains with first ~30 chars",
+    "type": "text"
+  },
+  "searchBox": {
+    "android": {
+      "coordinate": [360, 340]
+    },
+    "description": "Search box in home screen header — placeholder text rotates; coordinate tap (360,340) is reliable",
+    "type": "input",
+    "_tapCoordinates": { "x": 360, "y": 340 }
+  }
+}

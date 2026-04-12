@@ -1,0 +1,34 @@
+{
+  "firstProductTitle": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"boAt\").instance(0)",
+      "xpath": "(//android.widget.TextView[contains(@text,'boAt')])[1]"
+    },
+    "description": "First product title in search results — text varies by search query, use textContains with brand/keyword",
+    "type": "button"
+  },
+  "notNowButton": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"NOT NOW\")",
+      "xpath": "//android.widget.TextView[@text='NOT NOW'] | //android.widget.Button[@text='NOT NOW']"
+    },
+    "description": "NOT NOW button on notification/location permission popups",
+    "type": "button"
+  },
+  "resultsScrollView": {
+    "android": {
+      "uiautomator": "new UiSelector().scrollable(true).instance(0)",
+      "xpath": "//android.widget.ScrollView | //androidx.recyclerview.widget.RecyclerView"
+    },
+    "description": "Search results list — scrollable container; scroll down to reveal more products",
+    "type": "structural"
+  },
+  "cartIcon": {
+    "android": {
+      "coordinate": [653, 140]
+    },
+    "description": "Cart icon in top-right header — shows item count badge; no stable resource-id; coordinate tap (653,140)",
+    "type": "button",
+    "_tapCoordinates": { "x": 653, "y": 140 }
+  }
+}

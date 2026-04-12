@@ -1,0 +1,52 @@
+{
+  "productName": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"LUKZER\")",
+      "xpath": "//android.widget.TextView[@text='LUKZER']"
+    },
+    "description": "Product brand name — separate TextView above the description. FIX: Previously locator hardcoded 'LUKZER Electric Height Adjustable' which spans TWO elements and never matches. Brand and description are rendered as sibling TextViews.",
+    "type": "text"
+  },
+  "productDescription": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"Electric Height Adjustable Desk\")",
+      "xpath": "//android.widget.TextView[contains(@text,'Electric Height Adjustable Desk')]"
+    },
+    "description": "Short product description line — sibling TextView below the brand name",
+    "type": "text"
+  },
+  "productPrice": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"₹[0-9,]+\").instance(0)",
+      "xpath": "(//android.widget.TextView[starts-with(@text,'₹')])[1]"
+    },
+    "description": "Current selling price — matches pattern ₹N,NNN; use instance(0) to get selling price (before MRP)",
+    "type": "text"
+  },
+  "discountPercentage": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"[0-9]+%\").instance(0)",
+      "xpath": "(//android.widget.TextView[contains(@text,'%')])[1]"
+    },
+    "description": "Discount percentage badge in the price row — green badge before the price (e.g. '68%')",
+    "type": "text"
+  },
+  "buyAtButton": {
+    "android": {
+      "uiautomator": "new UiSelector().descriptionContains(\"Buy at\")",
+      "xpath": "//*[contains(@content-desc,'Buy at')]"
+    },
+    "description": "Buy Now CTA button at bottom right — content-desc includes animated chars and current price, e.g. 'Buy at ₹18,979'",
+    "type": "button",
+    "_tapCoordinates": { "x": 550, "y": 1460 }
+  },
+  "photoCarousel": {
+    "android": {
+      "coordinate": [360, 600]
+    },
+    "description": "Product image carousel center — 6 photos total; swipe left (startX=540→endX=180, y=600) to advance",
+    "type": "carousel",
+    "_tapCoordinates": { "x": 360, "y": 600 },
+    "_swipe": { "startX": 540, "startY": 600, "endX": 180, "endY": 600 }
+  }
+}

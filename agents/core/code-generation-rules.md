@@ -782,3 +782,407 @@ await test.step('[After All] Cleanup data', async () => { ... });
 ```
 
 Main scenario steps use sequential numbers: `Step 1`, `Step 2`, etc.
+
+---
+
+## 14. Mobile Code Generation — MANDATORY for `mobile` and `mobile-hybrid` Types
+
+**This entire section applies ONLY to mobile and mobile-hybrid types.** Web/api/hybrid types continue to use the Playwright patterns above.
+
+### 14.1 Mobile Locator JSON Format
+
+**File location:** `output/locators/mobile/{screen-name}.locators.json`
+
+Mobile locators use a **platform-keyed** format — fundamentally different from the web format. Each element entry has `android` and/or `ios` sub-objects with strategy-specific selectors:
+
+```json
+{
+  "goButton": {
+    "android": {
+      "accessibility_id": "Start a Speedtest",
+      "id": "org.zwanoo.android.speedtest:id/go_button",
+      "xpath": "//android.widget.Button[@content-desc='Start a Speedtest']"
+    },
+    "ios": {
+      "accessibility_id": "Start a Speedtest",
+      "class_chain": "**/XCUIElementTypeButton[`label == 'Start a Speedtest'`]"
+    },
+    "description": "Main GO button to start speed test",
+    "type": "button"
+  }
+}
+```
+
+**Strategy priority (Android):** `accessibility_id` > `id` > `uiautomator` > `xpath`
+**Strategy priority (iOS):** `accessibility_id` > `id` > `class_chain` > `predicate_string` > `xpath`
+
+**Rules:**
+- `accessibility_id` (content-desc on Android) is ALWAYS preferred — most stable across app updates
+- `xpath` is LAST resort — NEVER use index-based xpath (`[3]`)
+- `uiautomator` selectors for complex matching: `new UiSelector().textMatches("(?i)add to cart")`
+- At minimum, `android` selectors MUST be present. `ios` is recommended for cross-platform.
+- `MobileLocatorLoader` reads `process.env.PLATFORM` and resolves the correct platform branch at runtime
+
+### 14.2 Screen Object Structure
+
+**File location:** `output/screens/{ScreenName}Screen.ts`
+
+```typescript
+import { BaseScreen } from '../core/base-screen';
+
+export class FlipkartHomeScreen extends BaseScreen {
+  constructor(driver: WebdriverIO.Browser) {
+    super(driver, 'flipkart-home-screen');
+  }
+
+  async waitForScreen(): Promise<void> {
+    await this.waitForElement('cartTab', 'displayed', 20000);
+  }
+
+  async tapSearchBar(): Promise<void> {
+    await this.tap('searchBar');
+  }
+
+  async getProductName(): Promise<string> {
+    return this.getText('productName');
+  }
+
+  async isAddToCartVisible(): Promise<boolean> {
+    return this.isVisible('addToCartButton');
+  }
+}
+```
+
+**Rules — MUST follow ALL:**
+- **MUST** extend `BaseScreen` (NOT `BasePage` — different driver model)
+- **MUST** pass the locator file name (without `.locators.json`) to `super()` constructor
+- Methods use `BaseScreen` inherited methods: `tap()`, `typeText()`, `getText()`, `getAttribute()`, `isVisible()`, `waitForElement()`, `swipe()`, `scrollToElement()`, `longPress()`, `takeScreenshot()`, `goBack()`
+- **NO raw selectors** — all element access through `this.loc.get('key')` or inherited methods
+- `typeText()` automatically hides keyboard after typing
+- One screen object per distinct app screen/view
+
+### 14.3 Mobile Spec File Structure
+
+**File location:** `output/tests/mobile/[{folder}/]{scenario}.spec.ts`
+
+```typescript
+import { browser, expect } from '@wdio/globals';
+import { SpeedtestHomeScreen } from '../../../screens/SpeedtestHomeScreen';
+import { SpeedtestResultsScreen } from '../../../screens/SpeedtestResultsScreen';
+import testData from '../../../test-data/mobile/speedtest-run-test.json';
+
+describe('Speedtest — Run Speed Test @smoke @P0', () => {
+  let homeScreen: SpeedtestHomeScreen;
+  let resultsScreen: SpeedtestResultsScreen;
+
+  before(async () => {
+    homeScreen = new SpeedtestHomeScreen(browser);
+    resultsScreen = new SpeedtestResultsScreen(browser);
+  });
+
+  it('should run a speed test and verify results @smoke @P0', async () => {
+    // Step 1 — Wait for home screen
+    await homeScreen.waitForScreen();
+
+    // Step 2 — VERIFY: GO button visible
+    expect(await homeScreen.isGoButtonVisible()).toBe(true);
+
+    // Step 3 — Tap GO
+    await homeScreen.tapGoButton();
+
+    // Step 4 — Wait for results
+    await resultsScreen.waitForResults(testData.timeouts.testCompletionMs);
+
+    // Step 5 — VERIFY: Download speed > 0
+    const downloadSpeed = await resultsScreen.getDownloadSpeed();
+    expect(parseFloat(downloadSpeed)).toBeGreaterThan(0);
+
+    // Step 6 — SCREENSHOT
+    await resultsScreen.takeScreenshot('speedtest-results');
+  });
+});
+```
+
+**Rules — HARD STOP on each:**
+1. **Import from `@wdio/globals`** — NOT from `@playwright/test`. Use `import { browser, expect } from '@wdio/globals'`
+2. **Mocha `describe`/`it`** — NOT Playwright `test.describe`/`test()`. WDIO uses Mocha BDD
+3. **Mocha hooks** — `before`/`after`/`beforeEach`/`afterEach` — NOT `test.beforeAll`/`test.afterAll`
+4. **No `test.step()`** — Use comment markers: `// Step N — description`
+5. **No `expect.soft()`** — For VERIFY_SOFT, use try/catch pattern
+6. **No `test.info().attach()`** — For SCREENSHOT, use `await screen.takeScreenshot('name')`
+7. **Tags in title strings** — `it('test name @smoke @P0', ...)` NOT `{ tag: ['@smoke'] }`
+8. **Screen instantiation** — `new ScreenName(browser)` in `before()` hook, NOT in each test
+9. **CAPTURE variables** — `let` in outer `describe` scope, assigned inside `it()`
+
+### 14.4 PopupGuard for Apps with Overlays
+
+Most real-world apps show overlays: permission dialogs, promo banners, app rating requests, notification prompts, ad interstitials. `PopupGuard` handles these automatically for **any** app — not limited to specific apps.
+
+```typescript
+import { PopupGuard } from '../core/popup-guard';
+
+before(async () => {
+  const guard = new PopupGuard(browser);
+  // Add app-specific patterns (optional — system dialog patterns are built-in)
+  guard.addPattern({ name: 'app-promo-banner', textPattern: 'Shop now|Download', dismissBy: 'back' });
+});
+```
+
+Call `await guard.dismiss()` before critical interactions. PopupGuard checks for known overlay patterns and dismisses them. System permission dialogs (location, notifications) are handled by default. Add app-specific patterns for app-level overlays.
+
+Simple demo/test apps (e.g., Sauce Labs demo) with no random popups may not need PopupGuard.
+
+### 14.5 Clean State Pattern
+
+Mobile apps maintain state between tests (unlike web which gets a fresh browser context). Use `force-stop + relaunch` for clean state:
+
+```typescript
+async function navigateToHome(): Promise<void> {
+  await browser.executeScript('mobile: shell', [{
+    command: 'am', args: ['force-stop', 'com.example.app']
+  }]);
+  await browser.pause(2000);
+  await browser.executeScript('mobile: shell', [{
+    command: 'am', args: ['start', '-n', 'com.example.app/.MainActivity']
+  }]);
+  await browser.pause(5000);
+}
+```
+
+### 14.6 Coordinate Tap Fallback
+
+For Compose/SwiftUI elements with NO accessibility nodes (e.g., calendar date cells):
+
+```typescript
+// FRAGILE: Compose calendar element, no accessibility node
+await browser.action('pointer')
+  .move({ duration: 0, origin: 'viewport', x: 540, y: 860 })
+  .down({ button: 0 }).pause(100).up({ button: 0 })
+  .perform();
+```
+
+**MUST** include `// FRAGILE:` comment explaining why selectors are not available.
+
+### 14.7 Mobile-Hybrid Spec Pattern
+
+For `mobile-hybrid` type (native app + API calls):
+
+```typescript
+import { browser, expect } from '@wdio/globals';
+import axios from 'axios';
+
+describe('Mobile-Hybrid Flow', () => {
+  it('should verify API data in mobile app', async () => {
+    // API step — wrap in browser.call() for WDIO compatibility
+    let resourceId: string;
+    await browser.call(async () => {
+      const res = await axios.post(`${process.env.API_BASE_URL}/resources`, { name: 'Test' });
+      resourceId = res.data.id;
+    });
+
+    // Mobile step — screen object interaction
+    const homeScreen = new HomeScreen(browser);
+    await homeScreen.typeText('searchInput', resourceId!);
+    expect(await homeScreen.getText('firstResult')).toContain('Test');
+  });
+});
+```
+
+`browser.call()` wraps async non-WebDriver code within a WDIO test. CAPTURE variables are shared between API and mobile phases via outer-scope `let`.
+
+---
+
+### 14.8 Mobile Anti-Patterns — NEVER Do These
+
+The following patterns are forbidden in mobile locator JSONs and screen-object code. The Builder MUST refactor any candidate locator that matches a Level 1 anti-pattern (see Builder genericization rules) before writing the file.
+
+#### AP-1: Hardcoding test-specific values in locators
+
+WRONG:
+```json
+{
+  "productName": { "android": { "uiautomator": "new UiSelector().textContains(\"LUKZER Electric\")" } }
+}
+```
+
+RIGHT (generic, structural):
+```json
+{
+  "productName": { "android": { "xpath": "//android.widget.TextView[@text='Total Amount']/..//android.widget.TextView[starts-with(@text,'₹')]" } }
+}
+```
+
+**Rule:** Before writing a locator, ask: "Would this work for a different product/user/value?" If no, use a structural anchor instead.
+
+#### AP-2: Multi-element text matching
+
+WRONG: `textContains("LUKZER Electric Height Adjustable")` — spans two TextView elements, never resolves.
+RIGHT: Two separate locators — one per TextView — or an XPath anchor from a stable label.
+
+#### AP-3: Full-tree XPath in wait loops
+
+WRONG: `driver.$$('//android.widget.ImageView')` — scans the entire a11y tree, 20-30s per call on RN apps.
+RIGHT: Targeted locator via `MobileLocatorLoader` or a `UiSelector` with specific attributes.
+
+#### AP-4: Contradictory flow steps
+
+WRONG: `searchFor(query)` (types + Enter → submits the search) followed by `tapSuggestion()` (tries to tap a suggestion that's no longer visible).
+RIGHT: Pick one path — either press Enter to submit OR tap a suggestion. Not both.
+
+#### AP-5: Assuming WebView without verification
+
+WRONG: Generating `switchContext('WEBVIEW_...')` code because the screen "might be a WebView".
+RIGHT: Default to native. Only emit WebView logic when the Explorer's enriched.md explicitly documents that `appium_context` (or `driver.getContexts()`) returned a `WEBVIEW_*` context for the screen.
+
+#### AP-6: No keyboard dismissal after text input
+
+WRONG: `setValue(text)` followed by `swipe('up')` — keyboard is visible, GBoard glide-typing injects characters into the EditText during the swipe gesture.
+RIGHT: Always `hideKeyboard()` after text input if any scrolling follows. `BaseScreen.typeText()` and `BaseScreen.pressSequentially()` already do this — only raw `el.setValue()` calls need it manually.
+
+#### AP-7: Missing performance settings for RN apps
+
+WRONG: `wdio.conf.ts` without `waitForIdleTimeout: 0` — every query takes 20-30s on React Native apps.
+RIGHT: UiAutomator2 performance settings applied in the `before()` hook (see `templates/config-mobile/wdio.conf.ts`).
+
+---
+
+### 14.9 Mobile Lifecycle Hooks — Code Pattern
+
+When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook. Mapping:
+
+| Section in `.md` | Mocha hook |
+|---|---|
+| `## Common Setup Once` | `before()` |
+| `## Common Setup` | `beforeEach()` |
+| `## Common Teardown` | `afterEach()` |
+| `## Common Teardown Once` | `after()` |
+
+```typescript
+import { browser, expect } from '@wdio/globals';
+import { LoginScreen } from '../../../screens/LoginScreen';
+import { HomeScreen } from '../../../screens/HomeScreen';
+
+describe('Login Feature @smoke', () => {
+  let loginScreen: LoginScreen;
+  let homeScreen: HomeScreen;
+
+  before(async () => {
+    // [Setup Once] — runs once before all `it()` blocks in this file
+  });
+
+  beforeEach(async () => {
+    // [Before Each] — runs before every `it()`
+    loginScreen = new LoginScreen(browser);
+    homeScreen = new HomeScreen(browser);
+  });
+
+  it('Successful login @smoke @P0', async () => {
+    // Step 1 — Tap email input
+    await loginScreen.tap('emailInput');
+    // ...
+  });
+
+  afterEach(async () => {
+    // [After Each] — runs after every `it()`
+  });
+
+  after(async () => {
+    // [Teardown Once] — runs once after all `it()` blocks
+  });
+});
+```
+
+**Fixture rule (mobile):** `browser` is a WDIO global. NEVER destructure it. NEVER write `async ({ browser }) => ...` — that is Playwright syntax and breaks WDIO.
+
+**Step numbering rule:** Lifecycle hook bodies use semantic prefixes (`[Setup Once]`, `[Before Each]`, `[After Each]`, `[Teardown Once]`) — NOT numbered Step N markers. Only the body of `it()` blocks uses numbered `// Step N — ...` comments.
+
+---
+
+### 14.10 Mobile VERIFY_SOFT — Code Pattern
+
+WDIO's `expect-webdriverio` does NOT have `expect.soft()`. Mobile soft assertions use a `softAssertions: string[]` array at the describe scope, `BaseScreen.recordSoftFailure()` for screenshot + message capture, and a final conditional throw.
+
+```typescript
+import { browser, expect } from '@wdio/globals';
+import { CartScreen } from '../../../screens/CartScreen';
+
+describe('Cart verification @regression', () => {
+  let cartScreen: CartScreen;
+  let softAssertions: string[];
+
+  beforeEach(async () => {
+    cartScreen = new CartScreen(browser);
+    softAssertions = []; // MUST reset per test
+  });
+
+  it('Cart shows correct totals @regression', async () => {
+    // ... preceding steps ...
+
+    // Step N — VERIFY_SOFT: Cart badge shows "2"
+    try {
+      expect(await cartScreen.getCount('cartBadge')).toBe(2);
+    } catch (err) {
+      softAssertions.push(await cartScreen.recordSoftFailure('cart-badge', err));
+    }
+
+    // Step N+1 — VERIFY_SOFT: Subtotal is "$29.98"
+    try {
+      expect(await cartScreen.getText('subtotal')).toBe('$29.98');
+    } catch (err) {
+      softAssertions.push(await cartScreen.recordSoftFailure('subtotal', err));
+    }
+
+    // MUST be the last statement of the it() block
+    if (softAssertions.length > 0) {
+      throw new Error(
+        `${softAssertions.length} soft assertion(s) failed:\n` + softAssertions.join('\n'),
+      );
+    }
+  });
+});
+```
+
+**MANDATORY rules:**
+- `softAssertions: string[]` declared at describe scope; reset in `beforeEach`
+- Each VERIFY_SOFT step uses `try { expect(...) } catch (err) { softAssertions.push(await screen.recordSoftFailure(label, err)); }`
+- The label MUST be a short kebab-case identifier (used in the screenshot filename)
+- The conditional throw is the LAST statement of every test that contains any VERIFY_SOFT
+- Do NOT convert VERIFY to VERIFY_SOFT or vice versa to make tests pass
+
+---
+
+### 14.11 Mobile DATASETS — Code Pattern
+
+```typescript
+import { browser, expect } from '@wdio/globals';
+import { LoginScreen } from '../../../screens/LoginScreen';
+import { HomeScreen } from '../../../screens/HomeScreen';
+import testData from '../../../test-data/mobile/login-datasets.json';
+
+describe('Login — data-driven @regression', () => {
+  for (const data of testData) {
+    it(`Login: ${data.username || '(empty)'} — expects ${data.expectedResult} @regression`, async () => {
+      const loginScreen = new LoginScreen(browser);
+      // Step 1 — Type username
+      await loginScreen.typeText('emailInput', data.username);
+      // Step 2 — Type password
+      await loginScreen.typeText('passwordInput', data.password);
+      // Step 3 — Tap sign in
+      await loginScreen.tap('signInButton');
+
+      if (data.expectedResult === 'success') {
+        const homeScreen = new HomeScreen(browser);
+        expect(await homeScreen.isVisible('welcomeMessage')).toBe(true);
+      } else {
+        expect(await loginScreen.getText('errorMessage')).toContain(data.expectedError);
+      }
+    });
+  }
+});
+```
+
+**MANDATORY rules:**
+- The `for...of` loop MUST be inside `describe()` and OUTSIDE `it()` so Mocha discovers each iteration as a separate test at file load time
+- The test data JSON file lives at `output/test-data/mobile/{scenario}-datasets.json`
+- Each row's identifying field MUST appear in the `it()` title for clear reporting
+- Tags appear in the title string (`@regression` etc.) — Mocha has no `tag` parameter

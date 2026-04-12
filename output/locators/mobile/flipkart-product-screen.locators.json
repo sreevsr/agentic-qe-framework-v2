@@ -1,0 +1,26 @@
+{
+  "addToCartButton": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"(?i)add to cart\")",
+      "xpath": "//android.widget.TextView[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'add to cart')]"
+    },
+    "description": "Add to Cart button on product detail page",
+    "type": "button"
+  },
+  "goToCartButton": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"(?i)go to cart\")",
+      "xpath": "//android.widget.TextView[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'go to cart')]"
+    },
+    "description": "Go to Cart button — appears after item is added",
+    "type": "button"
+  },
+  "productPrice": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"₹[0-9,]+\").instance(0)",
+      "xpath": "(//android.widget.TextView[starts-with(@text,'₹')])[1]"
+    },
+    "description": "Product price (starts with ₹)",
+    "type": "text"
+  }
+}

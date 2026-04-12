@@ -1,0 +1,17 @@
+{
+  "notNowButton": {
+    "android": {
+      "xpath": "//android.widget.Button[@text='Not Now' or @text='NOT NOW' or @text='not now']",
+      "uiautomator": "new UiSelector().textMatches(\"(?i)not now\").className(\"android.widget.Button\")"
+    },
+    "description": "Not Now button on permission/notification dialogs",
+    "type": "button"
+  },
+  "dialogContainer": {
+    "android": {
+      "xpath": "//android.widget.Button[@text='Not Now' or @text='NOT NOW']/.."
+    },
+    "description": "Parent container of the permission dialog — used for dialog detection",
+    "type": "text"
+  }
+}

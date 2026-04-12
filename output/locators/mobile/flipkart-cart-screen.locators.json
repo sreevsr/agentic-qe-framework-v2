@@ -1,0 +1,51 @@
+{
+  "cartHeader": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"Cart\")",
+      "xpath": "//android.widget.TextView[contains(@text,'Cart')]"
+    },
+    "description": "Cart page header — shows 'Cart (N item)'",
+    "type": "text"
+  },
+  "cartItemPrice": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"₹[0-9,]+\").instance(0)",
+      "xpath": "(//android.widget.TextView[starts-with(@text,'₹')])[1]"
+    },
+    "description": "First item price in cart",
+    "type": "text"
+  },
+  "placeOrderButton": {
+    "android": {
+      "uiautomator": "new UiSelector().textMatches(\"(?i)place order\")",
+      "xpath": "//android.widget.TextView[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'place order')]"
+    },
+    "description": "Place Order button in cart",
+    "type": "button"
+  },
+  "lukzerCartItem": {
+    "android": {
+      "uiautomator": "new UiSelector().textContains(\"LUKZER Electric Height Adjustable Desk\")",
+      "xpath": "//android.widget.TextView[contains(@text,'LUKZER Electric Height Adjustable Desk')]"
+    },
+    "description": "LUKZER product row in cart — visible in Flipkart tab",
+    "type": "text"
+  },
+  "removeButton": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"Remove\")",
+      "xpath": "//android.widget.TextView[@text='Remove']"
+    },
+    "description": "Remove product from cart — immediate removal, no confirmation dialog",
+    "type": "button"
+  },
+  "homeNavButton": {
+    "android": {
+      "uiautomator": "new UiSelector().text(\"Home\")",
+      "xpath": "//android.widget.TextView[@text='Home']",
+      "accessibility_id": "Home"
+    },
+    "description": "Home tab in bottom navigation bar — navigates to Flipkart home screen",
+    "type": "navigation"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "scenarioMetadata": {
+    "name": "framework-parity-shared-data",
+    "purpose": "Verify loadTestData + saveState/loadState work in mobile specs"
+  }
+}

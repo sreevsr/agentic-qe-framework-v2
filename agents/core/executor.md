@@ -27,7 +27,11 @@ Selectors come from the Explorer (captured from the MCP snapshot or via DOM prob
 
 ## 3. Pre-Flight Fidelity Audit — MANDATORY Before First Test Run
 
-**HARD STOP: Before running `npx playwright test` for the first time, perform this independent fidelity check. This catches Explorer/Builder mistakes BEFORE wasting a test cycle.**
+**HARD STOP: Before running tests for the first time, perform this independent fidelity check. This catches Explorer/Builder mistakes BEFORE wasting a test cycle.**
+
+**Test command by type:**
+- web/api/hybrid: `cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome`
+- **mobile/mobile-hybrid:** `cd output && npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts`
 
 ### 3.1: TypeScript Check
 
@@ -115,11 +119,25 @@ The Reviewer will count these markers to verify compliance.
 
 ### 4.1: Run the Test — MANDATORY
 
+**Web/API/Hybrid:**
 ```bash
 cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome --reporter=json,list
 ```
 
-**MUST** run with JSON reporter to produce structured results. **MUST** specify the exact spec file — NEVER run `npx playwright test` without a file path (it executes ALL tests).
+**Mobile/Mobile-Hybrid:**
+```bash
+cd output && ANDROID_HOME=/path/to/android-sdk npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts
+```
+
+**MUST** run with JSON reporter to produce structured results. **MUST** specify the exact spec file — NEVER run the test runner without a file path (it executes ALL tests).
+
+**Mobile-specific fixes the Executor can apply:**
+- **Overlay blocking interaction:** Add `PopupGuard` pattern or `await guard.dismiss()` call before the interaction
+- **Element not in view:** Add `await screen.scrollToElement('key')` before interaction
+- **Keyboard blocking element:** Add `await browser.hideKeyboard()` after text input
+- **App in stale state:** Add `force-stop + relaunch` in `before()` hook
+- **Compose element not accessible:** Switch to `appium_tap_by_coordinates` / W3C Actions API with `// FRAGILE:` comment
+- **Selector healing (mobile):** Use `appium_get_page_source` + `generate_locators` via Appium MCP to discover the correct selector, then update the locator JSON
 
 ### 4.2: Parse Results — MANDATORY
 
@@ -495,7 +513,30 @@ The executor metrics JSON MUST include these fields for cross-validation:
 
 ---
 
-## 7. Platform Compatibility
+## 7. Mobile Failure Signatures — Diagnostic Patterns
+
+When a `mobile` or `mobile-hybrid` test fails, match the failure against the signatures below BEFORE giving up or escalating. Most production-app mobile failures map to a known root cause and have a deterministic fix.
+
+| Symptom | Signature | Likely Cause | Fix |
+|---|---|---|---|
+| Element not found, test previously typed + scrolled | The text in an EditText has grown between scroll cycles (e.g. `"by"` then `"by by"`) | GBoard glide-typing from swipe gestures injecting characters | Add `await screen.pressSequentially(...)` or ensure `hideKeyboard()` runs after text input before any swipe |
+| Element not found, locator has multi-word text | Selector text length > any single TextView text on the screen | Multi-element text match | Split locator into two parts using a structural anchor (XPath sibling lookup from a stable label) |
+| Element not found, WebView context-switching code present | Code calls `getContexts()` but the failing screen is clearly native in the screenshot | Wrong assumption (native vs WebView) | Remove WebView code, use native locators. Verify via `appium_context` |
+| Query takes >15s per element | No animations finishing, Appium logs show "waiting for app to be idle" | UiAutomator2 idle timeout on a React Native app | Apply `waitForIdleTimeout: 0` in `wdio.conf.ts` `before()` hook (already in the template) |
+| Test passes on local manual run but fails in CI | Device in unexpected state at session start | Stale navigation stack from a previous run | Add force-stop + relaunch (`mobile: terminateApp` + `mobile: activateApp`) in `before()` hook |
+| Element visible in screenshot but not in page source | Element rendered as Canvas/draw, no a11y node | Compose / SwiftUI / Flutter element | Switch to `appium_tap_by_coordinates` with a `// FRAGILE: Compose element, no a11y node` comment |
+| Test times out after a tap, no error | Keyboard covers the next target | Keyboard blocking | Hide keyboard before the next interaction |
+| Test fails at first interaction after a scroll | Scroll gesture activated an unintended element | Generic full-screen swipe landed on an interactive area | Use targeted `scrollToElement()` instead of a generic `swipe('up')` |
+| Element exists but `.click()` does nothing | Element is a Compose composable that intercepts pointer events at the wrong layer | Compose hit-area / pointer routing | Tap by coordinates inside the element bounds (`getLocation()` + `getSize()` + `tap_by_coordinates`) |
+| `getCurrentActivity` returns the previous Activity name | App in transition; assertion fired too early | Timing race | Wrap in `waitForActivity(name, timeoutMs)` (BaseScreen helper) instead of a one-shot check |
+
+**Rule:** Before re-running a failing mobile test, classify the failure against this table. If the symptom matches, apply the fix BEFORE the next cycle. Do NOT increase timeouts as a workaround for any of these — the fix is structural in every case.
+
+**Linkage to failure-classifier.js:** The script `scripts/failure-classifier.js` produces machine-readable categories matching this table (`GLIDE_TYPING_INJECTION`, `MULTI_ELEMENT_TEXT_MATCH`, `COMPOSE_NO_ACCESSIBILITY_NODE`, `WEBVIEW_VS_NATIVE_MISMATCH`, `UIAUTOMATOR_IDLE_TIMEOUT`, `KEYBOARD_BLOCKING`, `STALE_NAVIGATION_STACK`). When the classifier output names one of these, jump straight to the fix in the row above.
+
+---
+
+## 8. Platform Compatibility
 
 - **MUST** use `path.join()` for all file paths
 - Run tests from `output/` directory: `cd output && npx playwright test ...`
