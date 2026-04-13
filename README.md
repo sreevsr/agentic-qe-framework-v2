@@ -9,7 +9,7 @@ Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  R
                    selectors)
 ```
 
-> **🆕 New in v1.0 — Mobile Feature Parity:** Full WDIO + Appium pipeline for native mobile apps, at feature parity with the Playwright pipeline. BaseScreen with 15 reusable interaction methods, mobile locator loader with platform-keyed fallbacks, lifecycle hooks (`before`/`beforeEach`/`afterEach`/`after`), `VERIFY_SOFT` / `DATASETS` / `SHARED_DATA` / `USE_HELPER` keywords, auto-evidence (screenshot + page source + video) on failure, multi-spec runs via `beforeSuite` app reset, and multi-device cloud integration (BrowserStack, Sauce Labs, LambdaTest, AWS Device Farm). See [Mobile Test Automation](#mobile-test-automation) below. Release tag: [`mobile-parity-v1.0`](https://github.com/sreevsr/agentic-qe-framework-v2/releases/tag/mobile-parity-v1.0).
+> **🆕 Mobile Feature Parity (Android GA):** Full WDIO + Appium pipeline for native mobile apps, at feature parity with the Playwright pipeline. BaseScreen with 15 reusable interaction methods, mobile locator loader with platform-keyed fallbacks, lifecycle hooks (`before`/`beforeEach`/`afterEach`/`after`), `VERIFY_SOFT` / `DATASETS` / `SHARED_DATA` / `USE_HELPER` keywords, auto-evidence (screenshot + page source + video) on failure, multi-spec runs via `beforeSuite` app reset, and multi-device cloud integration (BrowserStack, Sauce Labs, LambdaTest, AWS Device Farm). **Android is Generally Available** (device-verified). **iOS is supported at the config level but not yet device-verified** — see [iOS Support Status](#ios-support-status). See [Mobile Test Automation](#mobile-test-automation) below. Release tag: [`mobile-parity-android-ga`](https://github.com/sreevsr/agentic-qe-framework-v2/releases/tag/mobile-parity-android-ga).
 
 ---
 
@@ -216,7 +216,7 @@ The incremental pipeline preserves Executor-healed selectors (`"_healed": true` 
 | **web** | ✅ Production | Playwright | Yes — SauceDemo, OrangeHRM, Epic SSO |
 | **api** | ✅ Production | Playwright request fixture | Yes — JSONPlaceholder CRUD |
 | **hybrid** | ✅ Production | Playwright page + request | Yes |
-| **mobile** (Android) | ✅ Production (v1.0) | WebdriverIO + Appium UiAutomator2 | Yes — Flipkart E2E + 9/9 parity tests |
+| **mobile** (Android) | ✅ **GA** | WebdriverIO + Appium UiAutomator2 | Yes — Flipkart E2E + 9/9 parity tests |
 | **mobile** (iOS) | ⚠️ Supported at the config level, **not yet device-verified** | WebdriverIO + Appium XCUITest | **No** — see [iOS support status](#ios-support-status) |
 | **mobile-hybrid** | ✅ Production | WebdriverIO + axios via `browser.call()` | Yes (Android) |
 
@@ -1498,7 +1498,7 @@ Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passe
 |------|-----------|------------|
 | **Element capture (web)** | Snapshot-first capture covers ~85% of elements. Non-accessible elements (SVGs, DOM-only panels, shadow DOM) require DOM probe fallback. Closed shadow DOM elements skip CSS validation entirely. | DOM probe automatically kicks in for elements not in the accessibility snapshot. Shadow DOM elements rely on MCP interaction success as validation. |
 | **Canvas / pixel-based (web)** | Cannot assert on canvas charts or pixel colors. Only SVG/DOM-rendered charts are readable. | Use SVG-based chart libraries, or add `data-testid` attributes to chart containers. |
-| **Mobile — iOS** | Framework infrastructure (capabilities, locator loader, BaseScreen gestures, platform-keyed JSON) supports iOS, but **not yet device-verified** as of v1.0. Some `BaseScreen` methods (`selectOption`, `waitForActivity`) are Android-only and need screen-specific replacements on iOS. See [iOS Support Status](#ios-support-status). | Write iOS-specific helpers at the screen-object layer. Contribute working iOS app-context patterns back to `scenarios/app-contexts/{app}-ios.md`. |
+| **Mobile — iOS** | Framework infrastructure (capabilities, locator loader, BaseScreen gestures, platform-keyed JSON) supports iOS, but **not yet device-verified** (only Android is GA today). Some `BaseScreen` methods (`selectOption`, `waitForActivity`) are Android-only and need screen-specific replacements on iOS. See [iOS Support Status](#ios-support-status). | Write iOS-specific helpers at the screen-object layer. Contribute working iOS app-context patterns back to `scenarios/app-contexts/{app}-ios.md`. |
 | **Mobile — Canvas / Compose** | Compose-rendered elements (Android Jetpack Compose, iOS SwiftUI, Flutter) often render as Canvas with no accessibility nodes. | Framework detects this (via Explorer runtime observation) and falls back to `appium_tap_by_coordinates` with a `// FRAGILE:` comment marking the fragility. |
 | **Mobile — WebView context switching** | Mixed native + WebView apps need explicit context switching; framework defaults to native-only. | When Explorer observes WEBVIEW contexts via `appium_context`, it records them in enriched.md and the Builder generates `switchContext()` code. |
 | **CI/CD workflows** | GitHub Actions workflows are skeletal. Jira connector exists but is non-functional. | Use the `ci-test-runner.js` script directly. Build custom workflows around it. |
