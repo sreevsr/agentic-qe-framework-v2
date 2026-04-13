@@ -8,6 +8,8 @@ This guide walks through setting up the Agentic QE Framework v2 to run mobile te
 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ verified.
 
+> **⚠️ macOS-only guide:** iOS testing requires macOS hardware because Xcode, the iOS Simulator, and WebDriverAgent are macOS-exclusive. Neither Windows (WSL 2, Git Bash, or native PowerShell) nor Linux can run this guide. **If you're on Windows or Linux and need iOS coverage, use [cloud-farms.md](cloud-farms.md)** (BrowserStack / Sauce Labs / LambdaTest provide cloud-hosted iOS devices without needing a Mac) **or [aws-device-farm.md](aws-device-farm.md)**. The cloud providers handle WebDriverAgent signing server-side, skipping the hardest part of iOS setup entirely.
+
 ---
 
 ## ⚠️ iOS Support Status — Read This First

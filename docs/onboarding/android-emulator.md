@@ -8,6 +8,8 @@ This guide walks a new team member through setting up the Agentic QE Framework v
 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ and Java 17+ verified.
 
+> **📘 Cross-platform note — Windows users:** this guide uses Unix-style shell syntax (`export FOO=bar`, `cat > file << EOF` heredocs, `command &` backgrounding). The fastest path to follow it unchanged is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)). In both, every Unix example below works as-written. If you prefer **native PowerShell**, the critical commands that need translation are called out inline with `# PowerShell equivalent:` comments. Framework commands (`npm`, `npx wdio`, `adb`, `appium`) work identically in PowerShell with no changes. macOS and Linux users run everything natively.
+
 ---
 
 ## 0. Prerequisites — What You Need Before Starting
@@ -357,6 +359,7 @@ Framework parity — mobile lifecycle hooks @parity @P0
 
 ### Create the scenario file
 
+**Bash / zsh / Git Bash / WSL 2:**
 ```bash
 mkdir -p scenarios/mobile/my-app
 cat > scenarios/mobile/my-app/login-flow.md << 'EOF'
@@ -388,6 +391,41 @@ cat > scenarios/mobile/my-app/login-flow.md << 'EOF'
 7. SCREENSHOT: login-success
 EOF
 ```
+
+**PowerShell equivalent** (using here-string + `Set-Content`):
+```powershell
+New-Item -ItemType Directory -Force -Path scenarios/mobile/my-app | Out-Null
+@'
+# Scenario: My App — Login Flow
+
+## Metadata
+- **Module:** Authentication
+- **Priority:** P0
+- **Type:** mobile
+- **Platform:** android
+- **Tags:** mobile, smoke, login, P0
+
+## Application
+- **App Package (Android):** {{ENV.APP_PACKAGE}}
+- **App Activity (Android):** {{ENV.APP_ACTIVITY}}
+- **Device:** {{ENV.ANDROID_DEVICE}}
+
+## Pre-conditions
+- App installed on the emulator
+- Test user credentials available in `.env` as TEST_USERNAME / TEST_PASSWORD
+
+## Steps
+1. Launch the app
+2. Tap the "Login" button
+3. Type {{ENV.TEST_USERNAME}} in the email field
+4. Type {{ENV.TEST_PASSWORD}} in the password field
+5. Tap the "Sign In" button
+6. VERIFY: Dashboard screen is displayed
+7. SCREENSHOT: login-success
+'@ | Set-Content -Path scenarios/mobile/my-app/login-flow.md -Encoding UTF8
+```
+
+Or simply create the file in VS Code, paste the scenario content, and save — no shell commands needed.
 
 ### Run the Explorer (VS Code Copilot chat, fresh session)
 

@@ -1379,6 +1379,8 @@ Plus four framework verification specs in [`output/tests/mobile/parity/`](output
 
 New team members setting up the framework for the first time should start here. The guides walk through **platform-specific setup** (installing SDKs, connecting devices or cloud accounts, configuring authentication, running a first verification test). They assume you've already completed the core framework install (`git clone` + `npm install` + `npm run setup`) covered in [Setup](#setup) above — each guide picks up from there.
 
+> **📘 Windows users:** the Android and cloud-farm onboarding guides use Unix-style shell syntax (`export FOO=bar`, heredocs, `&` backgrounding). The easiest way to follow them on Windows is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)) — in both, every Unix example works as-written. **Native PowerShell** users will find inline `# PowerShell equivalent:` translations for the 5-10 critical commands in each guide (env var exports, heredoc file creation, background processes, `chmod`). Framework commands (`npm`, `npx wdio`, `adb`, `appium`, `aws`) work identically in PowerShell with no changes. **iOS guides are macOS-only** — Xcode and WebDriverAgent require macOS hardware; if you're on Windows or Linux and need iOS coverage, use [cloud-farms.md](docs/onboarding/cloud-farms.md) or [aws-device-farm.md](docs/onboarding/aws-device-farm.md).
+
 Detailed guides live in [`docs/onboarding/`](docs/onboarding/) so this README stays focused. Pick the guide that matches your test target:
 
 | Target | Guide | Prerequisites | Difficulty | Typical setup time |

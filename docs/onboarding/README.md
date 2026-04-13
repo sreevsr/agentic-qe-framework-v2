@@ -2,6 +2,10 @@
 
 Step-by-step setup guides for running the Agentic QE Framework v2 against different target platforms. Pick the guide that matches your test target, follow it end-to-end, and you'll have a verified working setup before writing your first real scenario.
 
+> **📘 Cross-platform note — Windows users:** the Android and cloud-farm guides use Unix-style shell syntax (`export FOO=bar`, `cat > file << EOF` heredocs, `command &` backgrounding). The fastest path to follow them unchanged is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)). In both, every Unix example in the guides works as-written. If you prefer **native PowerShell**, the critical commands that need translation are called out inline with `# PowerShell equivalent:` comments. Framework commands (`npm`, `npx wdio`, `adb`, `appium`) work identically in PowerShell with no changes.
+>
+> **iOS guides are macOS-only** — Xcode, iOS Simulator, and WebDriverAgent require macOS hardware. Windows and Linux users who need iOS coverage should use [cloud-farms.md](cloud-farms.md) or [aws-device-farm.md](aws-device-farm.md) for cloud-hosted iOS devices — the cloud providers handle WDA signing server-side.
+
 **Before starting any guide here**, make sure you've already completed the core framework setup in the [main README](../../README.md#setup):
 
 1. Cloned the repo and run `npm install`

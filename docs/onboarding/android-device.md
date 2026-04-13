@@ -8,6 +8,8 @@ This guide walks through setting up the Agentic QE Framework v2 to run mobile te
 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ and Java 17+ verified.
 
+> **📘 Cross-platform note — Windows users:** this guide uses Unix-style shell syntax (`export FOO=bar`, `command &` backgrounding). The fastest path to follow it unchanged is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)). In both, every Unix example below works as-written. If you prefer **native PowerShell**, `adb` / `appium` / `npm` / `npx wdio` all work identically — only shell-level commands like `export` and `udev` rules are Unix-specific (udev is Linux-only and already scoped to its own subsection). **Note:** the "Linux udev permissions" subsection below only applies to Linux dev machines — Windows and macOS users can skip it.
+
 **When to use this guide instead of [android-emulator.md](android-emulator.md):**
 - Your team's release gates require real-device testing (emulators don't reproduce some hardware-dependent bugs)
 - You're testing features that need real sensors: camera, GPS, biometrics, NFC, Bluetooth, cellular network

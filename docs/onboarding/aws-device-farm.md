@@ -17,6 +17,8 @@ This guide covers running the Agentic QE Framework v2's mobile tests on **AWS De
 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ verified.
 
+> **📘 Cross-platform note — Windows users:** this guide uses Unix-style shell syntax for setting env vars (`export DF_PROJECT_ARN=...`) and includes an example bash script (`scripts/devicefarm-run.sh`). The fastest path to follow the env var examples unchanged is to run them inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)). If you prefer **native PowerShell**, env var translations are shown inline with `# PowerShell equivalent:` comments. The bash shell script at the end of the guide is **bash-only** — to run it on Windows, execute it inside WSL 2 or Git Bash, or contribute a PowerShell equivalent (`.ps1`) via pull request. The `aws devicefarm` CLI subcommands themselves work identically in all shells including native PowerShell.
+
 ---
 
 ## 0. How AWS Device Farm Differs From the Other Cloud Farms
@@ -107,8 +109,15 @@ aws devicefarm create-project \
   --region us-west-2
 ```
 The response includes the project ARN. Save it as an env var for future commands:
+
+**Bash / zsh / Git Bash / WSL 2:**
 ```bash
 export DF_PROJECT_ARN="arn:aws:devicefarm:us-west-2:123456789012:project:..."
+```
+
+**PowerShell:**
+```powershell
+$env:DF_PROJECT_ARN = "arn:aws:devicefarm:us-west-2:123456789012:project:..."
 ```
 
 ### Step 3b — Create a device pool
@@ -139,8 +148,15 @@ aws devicefarm create-device-pool \
 ```
 
 Save the pool ARN as an env var:
+
+**Bash / zsh / Git Bash / WSL 2:**
 ```bash
 export DF_POOL_ARN="arn:aws:devicefarm:us-west-2:...:devicepool:..."
+```
+
+**PowerShell:**
+```powershell
+$env:DF_POOL_ARN = "arn:aws:devicefarm:us-west-2:...:devicepool:..."
 ```
 
 **iOS pool:** create a separate pool for iOS with `"attribute":"PLATFORM","operator":"EQUALS","value":"\"IOS\""`. iOS test runs use an entirely separate pool and upload.
@@ -379,6 +395,8 @@ aws devicefarm list-artifacts \
 Doing the upload + schedule + poll by hand is tedious. Wrap it in a script or GitHub Action workflow.
 
 ### Example shell script — `scripts/devicefarm-run.sh`
+
+> **Windows users:** this script is **bash-only**. Run it inside **WSL 2** or **Git Bash** on Windows, or contribute a PowerShell equivalent (`scripts/devicefarm-run.ps1`) via pull request. The AWS CLI calls are identical across shells — only the shell glue (variable assignment, `jq` parsing, `curl -T`, conditional loops) would need PowerShell syntax.
 
 ```bash
 #!/usr/bin/env bash

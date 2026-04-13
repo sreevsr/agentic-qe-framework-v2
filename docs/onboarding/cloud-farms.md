@@ -18,6 +18,8 @@ This guide covers setting up the Agentic QE Framework v2 to run mobile tests on 
 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ verified.
 
+> **📘 Cross-platform note — Windows users:** this guide uses Unix-style shell syntax for `export VAR=...` (setting auth env vars) and `curl` (uploading app bundles to vendor storage). The fastest path to follow it unchanged is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)) — in both, every example below works as-written. If you prefer **native PowerShell**, the auth env var examples are translated inline below. `curl` is available natively in Windows 10+ PowerShell, so the app-upload commands work identically in PowerShell with minor quote-escaping. `npm`, `npx wdio`, and the framework CLI are all cross-platform. For CI secrets (GitHub Actions, Azure DevOps, etc.), use your CI provider's native secret management regardless of shell.
+
 ---
 
 ## 0. Vendor Comparison
@@ -163,31 +165,70 @@ Set these in your local shell for development and in your CI secrets for pipelin
 
 ### BrowserStack
 
+**macOS / Linux / WSL 2 / Git Bash** — add to `~/.zshrc` or `~/.bashrc` for persistence:
 ```bash
-# macOS/Linux — add to ~/.zshrc or ~/.bashrc (for local dev)
 export BROWSERSTACK_USERNAME="your-username"
 export BROWSERSTACK_ACCESS_KEY="your-access-key"
-
-# Find these at: https://www.browserstack.com/accounts/settings
 ```
+
+**Windows PowerShell** — session-scoped (current shell only):
+```powershell
+$env:BROWSERSTACK_USERNAME = "your-username"
+$env:BROWSERSTACK_ACCESS_KEY = "your-access-key"
+```
+
+**Windows PowerShell** — persistent across sessions (write to user env):
+```powershell
+[Environment]::SetEnvironmentVariable("BROWSERSTACK_USERNAME", "your-username", "User")
+[Environment]::SetEnvironmentVariable("BROWSERSTACK_ACCESS_KEY", "your-access-key", "User")
+# Then restart your terminal for the change to take effect
+```
+
+Find your BrowserStack credentials at: https://www.browserstack.com/accounts/settings
 
 ### Sauce Labs
 
+**macOS / Linux / WSL 2 / Git Bash:**
 ```bash
 export SAUCE_USERNAME="your-username"
 export SAUCE_ACCESS_KEY="your-access-key"
-
-# Find these at: https://app.saucelabs.com → User icon → User Settings
 ```
+
+**Windows PowerShell (session-scoped):**
+```powershell
+$env:SAUCE_USERNAME = "your-username"
+$env:SAUCE_ACCESS_KEY = "your-access-key"
+```
+
+**Windows PowerShell (persistent):**
+```powershell
+[Environment]::SetEnvironmentVariable("SAUCE_USERNAME", "your-username", "User")
+[Environment]::SetEnvironmentVariable("SAUCE_ACCESS_KEY", "your-access-key", "User")
+```
+
+Find your Sauce Labs credentials at: https://app.saucelabs.com → User icon → User Settings
 
 ### LambdaTest
 
+**macOS / Linux / WSL 2 / Git Bash:**
 ```bash
 export LT_USERNAME="your-username"
 export LT_ACCESS_KEY="your-access-key"
-
-# Find these at: https://accounts.lambdatest.com/security
 ```
+
+**Windows PowerShell (session-scoped):**
+```powershell
+$env:LT_USERNAME = "your-username"
+$env:LT_ACCESS_KEY = "your-access-key"
+```
+
+**Windows PowerShell (persistent):**
+```powershell
+[Environment]::SetEnvironmentVariable("LT_USERNAME", "your-username", "User")
+[Environment]::SetEnvironmentVariable("LT_ACCESS_KEY", "your-access-key", "User")
+```
+
+Find your LambdaTest credentials at: https://accounts.lambdatest.com/security
 
 ### For CI — GitHub Actions example
 
