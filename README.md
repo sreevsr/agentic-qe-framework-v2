@@ -13,6 +13,77 @@ Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  R
 
 ---
 
+<details>
+<summary><b>📖 Table of Contents</b> (click to expand)</summary>
+
+- [Quick Start](#quick-start)
+  - [Web Quick Start](#web-quick-start)
+  - [Mobile Quick Start (Android)](#mobile-quick-start-android)
+- [Core Philosophy](#core-philosophy)
+- [Architecture](#architecture)
+  - [The Pipeline](#the-pipeline)
+  - [The Agents](#the-agents)
+  - [Incremental Updates](#incremental-updates)
+- [Prerequisites](#prerequisites)
+  - [Platform Support](#platform-support)
+  - [Scenario Type Support](#scenario-type-support)
+- [Setup](#setup)
+  - [1. Initialize the Test Project](#1-initialize-the-test-project)
+  - [2. Configure Environment](#2-configure-environment)
+  - [3. Install Playwright Browsers](#3-install-playwright-browsers)
+  - [4. Configure MCP Servers (Explorer live-app access)](#4-configure-mcp-servers-explorer-live-app-access)
+- [Using the Framework](#using-the-framework)
+  - [Step 1: Write a Scenario](#step-1-write-a-scenario)
+  - [Step 2: Run the Pipeline](#step-2-run-the-pipeline)
+  - [Step 3: Review the Output](#step-3-review-the-output)
+  - [Step 4: Run the Tests Independently](#step-4-run-the-tests-independently)
+- [Incremental Workflow](#incremental-workflow)
+- [API Test Automation](#api-test-automation)
+  - [Writing an API Scenario](#writing-an-api-scenario)
+  - [Using a Swagger/OpenAPI Spec](#using-a-swaggeropenapi-spec)
+  - [Authentication](#authentication)
+  - [Running API Tests](#running-api-tests)
+  - [Mock vs Live APIs](#mock-vs-live-apis)
+- [Mobile Test Automation](#mobile-test-automation)
+  - [iOS Support Status](#ios-support-status)
+  - [Mobile Platform Targeting — `Platform:` Header Convention](#mobile-platform-targeting--platform-header-convention)
+  - [Writing a Mobile Scenario](#writing-a-mobile-scenario)
+  - [Setup — Android](#setup--android)
+  - [Customer-Provided APK + Emulator Flow](#customer-provided-apk--emulator-flow)
+  - [Setup — iOS](#setup--ios-macos-only-not-yet-device-verified)
+  - [Running Mobile Tests](#running-mobile-tests)
+  - [Multi-Device Parallelism](#multi-device-parallelism)
+  - [Mobile Anti-Patterns (AP-1 through AP-7)](#mobile-anti-patterns-ap-1-through-ap-7)
+  - [Mobile Failure Signatures](#mobile-failure-signatures)
+  - [Auto-Evidence on Failure](#auto-evidence-on-failure)
+  - [Mobile Example Scenarios](#mobile-example-scenarios)
+- [Onboarding Guides](#onboarding-guides) ⭐ **Start here for new team members**
+- [Features and Capabilities](#features-and-capabilities)
+  - [Test Generation](#test-generation)
+  - [Scenario Types](#scenario-types)
+  - [Quality Assurance](#quality-assurance)
+  - [Browser + Mobile App Exploration](#browser--mobile-app-exploration)
+  - [Automation Scripts (Zero LLM Tokens)](#automation-scripts-zero-llm-tokens)
+  - [Skills System (Three-Level Progressive Disclosure)](#skills-system-three-level-progressive-disclosure)
+  - [App-Contexts (Self-Improving Memory)](#app-contexts-self-improving-memory)
+- [Configuration](#configuration)
+  - [`framework-config.json` — Agent Behavior](#framework-configjson--agent-behavior)
+  - [`output/playwright.config.ts` — Web / API / Hybrid Test Runner](#outputplaywrightconfigts--web--api--hybrid-test-runner)
+  - [`output/wdio.conf.ts` — Mobile Test Runner (WDIO + Appium)](#outputwdioconfts--mobile-test-runner-wdio--appium)
+  - [`.env` — Credentials, URLs, Mobile Config](#env--credentials-urls-mobile-config)
+- [File Ownership](#file-ownership)
+- [CI/CD Integration](#cicd-integration)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+- [Directory Structure](#directory-structure)
+- [Example Scenarios](#example-scenarios)
+- [Contributing](#contributing)
+- [License](#license)
+
+</details>
+
+---
+
 ## Quick Start
 
 Get a sample test running in under 10 minutes. There are two paths — **web** (Playwright) and **mobile** (WDIO + Appium). Pick the one you need.
@@ -1301,6 +1372,35 @@ The repository includes two device-verified mobile scenarios:
 - [`scenarios/mobile/flipkart-add-to-cart.md`](scenarios/mobile/flipkart-add-to-cart.md) + [`output/tests/mobile/flipkart/flipkart-add-to-cart.spec.ts`](output/tests/mobile/flipkart/flipkart-add-to-cart.spec.ts) — Flipkart mobile app, 43-step E2E (search → product detail → Buy Now → address → order summary → payment → cart verify → remove item). Production-app reference that exercises PopupGuard, React Native idle timeout fix, rotating banners, permission dialogs, and the full keyword suite.
 
 Plus four framework verification specs in [`output/tests/mobile/parity/`](output/tests/mobile/parity/) covering lifecycle hooks, VERIFY_SOFT, DATASETS, and SHARED_DATA + saveState. Run them to validate your mobile setup end-to-end.
+
+---
+
+## Onboarding Guides
+
+New team members setting up the framework for the first time should start here. The guides walk through **platform-specific setup** (installing SDKs, connecting devices or cloud accounts, configuring authentication, running a first verification test). They assume you've already completed the core framework install (`git clone` + `npm install` + `npm run setup`) covered in [Setup](#setup) above — each guide picks up from there.
+
+Detailed guides live in [`docs/onboarding/`](docs/onboarding/) so this README stays focused. Pick the guide that matches your test target:
+
+| Target | Guide | Prerequisites | Difficulty | Typical setup time |
+|---|---|---|---|---|
+| **Android emulator** on your dev laptop | [docs/onboarding/android-emulator.md](docs/onboarding/android-emulator.md) | Android Studio or standalone `cmdline-tools`, hardware virtualization enabled | ⭐ Easy | 30-60 min |
+| **Real Android device** via USB | [docs/onboarding/android-device.md](docs/onboarding/android-device.md) | USB cable, developer options enabled on device, OEM USB drivers (Windows) | ⭐ Easy | 20-40 min |
+| **iOS Simulator** on macOS | [docs/onboarding/ios-simulator.md](docs/onboarding/ios-simulator.md) | macOS + Xcode + Command Line Tools + Carthage | ⭐⭐ Medium | 60-90 min |
+| **Real iOS device** | [docs/onboarding/ios-device.md](docs/onboarding/ios-device.md) | macOS + Xcode + Apple Developer Program membership + device provisioning profiles | ⭐⭐⭐⭐ Hard — **not yet device-verified on this framework** | 2-4 hours first time |
+| **BrowserStack, Sauce Labs, or LambdaTest** cloud | [docs/onboarding/cloud-farms.md](docs/onboarding/cloud-farms.md) | Cloud account + credentials, app uploaded via vendor API | ⭐⭐ Medium | 45-90 min |
+| **AWS Device Farm** | [docs/onboarding/aws-device-farm.md](docs/onboarding/aws-device-farm.md) | AWS account, IAM credentials, awscli, test bundle packaging | ⭐⭐⭐ Medium-Hard (different execution model) | 60-120 min |
+
+**Decision tree for common scenarios:**
+
+- **"I just want to get the framework running with no physical hardware"** → [android-emulator.md](docs/onboarding/android-emulator.md) (fastest path)
+- **"I need to test on a real Android device my team provides"** → [android-device.md](docs/onboarding/android-device.md)
+- **"I'm on a Mac and want cross-platform Android + iOS testing"** → [android-emulator.md](docs/onboarding/android-emulator.md) + [ios-simulator.md](docs/onboarding/ios-simulator.md)
+- **"CI/CD pipeline with real devices but no physical device lab"** → [cloud-farms.md](docs/onboarding/cloud-farms.md)
+- **"Enterprise AWS environment with an approved device pool"** → [aws-device-farm.md](docs/onboarding/aws-device-farm.md)
+
+**iOS status reminder:** the framework supports iOS at the config level but **has not yet been device-verified** as of the current release. The [ios-simulator.md](docs/onboarding/ios-simulator.md) guide is written from Apple + Appium documentation and should be reliable. The [ios-device.md](docs/onboarding/ios-device.md) guide is mostly placeholder material with clear warnings — treat it as a starting point and contribute your fixes back when you complete a successful real-iOS run. See [iOS Support Status](#ios-support-status) for the full disclosure.
+
+**Where onboarding guides stop and the main README takes over:** once you have a working setup (emulator or device recognized by Appium, parity verification spec passing green), come back to [Mobile Test Automation](#mobile-test-automation) for material on writing real scenarios, anti-patterns, failure signatures, and cloud CI integration.
 
 ---
 
