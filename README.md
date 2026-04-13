@@ -1437,7 +1437,12 @@ All agents read this file instead of using hardcoded values:
     "alwaysChunk": false
   },
   "appContext": {
-    "filename": "my-app.md"
+    "web": "my-app.md",
+    "api": "",
+    "mobile": {
+      "android": "my-app-android.md",
+      "ios": ""
+    }
   },
   "mobile": {
     "appiumHost": "localhost",
@@ -1449,6 +1454,35 @@ All agents read this file instead of using hardcoded values:
   }
 }
 ```
+
+#### `appContext` — Per-Type Application Context Files
+
+The framework's **recommended model is ONE REPO PER APPLICATION**: a team owns one app that may have web + mobile + API sides, and all three coexist in a single repo. The `appContext` block is keyed by scenario type so each type resolves the right learned-pattern file.
+
+| Key | Used by | Purpose | Empty means |
+|---|---|---|---|
+| `appContext.web` | `web` scenarios + the UI half of `hybrid` scenarios | Captures web-specific patterns: UI framework (MUI, Fluent, PCF), SSO, known popups, slow components | No web app-context for this repo — skip the load cleanly |
+| `appContext.api` | `api` scenarios + optionally merged into `hybrid` / `mobile-hybrid` | Captures API-specific patterns: non-standard auth flows, pagination idioms, error-code quirks. Often empty. | No API app-context — proceed without |
+| `appContext.mobile.android` | `mobile` Android runs + the native half of `mobile-hybrid` Android runs | Captures Android-specific patterns: Compose vs native view bias, UiAutomator2 quirks, permission dialogs, React Native idle-timeout needs | No Android app-context — skip |
+| `appContext.mobile.ios` | `mobile` iOS runs + the native half of `mobile-hybrid` iOS runs | Captures iOS-specific patterns: XCUITest quirks, ATT prompts, SwiftUI Canvas elements, haptic gestures | No iOS app-context — skip (expected before first iOS run) |
+
+**Resolution rules the agents follow:**
+
+| Scenario type | Resolved path |
+|---|---|
+| `type: web` | `appContext.web` |
+| `type: api` | `appContext.api` |
+| `type: hybrid` | `appContext.web` (primary) + optionally `appContext.api` (merged for API-step patterns) |
+| `type: mobile` | `appContext.mobile.{android\|ios}` — picked at runtime by the `PLATFORM` env var |
+| `type: mobile-hybrid` | `appContext.mobile.{android\|ios}` (primary) + optionally `appContext.api` (merged) |
+
+**For `Platform: both` mobile scenarios:** each run (`PLATFORM=android` or `PLATFORM=ios`) loads its own platform's app-context file. One scenario, two runs, two different context files — that's by design because Android and iOS often have divergent UI frameworks and permission flows.
+
+**Onboarding a new app** = editing this block + creating the file(s) under `scenarios/app-contexts/`. Agents will NEVER create app-context files unprompted — they only append to files whose filenames are already configured. This is the single place that says "this repo is now testing Acme" (or Flipkart, or UAT Scout). The rule is deliberate: it prevents agents from guessing filenames from URLs or scenario names and silently loading the wrong context file.
+
+**Legacy note:** earlier framework releases used a flat `appContext.filename` key. That shape is **no longer read** — if you're migrating from an older config, move the filename under the slot matching your primary scenario type (`appContext.web`, `appContext.mobile.android`, etc.).
+
+#### `mobile` block — Appium connection + mobile timeouts
 
 The `mobile` block controls Appium connection + mobile-specific timeouts. `defaultPlatform` is used when a scenario says `Platform: both` — the framework picks this value for the first pass. Mobile timeouts are deliberately higher than web because real-device interactions (screenshot, page source, W3C gestures) are slower than browser DOM calls.
 
@@ -1568,7 +1602,7 @@ Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passe
 | Test passes locally but fails on a fresh machine | SSO session cookie from a previous browser session — the Explorer may have skipped login verification | Ensure the spec handles both SSO-redirect and active-session paths. Check `SSOLoginPage.login()` for the URL check. |
 | Builder overwrites Executor's selector fixes | Executor-healed selectors not marked with `"_healed": true` | Manually add `"_healed": true` to the locator JSON entry. The Builder will preserve it on future regenerations. |
 | `scenario-diff.js` classifies everything as FIRST_RUN | No enriched.md found next to the scenario file | Run the Explorer first to produce the enriched.md. The diff compares scenario .md against enriched .md (not the spec). |
-| App-context file not found by Executor or Explorer | Agents guessing the filename from URL/domain instead of reading config | Set `appContext.filename` in `framework-config.json` to the exact filename in `scenarios/app-contexts/`. |
+| App-context file not found by Executor or Explorer | Agents guessing the filename from URL/domain instead of reading config, OR the config slot for the scenario's type is empty | Set the right slot in `framework-config.json → appContext` for the scenario's type: `appContext.web`, `appContext.api`, or `appContext.mobile.{android\|ios}`. Agents resolve the filename by type, not by scenario name. |
 | **Mobile:** Explorer says "Appium MCP not available" | Appium MCP server not started OR Appium 2.x server not running on localhost:4723 | Start `appium` in a separate terminal. Verify with `curl http://localhost:4723/status`. Check `.vscode/mcp.json` has the `appium-mcp` server entry. Reload VS Code window. |
 | **Mobile:** `adb devices` shows "unauthorized" | Device's RSA fingerprint not accepted yet | Unlock the device, unplug/replug the USB cable, accept the "Allow USB debugging?" prompt on the device screen. |
 | **Mobile:** Every element lookup takes 20-30 seconds | React Native app without `waitForIdleTimeout: 0` | The template `wdio.conf.ts` `before()` hook applies this automatically. If you customized wdio.conf.ts, restore the `updateSettings` call from `templates/config-mobile/wdio.conf.ts`. |
@@ -1721,7 +1755,13 @@ The repository includes device-verified reference scenarios across every support
 2. Configure the appropriate MCP server — see [Setup Step 4](#4-configure-mcp-servers-explorer-live-app-access):
    - **Web / hybrid:** Playwright MCP
    - **Mobile / mobile-hybrid:** Appium MCP (plus Appium 2.x server running on localhost:4723 and a connected device)
-3. Set `appContext.filename` in `framework-config.json` if onboarding a new application. For mobile apps where Android and iOS behavior diverges significantly, use separate per-platform files (`{app}-android.md`, `{app}-ios.md`).
+3. If onboarding a new application, set the right slot in `framework-config.json → appContext` for the scenario's type:
+   - web → `appContext.web = "my-app.md"`
+   - api → `appContext.api = "my-app-api.md"` (often empty)
+   - mobile Android → `appContext.mobile.android = "my-app-android.md"`
+   - mobile iOS → `appContext.mobile.ios = "my-app-ios.md"`
+
+   The framework's recommended model is ONE REPO PER APPLICATION — a team owning an app with web + mobile sides keeps all per-type context files in the same repo under `scenarios/app-contexts/`. For mobile, Android and iOS usually get separate files because UI frameworks and permission flows diverge.
 4. Run the pipeline — see Step 2 above (individual agents recommended for Copilot, Orchestrator works on Claude Code CLI)
 
 ### Adding a New Skill

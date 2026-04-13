@@ -19,6 +19,7 @@
 | **Requires browser exploration?** | Yes — Explorer/Builder explores scenario in a live browser via Playwright MCP |
 | **Explorer/Builder source** | Scenario `.md` file |
 | **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Explorer report (if exists) |
+| **App-context config key** | `framework-config.json → appContext.web` |
 | **Test fixture** | `{ page }` |
 | **Test spec path** | `output/tests/web/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/web/{scenario}.json` |
@@ -42,6 +43,7 @@
 | **Requires browser exploration?** | No — API scenarios use `request` fixture only, no browser needed |
 | **Explorer/Builder source** | Scenario `.md` file (no browser, writes code directly from scenario) |
 | **Explorer/Builder inputs** | Scenario `.md` + app-context (API patterns, if exists) |
+| **App-context config key** | `framework-config.json → appContext.api` (often empty — useful only for non-standard auth, pagination, or error-code idioms) |
 | **Test fixture** | `{ request }` |
 | **Test spec path** | `output/tests/api/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/api/{scenario}.json` |
@@ -65,6 +67,7 @@
 | **Requires browser exploration?** | Yes — Explorer/Builder explores UI steps in browser, API steps via request fixture |
 | **Explorer/Builder source** | Scenario `.md` file |
 | **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) + Explorer report (if exists) |
+| **App-context config key** | Primary: `framework-config.json → appContext.web` (for UI steps). Optionally also merge `appContext.api` for API-step patterns. |
 | **Test fixture** | `{ page, request }` — both fixtures always required |
 | **Test spec path** | `output/tests/hybrid/[{folder}/]{scenario}.spec.ts` |
 | **Test data path** | `output/test-data/hybrid/{scenario}.json` |
@@ -89,6 +92,7 @@
 | **Requires browser exploration?** | Yes — Explorer/Builder uses Appium MCP for native app interaction |
 | **Explorer/Builder source** | Scenario `.md` file |
 | **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) |
+| **App-context config key** | `framework-config.json → appContext.mobile.{android\|ios}` — resolved at runtime by the `PLATFORM` env var. For `Platform: both` scenarios, each run (`PLATFORM=android` vs `PLATFORM=ios`) loads its own file. |
 | **Test fixture** | WDIO driver (not Playwright fixtures) |
 | **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` — FLAT, no platform subdir |
 | **Test data path** | `output/test-data/mobile/{scenario}.json` — FLAT, no platform subdir |
@@ -111,7 +115,9 @@
 |----------|-------|
 | **Description** | Combined native mobile + REST API test scenarios |
 | **Scenario input** | `scenarios/mobile/{scenario}.md` with `mobile-hybrid` type |
+| **Platform targeting** | **MANDATORY** `Platform:` header — same rule as `mobile` (android / ios / both) |
 | **Requires browser exploration?** | Yes — Appium MCP for native steps |
+| **App-context config key** | Primary: `framework-config.json → appContext.mobile.{android\|ios}` (for native steps, resolved by `PLATFORM` env var). Optionally also merge `appContext.api` for API-call patterns. |
 | **Test fixture** | WDIO driver + HTTP request client |
 | **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` |
 | **Creates locator JSONs?** | Yes (native steps only) |

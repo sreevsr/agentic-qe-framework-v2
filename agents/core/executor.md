@@ -366,9 +366,16 @@ Step failed → Element not found → Correct page confirmed
 
 **If you added `// PACING:` comments or discovered interaction patterns during fix cycles:**
 
-1. Read `framework-config.json → appContext.filename` to get the exact app-context filename. Check if `scenarios/app-contexts/{filename}` exists. Do NOT guess the filename from the URL or app name.
-2. If it exists → **ADD** the new patterns you discovered (DO NOT overwrite existing content)
-3. If it doesn't exist → **CREATE** one with the patterns you discovered
+1. Resolve the app-context filename by scenario type from `framework-config.json → appContext`:
+   - `web` → `appContext.web`
+   - `api` → `appContext.api`
+   - `hybrid` → `appContext.web` (optionally also `appContext.api`)
+   - `mobile` → `appContext.mobile.{android\|ios}` based on the `PLATFORM` env var
+   - `mobile-hybrid` → `appContext.mobile.{android\|ios}` (optionally also `appContext.api`)
+   Do NOT guess the filename from the URL, domain, folder, or app name. If the resolved slot is empty, skip the app-context write (and log `NO_APP_CONTEXT_CONFIGURED_FOR_TYPE_{type}` — the user should add a filename in `framework-config.json` if they want this type's patterns preserved).
+2. Check if `scenarios/app-contexts/{resolved-filename}` exists.
+3. If it exists → **ADD** the new patterns you discovered (DO NOT overwrite existing content)
+4. If it doesn't exist → **CREATE** one with the patterns you discovered (the filename is already reserved in the config, so creating the file on first write is expected)
 
 This ensures pacing fixes discovered by the Executor are available to the Explorer/Builder on future runs. Without this, the same pacing issues are re-discovered every time.
 

@@ -76,10 +76,20 @@ Read the natural language input and extract:
 
 ### 4.2: Read App-Context — MANDATORY If Available
 
-If an app-context file exists for this application:
+Resolve the app-context filename by scenario type from `framework-config.json → appContext` (see `agents/core/explorer.md` §2.1 for the full resolution table):
+
+- `type: web` → `appContext.web`
+- `type: api` → `appContext.api` (often empty)
+- `type: hybrid` → `appContext.web` (+ optionally `appContext.api`)
+- `type: mobile` → `appContext.mobile.{android\|ios}` based on the target platform the user specified
+- `type: mobile-hybrid` → `appContext.mobile.{android\|ios}` (+ optionally `appContext.api`)
+
+If the resolved slot is empty, or the file doesn't exist under `scenarios/app-contexts/`, proceed without app-context (no hard stop). If the file exists:
 - Read it to understand: auth method, UI framework, known components, navigation patterns
 - Use this knowledge to ask SMARTER questions (don't ask about things the app-context already answers)
 - Use this knowledge to add SPECIFIC steps (e.g., if app-context says "uses Microsoft SSO" → add SSO login steps)
+
+**Forbidden:** guessing the filename from the scenario's name, URL, folder, or app name. If the config slot is empty, the answer is "no app-context" — NOT "try to find a file that looks right." The user owns onboarding new applications by editing `framework-config.json`, not the Enricher.
 
 ### 4.3: Ask Clarifying Questions — MANDATORY When Ambiguous
 

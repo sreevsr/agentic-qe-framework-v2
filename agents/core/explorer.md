@@ -64,11 +64,32 @@ For mobile scenarios, ELEMENT annotations use the **platform-keyed** format (not
 | 3 | `agents/shared/keyword-reference.md` | Know what keywords mean (VERIFY, CAPTURE, etc.) | **YES — ALWAYS** |
 | 4 | `agents/shared/guardrails.md` | Enterprise ownership boundaries | **YES — ALWAYS** |
 | 5 | `agents/shared/type-registry.md` | Type-specific behavior (web/api/hybrid) | **YES — ALWAYS** |
-| 6 | App-context file (if exists) | `scenarios/app-contexts/{filename}` where `{filename}` comes from `framework-config.json → appContext.filename` — do NOT guess the filename | **YES — if exists** |
+| 6 | App-context file (if exists) | `scenarios/app-contexts/{filename}` where `{filename}` is resolved from `framework-config.json → appContext` by the scenario's type (see resolution rule below) — do NOT guess the filename from URL, domain, folder, or app name | **YES — if exists** |
 | 7 | `agents/core/bug-detection-rules.md` | Bug vs test issue classification | **YES — ALWAYS** |
 | 8 | `framework-config.json` | Configurable retries, timeouts | **YES — ALWAYS** |
 
 **You do NOT read:** `code-generation-rules.md` (Builder's file), `skills/registry.md` (Builder's concern).
+
+### 2.1: App-Context Resolution — MANDATORY
+
+`framework-config.json` has a per-type `appContext` block. The Explorer MUST resolve the correct filename by the scenario's type (and platform, for mobile). **Do NOT use a single flat `appContext.filename` — that shape was retired; agents reading it will find nothing.**
+
+| Scenario type | Config path | If empty |
+|---|---|---|
+| `web` | `appContext.web` | Proceed without app-context |
+| `api` | `appContext.api` | Proceed without app-context (often empty by design) |
+| `hybrid` | Primary: `appContext.web`. Optionally also merge `appContext.api` if set. | Proceed without app-context |
+| `mobile` | `appContext.mobile.{android\|ios}` — pick the sub-key matching the `PLATFORM` env var at runtime | Try the OTHER mobile sub-key as fallback. If both empty, proceed without app-context and log: `NO_MOBILE_APP_CONTEXT_CONFIGURED — framework-config.json appContext.mobile.{android,ios} are both empty` |
+| `mobile-hybrid` | Primary: `appContext.mobile.{android\|ios}` (same rule as mobile). Optionally also merge `appContext.api`. | Same as mobile |
+
+**Platform: both scenarios** — at runtime the `PLATFORM` env var resolves to exactly one platform (the agent is running one pass at a time), so `appContext.mobile.{that platform}` is what gets loaded. If your `Platform: both` scenario runs on Android today and iOS tomorrow, each run loads a different app-context — that's correct behavior.
+
+**Hybrid merge semantics** (when `hybrid` or `mobile-hybrid` also has an `appContext.api` set): read both files into context, treating the API file as supplementary. Web/mobile patterns take precedence on conflicts — API context adds things the UI context doesn't cover (auth quirks, rate limits, pagination, error-code idioms).
+
+**Forbidden:**
+- Guessing the filename from the scenario's name, folder, URL, domain, or app name. The config is authoritative.
+- Reading `appContext.filename` as if it were a flat string. That legacy key is no longer present.
+- Creating a new app-context file because "the scenario's app doesn't have one yet." The user onboards an app by editing `framework-config.json` and placing the file under `scenarios/app-contexts/` — never the Explorer.
 
 ---
 
