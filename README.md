@@ -1,6 +1,6 @@
 # Agentic QE Framework v2
 
-An enterprise-grade, multi-agent pipeline that converts test scenario descriptions into production-quality Playwright automation code. Write what you want to test in plain English. The agents explore your app, generate code, run it, review it, and fix it — autonomously.
+An enterprise-grade, multi-agent pipeline that converts test scenario descriptions into production-quality test automation code for **web, API, hybrid, and mobile** targets. Write what you want to test in plain English. The agents explore your app, generate code, run it, review it, and fix it — autonomously.
 
 ```
 Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  Reviewer  ──>  Healer
@@ -9,11 +9,15 @@ Scenario .md  ──>  Explorer  ──>  Builder  ──>  Executor  ──>  R
                    selectors)
 ```
 
+> **🆕 New in v1.0 — Mobile Feature Parity:** Full WDIO + Appium pipeline for native mobile apps, at feature parity with the Playwright pipeline. BaseScreen with 15 reusable interaction methods, mobile locator loader with platform-keyed fallbacks, lifecycle hooks (`before`/`beforeEach`/`afterEach`/`after`), `VERIFY_SOFT` / `DATASETS` / `SHARED_DATA` / `USE_HELPER` keywords, auto-evidence (screenshot + page source + video) on failure, multi-spec runs via `beforeSuite` app reset, and multi-device cloud integration (BrowserStack, Sauce Labs, LambdaTest, AWS Device Farm). See [Mobile Test Automation](#mobile-test-automation) below. Release tag: [`mobile-parity-v1.0`](https://github.com/sreevsr/agentic-qe-framework-v2/releases/tag/mobile-parity-v1.0).
+
 ---
 
 ## Quick Start
 
-Get a sample test running in under 10 minutes:
+Get a sample test running in under 10 minutes. There are two paths — **web** (Playwright) and **mobile** (WDIO + Appium). Pick the one you need.
+
+### Web Quick Start
 
 ```bash
 # 1. Install and initialize
@@ -43,6 +47,52 @@ npx playwright install chromium
 # 7. Run the test
 cd output && npx playwright test tests/web/saucedemo/checkout-flow.spec.ts --headed
 ```
+
+### Mobile Quick Start (Android)
+
+```bash
+# 1. Prerequisites (one-time)
+#   — Install Node.js >= 18, Java 17+, Android SDK (SDK Manager or Android Studio)
+#   — Install Appium 2.x: npm install -g appium && appium driver install uiautomator2
+#   — Start Appium in a terminal: appium
+#   — Connect an Android device via USB (or start an emulator) and accept USB debugging
+#   — Verify: adb devices   (should list your device)
+
+# 2. Install and initialize (same as web — setup.js copies mobile templates too)
+npm install
+npm run setup
+
+# 3. Configure mobile credentials in output/.env
+cd output
+cat >> .env <<'EOF'
+PLATFORM=android
+ANDROID_DEVICE=<your-adb-serial-from-adb-devices>
+APPIUM_HOST=localhost
+APPIUM_PORT=4723
+NO_RESET=true
+# Option A — attach to pre-installed app by package + activity
+APP_PACKAGE=org.zwanoo.android.speedtest
+APP_ACTIVITY=com.ookla.mobile4.screens.main.MainActivity
+# Option B — install a customer-provided APK fresh each session
+# APP_PATH=/absolute/path/to/customer-app.apk
+EOF
+
+# 4. Reload VS Code window so the Appium MCP server picks up
+
+# 5. Run the Explorer (in Copilot chat) — reads live app via Appium MCP
+# @QE Explorer Run Explorer for scenario speedtest-run-test, type mobile.
+# Input: scenarios/mobile/speedtest-run-test.md
+
+# 6. Run the Builder (in a new Copilot chat)
+# @QE Builder Run Builder for scenario speedtest-run-test, type mobile.
+# Input: scenarios/mobile/speedtest-run-test.enriched.md
+
+# 7. Run the test
+cd output && PLATFORM=android npx wdio run wdio.conf.ts \
+  --spec tests/mobile/speedtest/speedtest-run-test.spec.ts
+```
+
+iOS Quick Start follows the same shape but requires macOS + Xcode + WebDriverAgent. See [Mobile Test Automation → iOS setup](#ios-setup) below.
 
 For full setup details and all options, read on.
 
@@ -128,17 +178,47 @@ The incremental pipeline preserves Executor-healed selectors (`"_healed": true` 
 
 ## Prerequisites
 
+**Core (all scenario types):**
 - **Node.js** >= 18.0.0
-- **Playwright** >= 1.50.0
 - **VS Code** with GitHub Copilot (1.113+) **or** Claude Code CLI
-- **MCP Playwright server** configured for Explorer's browser access
+
+**Web / API / hybrid:**
+- **Playwright** >= 1.50.0 (installed by `npm install` via `templates/config/package.json`)
+- **MCP Playwright server** for the Explorer's live browser access
+
+**Mobile (Android):**
+- **Java JDK** 17 or newer (required by Appium UiAutomator2)
+- **Android SDK** with `platform-tools` (for `adb`) — install via Android Studio SDK Manager or standalone `cmdline-tools`
+- **`ANDROID_HOME`** environment variable set to your SDK root (e.g. `~/Android/Sdk`)
+- **Appium 2.x server** running (`npm install -g appium && appium driver install uiautomator2 && appium`)
+- **Android device** (USB-connected with USB debugging enabled) **OR** Android emulator (via Android Studio AVD Manager)
+- **MCP Appium server** for the Explorer's live app access (`appium-mcp` package)
+
+**Mobile (iOS):**
+- **macOS** (required — Xcode does not run on Linux/Windows)
+- **Xcode** 15+ and Xcode Command Line Tools
+- **iOS Simulator** (bundled with Xcode) **OR** real iOS device with Apple Developer account
+- **WebDriverAgent** (bundled with Appium's XCUITest driver — auto-built on first run but may need code-signing for real devices)
+- **Appium 2.x server** with XCUITest driver (`appium driver install xcuitest`)
+- **`carthage`** (for WDA dependencies — `brew install carthage`)
 
 ### Platform Support
 
-| Platform | Agent Invocation | MCP Browser | Setup |
+| Platform | Agent Invocation | MCP Servers | Setup |
 |----------|-----------------|-------------|-------|
-| **Claude Code (CLI)** | `Agent` tool | Built-in MCP | Add Playwright MCP to `~/.claude/mcp_servers.json` or `.mcp.json` |
-| **VS Code + Copilot** | `@QE Orchestrator` mention | Playwright MCP extension | Add to `.vscode/mcp.json`, enable `chat.subagents.allowInvocationsFromSubagents` |
+| **Claude Code (CLI)** | `Agent` tool | Playwright MCP + Appium MCP (mobile) | Add to `~/.claude/mcp_servers.json` or `.mcp.json` |
+| **VS Code + Copilot** | `@QE Orchestrator` mention | Playwright MCP + Appium MCP (mobile) | Add to `.vscode/mcp.json`, enable `chat.subagents.allowInvocationsFromSubagents`. Template: `.vscode/mcp.example.json` |
+
+### Scenario Type Support
+
+| Type | Status | Runner | Device-verified? |
+|---|---|---|---|
+| **web** | ✅ Production | Playwright | Yes — SauceDemo, OrangeHRM, Epic SSO |
+| **api** | ✅ Production | Playwright request fixture | Yes — JSONPlaceholder CRUD |
+| **hybrid** | ✅ Production | Playwright page + request | Yes |
+| **mobile** (Android) | ✅ Production (v1.0) | WebdriverIO + Appium UiAutomator2 | Yes — Flipkart E2E + 9/9 parity tests |
+| **mobile** (iOS) | ⚠️ Supported at the config level, **not yet device-verified** | WebdriverIO + Appium XCUITest | **No** — see [iOS support status](#ios-support-status) |
+| **mobile-hybrid** | ✅ Production | WebdriverIO + axios via `browser.call()` | Yes (Android) |
 
 ---
 
@@ -191,24 +271,44 @@ npm install
 npx playwright install chromium
 ```
 
-### 4. Configure MCP (for Explorer browser access)
+### 4. Configure MCP Servers (Explorer live-app access)
 
-**VS Code** — `npm run setup` auto-generates `.vscode/mcp.json` with the correct `npx` path for your environment. If you use **nvm, fnm, or volta**, this is critical — bare `npx` won't be on the default PATH and the Explorer will fail with "no Browser MCP." If you need to create it manually:
+The Explorer needs an MCP server to interact with the app under test. **Web/hybrid** uses `@playwright/mcp`. **Mobile/mobile-hybrid** uses `appium-mcp`.
+
+**VS Code** — copy `.vscode/mcp.example.json` to `.vscode/mcp.json` and edit paths if needed. The sanitized example uses generic `npx`:
 
 ```json
 {
   "servers": {
     "playwright": {
-      "command": "/full/path/to/npx",
+      "command": "npx",
       "args": ["@playwright/mcp@latest", "--isolated", "--browser", "chromium"]
+    },
+    "appium-mcp": {
+      "command": "npx",
+      "args": ["-y", "appium-mcp@latest"],
+      "env": { "ANDROID_HOME": "${env:ANDROID_HOME}" }
     }
   }
 }
 ```
 
-Find your `npx` path: `which npx` (Linux/Mac) or `where npx` (Windows). After editing, **reload the VS Code window** (`Ctrl+Shift+P` → "Developer: Reload Window") for the MCP server to start.
+**If you use nvm, fnm, or volta**, bare `npx` may not resolve from VS Code's MCP host. In that case use the full path returned by `which npx` and set `PATH` explicitly in the server's `env` block. (`npm run setup` will also patch the paths automatically on first run.) After editing, **reload the VS Code window** (`Ctrl+Shift+P` → "Developer: Reload Window") for both MCP servers to start.
 
-**Claude Code CLI** — add to `.mcp.json` in project root or `~/.claude/mcp_servers.json`.
+For mobile, **also ensure Appium 2.x is running** in a separate terminal before invoking the Explorer:
+```bash
+# One-time: install Appium + driver
+npm install -g appium
+appium driver install uiautomator2           # Android
+appium driver install xcuitest               # iOS (macOS only)
+
+# Each session: start the server
+appium      # runs on http://localhost:4723
+```
+
+**Claude Code CLI** — add equivalent entries to `.mcp.json` in project root or `~/.claude/mcp_servers.json`.
+
+`.vscode/mcp.json` is **gitignored** so your local absolute paths and env vars don't leak to source control. The committed template lives at `.vscode/mcp.example.json`.
 
 ---
 
@@ -260,12 +360,15 @@ Create a `.md` file in `scenarios/{type}/`:
 
 **Supported scenario types:**
 
-| Type | Fixture | Page Objects? | Locators? | Example |
-|------|---------|:---:|:---:|---------|
-| `web` | `{ page }` | Yes | Yes | Login, checkout, form submission |
-| `api` | `{ request }` | No | No | REST CRUD, schema validation |
-| `hybrid` | `{ page, request }` | Yes (UI only) | Yes (UI only) | Create via API, verify in UI |
-| `mobile` | WDIO/Appium | Yes (screens) | Yes | Tap, swipe, native gestures |
+| Type | Runner | Fixture/Context | Page/Screen Objects? | Locators? | Example |
+|------|--------|-----------------|:---:|:---:|---------|
+| `web` | Playwright | `{ page }` | Yes (pages) | Yes | Login, checkout, form submission |
+| `api` | Playwright | `{ request }` | No | No | REST CRUD, schema validation |
+| `hybrid` | Playwright | `{ page, request }` | Yes (UI only) | Yes (UI only) | Create via API, verify in UI |
+| `mobile` | WDIO + Appium | global `browser` | Yes (screens) | Yes (platform-keyed JSON with `android` / `ios` sub-objects) | Tap, swipe, native gestures, permissions |
+| `mobile-hybrid` | WDIO + Appium + axios | global `browser` + `browser.call()` for API | Yes (screens) | Yes | Create via API, verify in native app |
+
+Mobile scenarios use a different keyword-to-code mapping (no `test.step()`, uses `// Step N —` comment markers; no `expect.soft()`, uses `softAssertions[]` + `recordSoftFailure()`; Mocha lifecycle hooks instead of Playwright's). Full reference: [Mobile Test Automation](#mobile-test-automation) below, and [`agents/shared/keyword-reference.md`](agents/shared/keyword-reference.md).
 
 **Multi-scenario files** — test related flows that share setup:
 
@@ -614,6 +717,504 @@ Always declare `mock` for public test APIs like JSONPlaceholder, ReqRes, or any 
 
 ---
 
+## Mobile Test Automation
+
+The framework generates native mobile test specs for **Android** (UiAutomator2) and **iOS** (XCUITest) at feature parity with the Playwright pipeline. Mobile scenarios use the same Explorer → Builder → Executor → Reviewer flow, same keyword vocabulary (`VERIFY`, `CAPTURE`, `SCREENSHOT`, `SAVE`, `DATASETS`, `SHARED_DATA`, `USE_HELPER`, `IF`/`REPEAT_UNTIL`/`TRY_ELSE`), and same file ownership rules — but the generated code is **WDIO + Mocha + Appium**, not Playwright.
+
+### iOS Support Status
+
+> **iOS is supported at the config level but has not yet been device-verified.** All 9 mobile parity verification tests and the Flipkart end-to-end regression were run on Android only (device `13161314AG042848`, Appium 3.2.0). The framework's infrastructure — `iosCapabilities`, `MobileLocatorLoader` iOS strategy priority (`accessibility_id → id → class_chain → predicate_string → xpath`), `BaseScreen.goBack()`/`goHome()` iOS branches, platform-keyed locator JSON, XCUITest driver integration — is all in place. You should expect:
+> - **WebDriverAgent first-build friction.** Appium's XCUITest driver builds WDA automatically on first run, but real-device testing requires Xcode code-signing with your Apple Developer account. Simulator testing has no signing requirement.
+> - **Android-only methods to replace.** `BaseScreen.selectOption()` hardcodes an `android=new UiSelector()...` query — write a screen-specific picker-wheel helper for iOS. `BaseScreen.waitForActivity()` uses Android Activities — replace with a stable-element wait for iOS.
+> - **No iOS example scenarios yet.** Use the Android scenarios as structural templates and add `ios:` sub-objects to your locator JSON files.
+> - **Contribution welcome.** When you run the framework on iOS for the first time, please contribute your iOS app-context patterns back to `scenarios/app-contexts/{app}-ios.md` so future users benefit.
+
+### Writing a Mobile Scenario
+
+Same `.md` format as web, but declare `Type: mobile` (or `mobile-hybrid`). Here's the minimal SpeedTest reference scenario:
+
+```markdown
+# Scenario: SpeedTest Run
+
+## Metadata
+- **Priority:** P2
+- **Type:** mobile
+- **Platform:** android
+- **Tags:** mobile, smoke, P2
+
+## Application
+- **App Package (Android):** {{ENV.APP_PACKAGE}}
+- **App Activity (Android):** {{ENV.APP_ACTIVITY}}
+- **Device:** {{ENV.ANDROID_DEVICE}}
+
+## Pre-conditions
+- SpeedTest app installed on device/emulator
+- Device connected via ADB (`adb devices` lists it)
+- Appium server running on localhost:4723
+
+## Steps
+1. Launch the app
+2. VERIFY: GO button is displayed
+3. Tap the GO button
+4. Wait for the speed test to complete (typically 30-45s)
+5. VERIFY: Download speed value is greater than 0
+6. CAPTURE: Download speed as {{downloadMbps}}
+7. CAPTURE: Upload speed as {{uploadMbps}}
+8. REPORT: "SpeedTest completed — {{downloadMbps}} down / {{uploadMbps}} up"
+9. SCREENSHOT: speedtest-results
+```
+
+And a production-app example (Flipkart checkout, 43 steps, device-verified):
+
+```markdown
+# Scenario: Flipkart — Add to Cart Through Checkout
+
+## Metadata
+- **Priority:** P1
+- **Type:** mobile
+- **Platform:** android
+- **Tags:** mobile, regression, shopping, cart, P1
+
+## Application
+- **App Package (Android):** com.flipkart.android
+- **App Activity (Android):** com.flipkart.android.SplashActivity
+- **Device:** {{ENV.ANDROID_DEVICE}}
+
+## Pre-conditions
+- Flipkart app installed
+- Logged in as guest (no login required for browsing)
+- PopupGuard enabled (promo banners, login prompts, notifications — handled automatically)
+
+## Steps
+1. Launch the app
+2. Dismiss any permission dialogs (location, notifications)
+3. Tap the "Search" icon in the bottom nav
+4. Type "LUKZER" in the search box
+5. Tap the first search suggestion
+6. VERIFY: Search results contain at least one "LUKZER" product
+7. Tap the first LUKZER product
+8. VERIFY: Product detail screen is displayed
+9. Tap "Buy Now"
+...
+(40+ steps: address selection → order summary → payment page → navigate back → verify cart → remove item → verify empty)
+```
+
+Full version lives at [`scenarios/mobile/flipkart-add-to-cart.md`](scenarios/mobile/flipkart-add-to-cart.md).
+
+**Mobile keyword differences** (see [`agents/shared/keyword-reference.md`](agents/shared/keyword-reference.md) for full spec):
+
+| Keyword | Web code | Mobile code |
+|---|---|---|
+| `VERIFY` | `expect(...)` | `expect(...)` (from `@wdio/globals`) |
+| `VERIFY_SOFT` | `expect.soft(...)` + auto-attach screenshot | `try { expect(...) } catch { softAssertions.push(await screen.recordSoftFailure(...)) }` + final conditional throw |
+| Step marker | `await test.step('Step N — ...', async () => {...})` | `// Step N — ...` comment (Mocha has no `test.step()`) |
+| Lifecycle | `test.beforeAll` / `beforeEach` / `afterEach` / `afterAll` | `before` / `beforeEach` / `afterEach` / `after` (Mocha globals) |
+| `SCREENSHOT` | `test.info().attach(...)` | `await screen.takeScreenshot('name')` — saves PNG to `test-results/screenshots/` |
+| `REPORT` | `test.info().annotations.push(...)` | `console.log(...)` (WDIO spec reporter + Allure log) |
+| `DATASETS` | `for (const data of testData) { test(..., ...) }` | `for (const data of testData) { it(..., ...) }` — MUST be inside `describe()` and OUTSIDE `it()` |
+| `USE_HELPER` | `class FooPageWithHelpers extends FooPage {...}` | `applyHelpers(new FooScreen(browser))` |
+
+### Setup — Android
+
+**1. Install prerequisites (one-time):**
+```bash
+# Java JDK 17+ — required by UiAutomator2
+# Ubuntu/Debian:
+sudo apt install openjdk-17-jdk
+# macOS:
+brew install openjdk@17
+
+# Android SDK — install via Android Studio OR standalone cmdline-tools
+# After install, set ANDROID_HOME:
+echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator' >> ~/.bashrc
+source ~/.bashrc
+
+# Appium 2.x + UiAutomator2 driver
+npm install -g appium
+appium driver install uiautomator2
+
+# Verify install
+appium --version               # should print 2.x
+adb --version                  # should print platform-tools
+```
+
+**2. Connect a device OR start an emulator:**
+```bash
+# Real device: enable USB debugging in Developer Options, plug in, accept the RSA fingerprint prompt
+adb devices                    # should list your device
+
+# Emulator: via Android Studio AVD Manager, or CLI
+~/Android/Sdk/emulator/emulator -avd Pixel_8_API_34 &
+adb wait-for-device
+adb devices                    # should list emulator-5554
+```
+
+**3. Start Appium server (leave running in a dedicated terminal):**
+```bash
+appium                         # runs on http://localhost:4723
+```
+
+**4. Configure `output/.env`:**
+```env
+PLATFORM=android
+APPIUM_HOST=localhost
+APPIUM_PORT=4723
+ANDROID_DEVICE=emulator-5554               # or your real device serial
+NO_RESET=true                              # true = fast attach, false = fresh install per session
+
+# Option A — pre-installed app
+APP_PACKAGE=com.example.app
+APP_ACTIVITY=com.example.app.MainActivity
+
+# Option B — install fresh APK per session
+# APP_PATH=/absolute/path/to/customer-app.apk
+```
+
+### Customer-Provided APK + Emulator Flow
+
+Many enterprise teams ship test cycles with a customer-provided APK file and no pre-installed app. Both patterns are supported:
+
+**Pattern A — Install once via ADB, attach by package name (fastest):**
+```bash
+# Install the APK on the target device or emulator
+adb -s emulator-5554 install /path/to/customer-app.apk
+
+# Extract the package + launchable activity from the APK (one-time lookup)
+aapt dump badging /path/to/customer-app.apk | grep -E "package|launchable-activity"
+# package: name='com.customer.app' ...
+# launchable-activity: name='com.customer.app.MainActivity' ...
+
+# Add to output/.env
+echo "APP_PACKAGE=com.customer.app" >> output/.env
+echo "APP_ACTIVITY=com.customer.app.MainActivity" >> output/.env
+echo "NO_RESET=true" >> output/.env      # keep app state between runs (faster iteration)
+
+# Run the test
+PLATFORM=android npx wdio run wdio.conf.ts --spec tests/mobile/customer/smoke.spec.ts
+```
+
+**Pattern B — Install fresh per session via `APP_PATH` (cleanest state):**
+```bash
+# Set APP_PATH; Appium installs the APK on every session start
+echo "APP_PATH=/absolute/path/to/customer-app.apk" >> output/.env
+echo "NO_RESET=false" >> output/.env     # clean state per session
+
+PLATFORM=android npx wdio run wdio.conf.ts --spec tests/mobile/customer/smoke.spec.ts
+```
+
+The framework's [`capabilities.ts`](output/core/capabilities.ts) handles both modes automatically:
+```typescript
+...(process.env.APP_PATH
+  ? { 'appium:app': process.env.APP_PATH }
+  : {
+      'appium:appPackage': process.env.APP_PACKAGE,
+      'appium:appActivity': process.env.APP_ACTIVITY,
+    }),
+```
+
+**Emulator vs real device:** functionally identical to Appium once `adb devices` shows them. The practical differences:
+- Emulators are slower for graphics-heavy flows and screen recording
+- GBoard glide-typing injection bugs do NOT reproduce on emulator (emulators use a different IME)
+- Real devices surface more timing flakiness (network, GC pauses) — catches more bugs
+- Use emulators for rapid iteration; use real devices for release gates
+
+<a id="ios-setup"></a>
+
+### Setup — iOS (macOS only, not yet device-verified)
+
+**1. Install prerequisites (one-time):**
+```bash
+# Xcode + Command Line Tools — from the Mac App Store or developer.apple.com
+xcode-select --install
+
+# Carthage — used by WebDriverAgent for dependency building
+brew install carthage
+
+# Appium + XCUITest driver
+npm install -g appium
+appium driver install xcuitest
+```
+
+**2. Simulator OR real device:**
+```bash
+# Simulator — list installed simulators
+xcrun simctl list devices available
+
+# Real device — find UDID
+xcrun xctrace list devices
+# Or: system_profiler SPUSBDataType | grep -A 3 "iPhone"
+```
+
+**3. Build & sign WebDriverAgent (real devices only):**
+Open `~/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj` in Xcode. Under "Signing & Capabilities," pick your Apple Developer team for the `WebDriverAgentRunner` target. Build once to install WDA on the device. This is a one-time step per device. Simulator testing skips this entirely.
+
+**4. Start Appium server:**
+```bash
+appium                         # same server serves both Android and iOS
+```
+
+**5. Configure `output/.env`:**
+```env
+PLATFORM=ios
+APPIUM_HOST=localhost
+APPIUM_PORT=4723
+IOS_DEVICE=iPhone 15           # simulator name OR real device name
+IOS_UDID=                      # required for real devices, leave empty for simulator
+IOS_VERSION=17.0
+
+# Option A — pre-installed app
+IOS_BUNDLE_ID=com.example.app
+
+# Option B — install fresh .app per session
+# IOS_APP_PATH=/absolute/path/to/app.app
+```
+
+**6. Run tests exactly like Android — the platform switch happens in `capabilities.ts`:**
+```bash
+PLATFORM=ios npx wdio run wdio.conf.ts --spec tests/mobile/customer/smoke.spec.ts
+```
+
+### Running Mobile Tests
+
+**Single spec:**
+```bash
+PLATFORM=android npx wdio run wdio.conf.ts --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts
+```
+
+**All mobile specs in one command** (the `wdio.conf.ts` `specs` glob already matches `tests/mobile/**/*.spec.ts`):
+```bash
+PLATFORM=android npx wdio run wdio.conf.ts
+```
+
+The `beforeSuite` hook in `wdio.conf.ts` calls `terminateApp` + `activateApp` before every spec file, so 20-30 specs run cleanly back-to-back without device-state contamination (~1s reset per spec vs ~15s for full session restart).
+
+**Filter by tag** (Mocha grep — mobile tags live in `describe`/`it` title strings, not a Mocha option):
+```bash
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@smoke"
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@P0"
+```
+
+**Run a subtree:**
+```bash
+PLATFORM=android npx wdio run wdio.conf.ts --spec 'tests/mobile/flipkart/**/*.spec.ts'
+```
+
+**Fail-fast (for smoke gates):** set `bail: 1` in `wdio.conf.ts`. Default is `0` — failing specs don't stop subsequent ones.
+
+### Multi-Device Parallelism
+
+WDIO uses the `capabilities: [...]` array — one entry per device. **Default behavior is parallel cross-device coverage** (each capability runs the FULL spec list, NOT sharding). For sharded speed-up across N devices, use `--shard X/N` from N parallel CI jobs.
+
+#### Local Lab (multiple ADB-connected devices)
+
+Drive the capabilities array from an env var. The framework's [`capabilities.ts`](output/core/capabilities.ts) returns a single device today; extend it to enumerate `ANDROID_DEVICES` for local labs:
+
+```typescript
+// output/core/capabilities.ts — enhanced for local lab
+const deviceSerials = (process.env.ANDROID_DEVICES || process.env.ANDROID_DEVICE || '').split(',').filter(Boolean);
+
+export function getAndroidCapabilities() {
+  return deviceSerials.map(serial => ({
+    platformName: 'Android',
+    'appium:automationName': 'UIAutomator2',
+    'appium:deviceName': serial,
+    'appium:appPackage': process.env.APP_PACKAGE,
+    'appium:appActivity': process.env.APP_ACTIVITY,
+    'appium:noReset': process.env.NO_RESET === 'true',
+  }));
+}
+
+// wdio.conf.ts
+maxInstances: 3,                        // parallel session cap
+capabilities: getAndroidCapabilities(),
+```
+
+```bash
+ANDROID_DEVICES=R5CT12345,R5CT67890,R5CT99999 PLATFORM=android npx wdio run wdio.conf.ts
+```
+
+#### BrowserStack App Automate
+
+Install `@wdio/browserstack-service`, set `BROWSERSTACK_USERNAME` + `BROWSERSTACK_ACCESS_KEY` env vars, list device combinations explicitly:
+
+```typescript
+// wdio.conf.ts
+export const config = {
+  user: process.env.BROWSERSTACK_USERNAME,
+  key: process.env.BROWSERSTACK_ACCESS_KEY,
+  services: [
+    ['browserstack', { app: 'bs://<app-id-from-upload>', browserstackLocal: false }],
+  ],
+  capabilities: [
+    {
+      platformName: 'Android',
+      'bstack:options': {
+        deviceName: 'Google Pixel 8',
+        osVersion: '14.0',
+        projectName: 'agentic-qe',
+        buildName: `mobile-regression-${process.env.BUILD_NUMBER}`,
+        sessionName: 'flipkart-checkout',
+        appiumVersion: '2.0.1',
+      },
+    },
+    {
+      platformName: 'Android',
+      'bstack:options': {
+        deviceName: 'Samsung Galaxy S23',
+        osVersion: '13.0',
+        projectName: 'agentic-qe',
+        appiumVersion: '2.0.1',
+      },
+    },
+    {
+      platformName: 'iOS',
+      'xcuitest:options': { deviceName: 'iPhone 15', osVersion: '17.0' },
+      'bstack:options': { projectName: 'agentic-qe', appiumVersion: '2.0.1' },
+    },
+  ],
+};
+```
+
+Upload the APK once:
+```bash
+curl -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+  -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+  -F "file=@app.apk"
+# Response: { "app_url": "bs://abc123..." }
+```
+
+Paste the returned `bs://...` URL into the `services[0].app` field above.
+
+#### Sauce Labs
+
+Install `@wdio/sauce-service`, set `SAUCE_USERNAME` + `SAUCE_ACCESS_KEY` env vars. Vendor key is `'sauce:options'`, service name is `'sauce'`:
+
+```typescript
+services: ['sauce'],
+capabilities: [
+  {
+    platformName: 'Android',
+    'appium:app': 'storage:filename=app.apk',   // Sauce storage reference
+    'sauce:options': {
+      deviceName: 'Google Pixel 8',
+      platformVersion: '14.0',
+      appiumVersion: '2.0.1',
+      build: `mobile-regression-${process.env.BUILD_NUMBER}`,
+      name: 'flipkart-checkout',
+    },
+  },
+],
+```
+
+Upload the APK via Sauce Storage API:
+```bash
+curl -u "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" \
+  --location \
+  --request POST 'https://api.us-west-1.saucelabs.com/v1/storage/upload' \
+  --form 'payload=@"app.apk"' \
+  --form 'name="app.apk"'
+```
+
+#### LambdaTest
+
+Install `wdio-lambdatest-service` (community package, not `@wdio/`-scoped). Set `LT_USERNAME` + `LT_ACCESS_KEY`. Vendor key is `'lt:options'`:
+
+```typescript
+services: ['lambdatest'],
+capabilities: [
+  {
+    platformName: 'Android',
+    'appium:app': 'lt://APP10160541716...',     // from LambdaTest app upload
+    'lt:options': {
+      deviceName: 'Pixel 8',
+      platformVersion: '14',
+      appiumVersion: '2.0.1',
+      project: 'agentic-qe',
+      build: `mobile-regression-${process.env.BUILD_NUMBER}`,
+      name: 'flipkart-checkout',
+    },
+  },
+],
+```
+
+Upload the APK via LambdaTest's App API:
+```bash
+curl -u "$LT_USERNAME:$LT_ACCESS_KEY" \
+  -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+  -F "name=app.apk" \
+  -F "appFile=@app.apk"
+# Response: { "app_url": "lt://APP10160541716..." }
+```
+
+**The pattern is identical across all three cloud providers.** Vendor options key, service name, and app reference format differ; everything else (capability list structure, parallelism semantics, sharding via `--shard`, the `beforeSuite` reset hook) is the same.
+
+#### AWS Device Farm
+
+AWS Device Farm uses a **different model** — you don't list devices in `capabilities`. Instead:
+
+1. Package your `output/` directory as a test bundle zip
+2. Upload via `aws devicefarm create-upload`
+3. Select a **device pool** (a named set of devices managed in the AWS console or via Terraform)
+4. Run with `aws devicefarm schedule-run --device-pool-arn <pool>`
+
+Device Farm handles per-device execution, sharding across the pool, retries, and reporting. WDIO doesn't integrate directly with Device Farm; use the `aws devicefarm` CLI or SDK from your CI job. The framework's `wdio.conf.ts` doesn't need any changes — you run the test bundle inside a Device Farm-managed Appium session, and the existing configuration applies.
+
+**The `beforeSuite` reset hook works on every cloud provider** because it operates on the `browser` global, which is the per-session WebDriver client. Whether the session is on `localhost:4723`, BrowserStack, Sauce Labs, LambdaTest, or AWS Device Farm, `terminateApp` + `activateApp` are standard Appium commands that all major clouds support.
+
+### Mobile Anti-Patterns (AP-1 through AP-7)
+
+The Builder enforces seven anti-patterns specific to mobile, documented in [`agents/core/code-generation-rules.md`](agents/core/code-generation-rules.md) §14.8. Quick reference:
+
+| # | Anti-Pattern | Why It's Wrong | Right Answer |
+|---|---|---|---|
+| **AP-1** | Hardcoding test-specific values in locators (`textContains("LUKZER Electric Height")`) | Breaks for any other product | Structural anchor via XPath sibling lookup |
+| **AP-2** | Multi-element text matching | Text spans multiple TextViews, never resolves | Split into two locators using a stable label anchor |
+| **AP-3** | Full-tree XPath in wait loops (`driver.$$('//ImageView')`) | Scans entire a11y tree, 20-30s per call on RN apps | Targeted locator via `MobileLocatorLoader` or specific UiSelector |
+| **AP-4** | Contradictory flow steps (`searchFor(q)` + `tapSuggestion()`) | Submits then tries to tap a gone element | Pick one path and document why |
+| **AP-5** | Assuming WebView without verification | Native screen with pointless `switchContext` code | Default to native; only use WebView when Explorer documents `WEBVIEW_*` context exists |
+| **AP-6** | No keyboard dismissal after text input | GBoard glide-types into field during swipe | Use `BaseScreen.typeText()` / `pressSequentially()` (auto-dismiss) |
+| **AP-7** | Missing React Native performance settings | Every query waits 10s for app idle | Apply `waitForIdleTimeout: 0` in `wdio.conf.ts` `before()` hook (already in template) |
+
+### Mobile Failure Signatures
+
+When a mobile test fails, the Executor matches the failure against 10 diagnostic signatures before escalating. Documented in [`agents/core/executor.md`](agents/core/executor.md) §7. The [`scripts/failure-classifier.js`](scripts/failure-classifier.js) script emits machine-readable category hints that map 1:1 to these signatures:
+
+| Symptom | Category | Deterministic Fix |
+|---|---|---|
+| Text in EditText grew between scroll cycles (`"by"` → `"by by"`) | `GLIDE_TYPING_INJECTION` | `hideKeyboard()` after text input |
+| Locator text > any single TextView's text | `MULTI_ELEMENT_TEXT_MATCH` | Split into two locators with structural anchor |
+| Element visible in screenshot but not in page source | `COMPOSE_NO_ACCESSIBILITY_NODE` | `appium_tap_by_coordinates` with `// FRAGILE:` comment |
+| Code switches to WEBVIEW but screen is native | `WEBVIEW_VS_NATIVE_MISMATCH` | Remove `getContexts()` / `switchContext()`, use native locators |
+| Queries take >15s each | `UIAUTOMATOR_IDLE_TIMEOUT` | Apply `waitForIdleTimeout: 0` in `before()` hook |
+| Element not tappable because keyboard covers it | `KEYBOARD_BLOCKING` | `hideKeyboard()` before next interaction |
+| App in unexpected state at session start | `STALE_NAVIGATION_STACK` | Add force-stop + relaunch in `before()` hook |
+| `getCurrentActivity` returns previous Activity name | (timing race) | Use `BaseScreen.waitForActivity(name, timeoutMs)` |
+
+### Auto-Evidence on Failure
+
+`wdio.conf.ts` `afterTest` hook automatically captures evidence on every failure:
+
+| Artifact | Path | Notes |
+|---|---|---|
+| **Screenshot** | `test-results/screenshots/FAILED-{test}-{timestamp}.png` | Captures current device screen at failure point |
+| **Page source XML** | `test-results/page-sources/FAILED-{test}-{timestamp}.xml` | Full Appium page source — use to diagnose missing elements |
+| **Screen recording** | `test-results/videos/FAILED-{test}-{timestamp}.mp4` | Kept only on failure (successful test recordings are discarded) |
+| **Allure report** | `allure-results/` → `npm run report:allure:mobile` | Attaches all three artifacts to the failing test step |
+
+No manual instrumentation required — works for every spec automatically as long as `wdio.conf.ts` hasn't been customized away from the template.
+
+### Mobile Example Scenarios
+
+The repository includes two device-verified mobile scenarios:
+
+- [`scenarios/mobile/speedtest-run-test.md`](scenarios/mobile/speedtest-run-test.md) + [`output/tests/mobile/speedtest/`](output/tests/mobile/speedtest/) — SpeedTest by Ookla. Minimal reference scenario (launch app, tap GO button, wait for results, capture download/upload speeds). Good smoke test.
+- [`scenarios/mobile/flipkart-add-to-cart.md`](scenarios/mobile/flipkart-add-to-cart.md) + [`output/tests/mobile/flipkart/flipkart-add-to-cart.spec.ts`](output/tests/mobile/flipkart/flipkart-add-to-cart.spec.ts) — Flipkart mobile app, 43-step E2E (search → product detail → Buy Now → address → order summary → payment → cart verify → remove item). Production-app reference that exercises PopupGuard, React Native idle timeout fix, rotating banners, permission dialogs, and the full keyword suite.
+
+Plus four framework verification specs in [`output/tests/mobile/parity/`](output/tests/mobile/parity/) covering lifecycle hooks, VERIFY_SOFT, DATASETS, and SHARED_DATA + saveState. Run them to validate your mobile setup end-to-end.
+
+---
+
 ## Features and Capabilities
 
 ### Test Generation
@@ -629,7 +1230,8 @@ Always declare `mock` for public test APIs like JSONPlaceholder, ReqRes, or any 
 - **Web** — Playwright page interactions with full POM support
 - **API** — Playwright `request` fixture for REST testing (not axios/fetch)
 - **Hybrid** — UI + API in the same test (create via API, verify in UI)
-- **Mobile** — Appium MCP for Android/iOS native apps (tap, swipe, long-press)
+- **Mobile** — WDIO + Appium (UiAutomator2 for Android, XCUITest for iOS). Full parity with the Playwright pipeline: BaseScreen with 15 reusable methods, platform-keyed locators, lifecycle hooks, `VERIFY_SOFT`/`DATASETS`/`SHARED_DATA`/`USE_HELPER`, auto-evidence on failure, multi-device cloud integration. Android device-verified; iOS supported at the config level ([status](#ios-support-status)).
+- **Mobile-hybrid** — Native mobile + REST API calls (via `browser.call()` wrapping axios). For "create via API, verify in the app" flows.
 
 ### Quality Assurance
 
@@ -653,27 +1255,35 @@ The Reviewer audits generated code across **9 dimensions**:
 - **NEEDS FIXES** — score < 80% or any dimension < 3 or Dim 9 < 4
 - **TESTS FAILING** — tests still failing after Executor exhausted all cycles
 
-### Browser Exploration
+### Browser + Mobile App Exploration
 
-- **Explorer** — live flow verification + element capture with MCP Playwright. Snapshot-first strategy: derives selectors from the MCP accessibility snapshot (role, name, href). DOM probe fallback for non-accessible elements (SVGs, DOM-only panels, custom widgets).
+**Web / hybrid (Playwright MCP):**
+- **Snapshot-first capture** — derives selectors from the MCP accessibility snapshot (role, name, href). DOM probe fallback for non-accessible elements (SVGs, DOM-only panels, custom widgets).
 - **Selector validation gate** — every non-structural selector is validated against the live DOM (`querySelectorAll` count === 1) before recording. Prevents ambiguous selectors that match multiple elements.
 - **FAST-walk** — execute interactions for state without deep verification (incremental mode)
 - **Bug detection** — 3-question decision gate classifies failures as test issue vs app bug
 - **Iframe-aware** — validation runs in the same frame context as the interaction. Shadow DOM elements skip CSS validation and rely on MCP interaction success as proof.
 
+**Mobile (Appium MCP):**
+- **Platform-aware locator capture** — Explorer emits platform-keyed JSON (`android: {...}, ios: {...}`) with strategy priority `accessibility_id → id → uiautomator/class_chain → xpath`
+- **Page source XML parsing** — one source fetch per verification round, in-memory pattern matching (13+ popup checks in ~1s vs 4+ minutes with naive per-pattern queries)
+- **Runtime observations** — Explorer MUST record native-vs-WebView context, keyboard visibility after typing, multi-element text spans, rotating content, React Native detection, chosen flow paths, and Compose/Canvas elements (see [`agents/core/explorer.md`](agents/core/explorer.md) §10)
+- **Locator genericization** — Builder enforces 3-level locator quality (bans hardcoded test-specific values via AP-1 anti-pattern). See [`agents/core/builder.md`](agents/core/builder.md) §8
+- **Failure signatures** — Executor matches mobile-specific symptoms (GBoard glide typing, multi-element text, UiAutomator idle timeouts, Compose Canvas elements, WebView mismatch, keyboard blocking, stale navigation stack) to deterministic fixes. See [`agents/core/executor.md`](agents/core/executor.md) §7
+
 ### Automation Scripts (Zero LLM Tokens)
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| Scenario diff | `node scripts/scenario-diff.js --scenario=path` | Section-aware diff + change classification (auto-detects enriched.md, falls back to spec) |
-| Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Annotate enriched.md, produce builder-instructions.json |
-| Cleanup annotations | `node scripts/cleanup-annotations.js --file=path` | Strip markers, remove deleted steps, renumber |
-| Explorer post-check | `node scripts/explorer-post-check.js --scenario=X --type=web` | Mechanical verification of step counts, locator counts |
-| Review precheck | `node scripts/review-precheck.js --scenario=X --type=web` | Evidence collection before review (zero LLM tokens) |
-| Test results parser | `node scripts/test-results-parser.js --results-dir=output/test-results` | Structured failure data from Playwright JSON |
-| Failure classifier | `node scripts/failure-classifier.js --results=path` | Classify: Element Not Found vs Assertion vs Timeout vs Flake |
-| Swagger parser | `node scripts/swagger-parser.js --spec=path` | Parse OpenAPI specs into scenario templates |
-| Metrics collector | `node scripts/metrics-collector.js --run-type=pipeline` | Aggregate observability data across all stages |
+| Script | Command | Purpose | Mobile support? |
+|--------|---------|---------|:---:|
+| Scenario diff | `node scripts/scenario-diff.js --scenario=path` | Section-aware diff + change classification (auto-detects enriched.md, falls back to spec) | ✅ |
+| Builder incremental | `node scripts/builder-incremental.js --scenario=X --type=web` | Annotate enriched.md, produce builder-instructions.json | ✅ |
+| Cleanup annotations | `node scripts/cleanup-annotations.js --file=path` | Strip markers, remove deleted steps, renumber | ✅ |
+| Explorer post-check | `node scripts/explorer-post-check.js --scenario=X --type=mobile --folder=flipkart` | Mechanical verification: step counts, locator counts, platform-keyed format check | ✅ `--type=mobile` branches on flat scenario paths + foldered spec paths |
+| Review precheck | `node scripts/review-precheck.js --scenario=X --type=mobile --folder=flipkart` | Evidence collection for all 9 Reviewer dimensions | ✅ all dim collectors branched; reads `wdio.conf.ts` for Dim 4 |
+| Test results parser | `node scripts/test-results-parser.js --json-path=output/test-results/mobile-results.json` | Structured failure data; auto-detects WDIO vs Playwright JSON shape | ✅ `--runner=wdio` override or auto-detect |
+| Failure classifier | `node scripts/failure-classifier.js --results=path` | Classify failures; 7 mobile-specific categories (GLIDE_TYPING_INJECTION, MULTI_ELEMENT_TEXT_MATCH, COMPOSE_NO_A11Y, WEBVIEW_VS_NATIVE, UIAUTOMATOR_IDLE, KEYBOARD_BLOCKING, STALE_NAV) with deterministic fix recommendations | ✅ |
+| Swagger parser | `node scripts/swagger-parser.js --spec=path` | Parse OpenAPI specs into scenario templates | — (API only) |
+| Metrics collector | `node scripts/metrics-collector.js --run-type=pipeline` | Aggregate observability data across all stages | ✅ |
 
 ### Skills System (Three-Level Progressive Disclosure)
 
@@ -739,21 +1349,64 @@ All agents read this file instead of using hardcoded values:
   },
   "appContext": {
     "filename": "my-app.md"
+  },
+  "mobile": {
+    "appiumHost": "localhost",
+    "appiumPort": 4723,
+    "defaultPlatform": "android",
+    "testTimeoutMs": 240000,
+    "actionTimeoutMs": 45000,
+    "commandTimeoutMs": 60000
   }
 }
 ```
 
-### `output/playwright.config.ts` — Test Runner
+The `mobile` block controls Appium connection + mobile-specific timeouts. `defaultPlatform` is used when a scenario says `Platform: both` — the framework picks this value for the first pass. Mobile timeouts are deliberately higher than web because real-device interactions (screenshot, page source, W3C gestures) are slower than browser DOM calls.
 
-Standard Playwright configuration. Generated by `setup.js` from templates. Controls:
+### `output/playwright.config.ts` — Web / API / Hybrid Test Runner
+
+Standard Playwright configuration. Generated by `setup.js` from `templates/config/playwright.config.ts`. Controls:
 - Browser (Chromium default), viewport (1920x1080)
 - Reporters (list, JSON, HTML)
 - Screenshots, video, trace on failure
 - Timeout values (read from `framework-config.json`)
 
-### `.env` — Credentials and URLs
+### `output/wdio.conf.ts` — Mobile Test Runner (WDIO + Appium)
 
-All credentials use `process.env.*` — never hardcoded in generated code.
+Generated by `setup.js` from `templates/config-mobile/wdio.conf.ts`. Controls:
+- Appium connection (`hostname`, `port`, auth from env vars)
+- Device capabilities via `./core/capabilities.ts` (Android `UiAutomator2`, iOS `XCUITest`)
+- Mocha framework (`timeout: 600000`, no retries by default)
+- Reporters: `spec` (console), `json` (machine-readable at `test-results/mobile-results.json`), `allure`
+- **`before()` hook** — applies UiAutomator2 performance settings (`waitForIdleTimeout: 0`, `ignoreUnimportantViews: true`, etc.) — critical for React Native apps where queries would otherwise take 20-30s each
+- **`beforeSuite()` hook** — terminates and re-activates the app under test before every spec file. Required for multi-spec runs with `NO_RESET=true` — without this, state from spec N leaks into spec N+1. ~1s per spec on a real device.
+- **`beforeTest()` hook** — starts Appium screen recording per test
+- **`afterTest()` hook** — stops recording; **on failure only**, saves screenshot + XML page source + video to `test-results/{screenshots,page-sources,videos}/FAILED-{test}-{timestamp}.{ext}`. Successful test recordings are discarded to keep disk usage bounded.
+
+### `.env` — Credentials, URLs, Mobile Config
+
+All credentials use `process.env.*` — never hardcoded in generated code. Mobile-specific env vars:
+
+```env
+# --- Mobile (Appium) -----------------------------------------------------
+PLATFORM=android                       # or 'ios'
+APPIUM_HOST=localhost
+APPIUM_PORT=4723
+NO_RESET=true                          # true = fast (attach), false = fresh install each session
+
+# Android
+ANDROID_DEVICE=<adb-serial-or-emulator-name>   # from `adb devices`
+APP_PACKAGE=com.example.app                    # mutually exclusive with APP_PATH
+APP_ACTIVITY=com.example.app.MainActivity      # pair with APP_PACKAGE
+# APP_PATH=/absolute/path/to/customer.apk      # alternative: install fresh APK each session
+
+# iOS (macOS only)
+IOS_DEVICE=iPhone 15                           # simulator name or device name
+IOS_UDID=<udid>                                # required for real devices
+IOS_VERSION=17.0
+IOS_BUNDLE_ID=com.example.app                  # mutually exclusive with IOS_APP_PATH
+# IOS_APP_PATH=/absolute/path/to/app.app       # alternative: install fresh .app each session
+```
 
 ---
 
@@ -763,16 +1416,22 @@ Strict boundaries prevent agents from stepping on each other's work or modifying
 
 | Files | Owner | Agent Access |
 |-------|-------|-------------|
-| `scenarios/*.md` | User/Tester | **Read only** — agents never modify scenario files |
-| `scenarios/*.enriched.md` | Explorer (first run), then User | Explorer creates once. User can edit. Incremental pipeline annotates temporarily. |
-| `output/pages/*.helpers.ts` | Team | **Read only** — agents never create, modify, or delete helper files |
+| `scenarios/**/*.md` | User/Tester | **Read only** — agents never modify scenario files |
+| `scenarios/**/*.enriched.md` | Explorer (first run), then User | Explorer creates once. User can edit. Incremental pipeline annotates temporarily. |
+| `output/pages/*.helpers.ts` | Team | **Read only** — agents never create, modify, or delete helper files (web) |
+| `output/screens/*.helpers.ts` | Team | **Read only** — mobile equivalent; agents never create, modify, or delete helper files |
 | `output/test-data/shared/` | Team | **Read only** — immutable cross-scenario test data |
-| `output/core/*` | Framework (`setup.js`) | **Read only** — base utilities |
-| `output/pages/*.ts` | Builder | Create/modify (agents own these) |
-| `output/locators/*.json` | Builder + Executor | Builder creates from Explorer's ELEMENT annotations, Executor refines selectors |
-| `output/tests/**/*.spec.ts` | Builder | Create/modify (agents own these) |
-| `output/test-data/{type}/*.json` | Builder | Create/modify |
-| `scenarios/app-contexts/*.md` | Explorer | Read/write (self-improving patterns) |
+| `output/core/*` | Framework (`setup.js` from `templates/core/` + `templates/core-mobile/`) | **Read only** — base utilities |
+| `output/wdio.conf.ts`, `output/playwright.config.ts` | Framework (`setup.js` from `templates/config-mobile/` + `templates/config/`) | **Read only** — regenerable from templates |
+| `output/pages/*.ts` (web) | Builder | Create/modify (agents own these) |
+| `output/screens/*.ts` (mobile) | Builder | Create/modify — mobile screen objects extending `BaseScreen` |
+| `output/locators/*.json` (web) | Builder + Executor | Builder creates from Explorer's ELEMENT annotations, Executor refines selectors |
+| `output/locators/mobile/*.locators.json` | Builder + Executor | Platform-keyed format (`android:` / `ios:`), strategy fallbacks |
+| `output/tests/web/**/*.spec.ts`, `output/tests/api/**/*.spec.ts`, `output/tests/hybrid/**/*.spec.ts` | Builder | Create/modify (agents own these) |
+| `output/tests/mobile/**/*.spec.ts` | Builder | Create/modify — WDIO/Mocha specs |
+| `output/test-data/{web,api,hybrid,mobile}/*.json` | Builder | Create/modify |
+| `scenarios/app-contexts/*.md` | Explorer | Read/write — self-improving patterns. Mobile may have a separate `{app}-ios.md` / `{app}-android.md` per platform if behavior diverges. |
+| `templates/core-mobile/*`, `templates/config-mobile/*` | Framework maintainer | **Source of truth** for mobile runtime. `setup.js` copies these to `output/` on every setup. To change runtime behavior, edit the template and re-run `npm run setup`. |
 
 ---
 
@@ -821,6 +1480,15 @@ Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passe
 | Builder overwrites Executor's selector fixes | Executor-healed selectors not marked with `"_healed": true` | Manually add `"_healed": true` to the locator JSON entry. The Builder will preserve it on future regenerations. |
 | `scenario-diff.js` classifies everything as FIRST_RUN | No enriched.md found next to the scenario file | Run the Explorer first to produce the enriched.md. The diff compares scenario .md against enriched .md (not the spec). |
 | App-context file not found by Executor or Explorer | Agents guessing the filename from URL/domain instead of reading config | Set `appContext.filename` in `framework-config.json` to the exact filename in `scenarios/app-contexts/`. |
+| **Mobile:** Explorer says "Appium MCP not available" | Appium MCP server not started OR Appium 2.x server not running on localhost:4723 | Start `appium` in a separate terminal. Verify with `curl http://localhost:4723/status`. Check `.vscode/mcp.json` has the `appium-mcp` server entry. Reload VS Code window. |
+| **Mobile:** `adb devices` shows "unauthorized" | Device's RSA fingerprint not accepted yet | Unlock the device, unplug/replug the USB cable, accept the "Allow USB debugging?" prompt on the device screen. |
+| **Mobile:** Every element lookup takes 20-30 seconds | React Native app without `waitForIdleTimeout: 0` | The template `wdio.conf.ts` `before()` hook applies this automatically. If you customized wdio.conf.ts, restore the `updateSettings` call from `templates/config-mobile/wdio.conf.ts`. |
+| **Mobile:** Multi-spec run fails on the second spec with "element not found" | `NO_RESET=true` + missing `beforeSuite` hook → app state leaks between specs | The template `wdio.conf.ts` `beforeSuite` hook calls `terminateApp` + `activateApp` — ensure it's present. If you removed it, re-run `npm run setup` to restore the template. |
+| **Mobile:** Test types "by by by" into the search field during a swipe | GBoard glide typing injection during keyboard-visible swipe | Use `BaseScreen.typeText()` / `pressSequentially()` — they auto-dismiss the keyboard. Or add an explicit `await driver.hideKeyboard()` before the swipe. |
+| **Mobile:** Element visible in screenshot but `element not found` | Compose / SwiftUI / Flutter Canvas element — not in the a11y tree | Use `appium_tap_by_coordinates` with a `// FRAGILE: Compose element` comment. The Explorer should have flagged this during capture. |
+| **Mobile:** Test passes locally but fails on CI | Device in stale navigation state from previous run | Ensure `beforeSuite` is active (see above). If persistent, add `adb shell am force-stop $APP_PACKAGE` to your CI setup before each test job. |
+| **Mobile (iOS):** First run hangs at "Building WebDriverAgent" | Xcode code-signing not configured | Open `~/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj` in Xcode, sign the `WebDriverAgentRunner` target with your Apple Developer team, build once. Simulator testing doesn't need signing. |
+| **Mobile (iOS):** `BaseScreen.selectOption()` fails with "UiSelector not found" | `selectOption()` is Android-only (hardcoded `android=new UiSelector()...`) | Write a screen-specific picker-wheel helper for iOS. See [Mobile Test Automation → iOS Support Status](#ios-support-status). |
 
 ---
 
@@ -828,9 +1496,11 @@ Connectors for Jira and ServiceNow. Auto-close defects after N consecutive passe
 
 | Area | Limitation | Workaround |
 |------|-----------|------------|
-| **Element capture** | Snapshot-first capture covers ~85% of elements. Non-accessible elements (SVGs, DOM-only panels, shadow DOM) require DOM probe fallback. Closed shadow DOM elements skip CSS validation entirely. | DOM probe automatically kicks in for elements not in the accessibility snapshot. Shadow DOM elements rely on MCP interaction success as validation. |
-| **Canvas / pixel-based** | Cannot assert on canvas charts or pixel colors. Only SVG/DOM-rendered charts are readable. | Use SVG-based chart libraries, or add `data-testid` attributes to chart containers. |
-| **Mobile** | Declared and partially implemented. Appium configuration is minimal. | Web and API types are production-ready. Mobile is functional but less battle-tested. |
+| **Element capture (web)** | Snapshot-first capture covers ~85% of elements. Non-accessible elements (SVGs, DOM-only panels, shadow DOM) require DOM probe fallback. Closed shadow DOM elements skip CSS validation entirely. | DOM probe automatically kicks in for elements not in the accessibility snapshot. Shadow DOM elements rely on MCP interaction success as validation. |
+| **Canvas / pixel-based (web)** | Cannot assert on canvas charts or pixel colors. Only SVG/DOM-rendered charts are readable. | Use SVG-based chart libraries, or add `data-testid` attributes to chart containers. |
+| **Mobile — iOS** | Framework infrastructure (capabilities, locator loader, BaseScreen gestures, platform-keyed JSON) supports iOS, but **not yet device-verified** as of v1.0. Some `BaseScreen` methods (`selectOption`, `waitForActivity`) are Android-only and need screen-specific replacements on iOS. See [iOS Support Status](#ios-support-status). | Write iOS-specific helpers at the screen-object layer. Contribute working iOS app-context patterns back to `scenarios/app-contexts/{app}-ios.md`. |
+| **Mobile — Canvas / Compose** | Compose-rendered elements (Android Jetpack Compose, iOS SwiftUI, Flutter) often render as Canvas with no accessibility nodes. | Framework detects this (via Explorer runtime observation) and falls back to `appium_tap_by_coordinates` with a `// FRAGILE:` comment marking the fragility. |
+| **Mobile — WebView context switching** | Mixed native + WebView apps need explicit context switching; framework defaults to native-only. | When Explorer observes WEBVIEW contexts via `appium_context`, it records them in enriched.md and the Builder generates `switchContext()` code. |
 | **CI/CD workflows** | GitHub Actions workflows are skeletal. Jira connector exists but is non-functional. | Use the `ci-test-runner.js` script directly. Build custom workflows around it. |
 | **Single-scenario insertions** | Mid-section step insertions in single-scenario files (`## Steps`) cause positional cascade in the diff (more steps marked MODIFIED than necessary). | Not a correctness issue — just extra work. Multi-scenario files with `### Scenario:` blocks are unaffected. |
 | **Context window** | Very large scenarios (50+ steps) may approach LLM context limits on some platforms. | Split into multi-scenario files with Common Setup/Teardown. |
@@ -869,7 +1539,13 @@ agentic-qe-framework-v2/
 │   ├── web/                      # Web test scenarios
 │   ├── api/                      # API test scenarios
 │   ├── hybrid/                   # Hybrid test scenarios
-│   └── app-contexts/             # Learned application patterns
+│   ├── mobile/                   # Mobile test scenarios (Android + iOS)
+│   │   ├── _template.md          # Mobile scenario template
+│   │   ├── _template-hybrid.md   # Mobile-hybrid scenario template
+│   │   ├── flipkart-add-to-cart.md  # Reference: 43-step Flipkart E2E
+│   │   ├── speedtest-run-test.md    # Reference: minimal SpeedTest scenario
+│   │   └── test-{lifecycle-hooks,verify-soft,datasets,shared-data}.md  # Framework parity verification
+│   └── app-contexts/             # Learned application patterns (per-app + per-platform)
 ├── scripts/
 │   ├── lib/
 │   │   └── section-parser.js     # Shared section extraction utility
@@ -893,22 +1569,27 @@ agentic-qe-framework-v2/
 │   ├── mobile/                   # Mobile testing skills
 │   └── accessibility/            # A11y audit skills
 ├── contracts/                    # Agent input/output manifests (8 files)
-├── templates/                    # Config and core file templates
-│   ├── config/                   # TypeScript project template
+├── templates/                    # Config and core file templates (source of truth)
+│   ├── config/                   # TypeScript project template (web + mobile deps)
 │   ├── config-javascript/        # JavaScript variant
-│   ├── config-python/            # Python variant
-│   ├── core/                     # Core utilities (TypeScript)
+│   ├── config-python/             # Python variant
+│   ├── config-mobile/            # Mobile runner config (wdio.conf.ts, capabilities.ts)
+│   ├── core/                     # Core utilities (TypeScript — web runtime)
+│   ├── core-mobile/              # Core utilities (TypeScript — mobile runtime: BaseScreen, MobileLocatorLoader, PopupGuard)
 │   └── core-python/              # Core utilities (Python)
 ├── ci/                           # CI/CD configuration
 │   ├── config/ci-defaults.json   # Test suite definitions
 │   ├── scripts/ci-test-runner.js # CI test runner
 │   └── integrations/             # Jira, ServiceNow connectors
-├── output/                       # Generated Playwright test project
-│   ├── core/                     # Runtime utilities (from templates)
-│   ├── pages/                    # Generated page objects
-│   ├── locators/                 # Element selectors (Builder-created from Explorer ELEMENT annotations)
-│   ├── tests/                    # Generated spec files
+├── output/                       # Generated Playwright + WDIO test project
+│   ├── core/                     # Runtime utilities (from templates/core/ + templates/core-mobile/)
+│   ├── pages/                    # Generated page objects (web)
+│   ├── screens/                  # Generated screen objects (mobile, extend BaseScreen)
+│   ├── locators/                 # Element selectors (web + mobile/ subdir with platform-keyed JSON)
+│   ├── tests/                    # Generated spec files (web/api/hybrid/mobile subdirs)
 │   ├── test-data/                # Test data (per-scenario + shared)
+│   ├── playwright.config.ts      # Web test runner (from templates/config/)
+│   ├── wdio.conf.ts              # Mobile test runner (from templates/config-mobile/)
 │   └── reports/                  # Pipeline reports and metrics
 ├── framework-config.json         # User-configurable agent settings
 ├── CLAUDE.md                     # Claude Code framework instructions
@@ -919,22 +1600,39 @@ agentic-qe-framework-v2/
 
 ## Example Scenarios
 
-The repository includes two tested scenarios:
+The repository includes device-verified reference scenarios across every supported type:
 
-### Orange HRM (Multi-Scenario)
-`scenarios/web/orangehrm/employee-portal.md` — Common Setup (login) + 3 scenarios (Apply Leave, Search Employee Directory, Post Buzz Message) + Common Teardown (logout). Tests section-aware incremental detection with isolated scenario changes.
+### Web — Orange HRM (Multi-Scenario)
+[`scenarios/web/orangehrm/employee-portal.md`](scenarios/web/orangehrm/employee-portal.md) — Common Setup (login) + 3 scenarios (Apply Leave, Search Employee Directory, Post Buzz Message) + Common Teardown (logout). Tests section-aware incremental detection with isolated scenario changes.
 
-### SauceDemo (Single Scenario)
-`scenarios/web/saucedemo/checkout-flow.md` — 24-step checkout flow (login, add to cart, checkout, confirm). Live browser-verified against https://www.saucedemo.com. Tests incremental detection for single-section files.
+### Web — SauceDemo (Single Scenario)
+[`scenarios/web/saucedemo/checkout-flow.md`](scenarios/web/saucedemo/checkout-flow.md) — 24-step checkout flow (login, add to cart, checkout, confirm). Live browser-verified against https://www.saucedemo.com. Tests incremental detection for single-section files.
+
+### API — JSONPlaceholder CRUD
+[`scenarios/api/posts-crud-happy-path.md`](scenarios/api/posts-crud-happy-path.md) — 20-step CRUD flow against `https://jsonplaceholder.typicode.com`. Declares `## API Behavior: mock` so POST-then-GET mismatches aren't flagged as bugs. Demonstrates all REST verbs (GET, POST, PUT, PATCH, DELETE) + status + body assertions.
+
+### Mobile — SpeedTest (Reference App)
+[`scenarios/mobile/speedtest-run-test.md`](scenarios/mobile/speedtest-run-test.md) — SpeedTest by Ookla, minimal reference scenario (launch → tap GO → wait → capture speeds). Reliable smoke-test anchor — SpeedTest has a single stable `goButton` accessibility id, making it ideal for framework verification.
+
+### Mobile — Flipkart (Production App, 43 Steps)
+[`scenarios/mobile/flipkart-add-to-cart.md`](scenarios/mobile/flipkart-add-to-cart.md) — Full Flipkart checkout flow on real Android device. Search → product detail → Buy Now → address → order summary → payment page → navigate back → cart verify → remove item → home. Exercises `PopupGuard`, the React Native `waitForIdleTimeout: 0` fix, rotating banners, permission dialogs, and the full mobile keyword suite. Passes consistently on real device in ~2m 10s.
+
+### Mobile — Framework Parity Verification
+[`scenarios/mobile/test-lifecycle-hooks.md`](scenarios/mobile/test-lifecycle-hooks.md), [`test-verify-soft.md`](scenarios/mobile/test-verify-soft.md), [`test-datasets.md`](scenarios/mobile/test-datasets.md), [`test-shared-data.md`](scenarios/mobile/test-shared-data.md) — Four framework meta-tests that verify `before`/`beforeEach`/`afterEach`/`after` hook order, `VERIFY_SOFT` continuation after soft failure, `DATASETS` iteration as distinct `it()` blocks, and `SHARED_DATA` + `saveState`/`loadState` cross-scenario persistence. Run these against any reference app to validate your mobile setup end-to-end.
 
 ---
 
 ## Contributing
 
 ### Adding a New Scenario
-1. Create `scenarios/{type}/{folder}/{scenario-name}.md` using the template in `scenarios/web/_template.md`
-2. Configure MCP Playwright (if not already done) — see Setup Step 4
-3. Set `appContext.filename` in `framework-config.json` if onboarding a new application
+1. Create `scenarios/{type}/{folder}/{scenario-name}.md` using the matching template:
+   - **Web / API / hybrid:** [`scenarios/web/_template.md`](scenarios/web/_template.md)
+   - **Mobile:** [`scenarios/mobile/_template.md`](scenarios/mobile/_template.md)
+   - **Mobile-hybrid:** [`scenarios/mobile/_template-hybrid.md`](scenarios/mobile/_template-hybrid.md)
+2. Configure the appropriate MCP server — see [Setup Step 4](#4-configure-mcp-servers-explorer-live-app-access):
+   - **Web / hybrid:** Playwright MCP
+   - **Mobile / mobile-hybrid:** Appium MCP (plus Appium 2.x server running on localhost:4723 and a connected device)
+3. Set `appContext.filename` in `framework-config.json` if onboarding a new application. For mobile apps where Android and iOS behavior diverges significantly, use separate per-platform files (`{app}-android.md`, `{app}-ios.md`).
 4. Run the pipeline — see Step 2 above (individual agents recommended for Copilot, Orchestrator works on Claude Code CLI)
 
 ### Adding a New Skill
