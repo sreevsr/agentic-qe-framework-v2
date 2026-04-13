@@ -785,11 +785,11 @@ Main scenario steps use sequential numbers: `Step 1`, `Step 2`, etc.
 
 ---
 
-## 14. Mobile Code Generation — MANDATORY for `mobile` and `mobile-hybrid` Types
+## 16. Mobile Code Generation — MANDATORY for `mobile` and `mobile-hybrid` Types
 
 **This entire section applies ONLY to mobile and mobile-hybrid types.** Web/api/hybrid types continue to use the Playwright patterns above.
 
-### 14.1 Mobile Locator JSON Format
+### 16.1 Mobile Locator JSON Format
 
 **File location:** `output/locators/mobile/{screen-name}.locators.json`
 
@@ -823,7 +823,7 @@ Mobile locators use a **platform-keyed** format — fundamentally different from
 - At minimum, `android` selectors MUST be present. `ios` is recommended for cross-platform.
 - `MobileLocatorLoader` reads `process.env.PLATFORM` and resolves the correct platform branch at runtime
 
-### 14.2 Screen Object Structure
+### 16.2 Screen Object Structure
 
 **File location:** `output/screens/{ScreenName}Screen.ts`
 
@@ -861,9 +861,11 @@ export class FlipkartHomeScreen extends BaseScreen {
 - `typeText()` automatically hides keyboard after typing
 - One screen object per distinct app screen/view
 
-### 14.3 Mobile Spec File Structure
+### 16.3 Mobile Spec File Structure
 
 **File location:** `output/tests/mobile/[{folder}/]{scenario}.spec.ts`
+
+Mobile scenarios live FLAT under `scenarios/mobile/[{folder}/]{scenario}.md`. The framework does NOT segregate scenarios by platform (no `scenarios/mobile/android/` / `scenarios/mobile/ios/` directories). The platform dimension is carried by the `Platform:` header in the scenario metadata and by the platform-keyed locator JSON. See §16.3a below for the platform tag the Builder MUST emit.
 
 ```typescript
 import { browser, expect } from '@wdio/globals';
@@ -871,7 +873,7 @@ import { SpeedtestHomeScreen } from '../../../screens/SpeedtestHomeScreen';
 import { SpeedtestResultsScreen } from '../../../screens/SpeedtestResultsScreen';
 import testData from '../../../test-data/mobile/speedtest-run-test.json';
 
-describe('Speedtest — Run Speed Test @smoke @P0', () => {
+describe('Speedtest — Run Speed Test @smoke @P0 @android-only', () => {
   let homeScreen: SpeedtestHomeScreen;
   let resultsScreen: SpeedtestResultsScreen;
 
@@ -911,10 +913,71 @@ describe('Speedtest — Run Speed Test @smoke @P0', () => {
 5. **No `expect.soft()`** — For VERIFY_SOFT, use try/catch pattern
 6. **No `test.info().attach()`** — For SCREENSHOT, use `await screen.takeScreenshot('name')`
 7. **Tags in title strings** — `it('test name @smoke @P0', ...)` NOT `{ tag: ['@smoke'] }`
-8. **Screen instantiation** — `new ScreenName(browser)` in `before()` hook, NOT in each test
-9. **CAPTURE variables** — `let` in outer `describe` scope, assigned inside `it()`
+8. **Platform tag MANDATORY** — every top-level `describe` title MUST include exactly one of `@android-only`, `@ios-only`, or `@cross-platform` (see §16.3a below)
+9. **Screen instantiation** — `new ScreenName(browser)` in `before()` hook, NOT in each test
+10. **CAPTURE variables** — `let` in outer `describe` scope, assigned inside `it()`
 
-### 14.4 PopupGuard for Apps with Overlays
+### 16.3a Platform Tag — MANDATORY in every mobile spec title
+
+The Builder MUST read the `Platform:` header from the enriched scenario `.md` and emit the corresponding platform tag in the top-level `describe` title string. This is non-negotiable — every mobile spec must declare its platform scope at the tag level so the runtime filter (`--mochaOpts.grep`) can select the right specs for the current `PLATFORM` env var.
+
+**Mapping from scenario `Platform:` header → spec tag:**
+
+| Scenario header | Spec `describe` tag | Semantics |
+|---|---|---|
+| `Platform: android` | `@android-only` | Only runs when `PLATFORM=android` |
+| `Platform: ios` | `@ios-only` | Only runs when `PLATFORM=ios` |
+| `Platform: both` | `@cross-platform` | Runs under both `PLATFORM=android` and `PLATFORM=ios` — REQUIRES every locator JSON entry for this scenario to have both `android:` and `ios:` sub-objects |
+
+**Correct examples:**
+
+```typescript
+// From a scenario with "Platform: android"
+describe('Android Quick Settings toggle @smoke @P2 @android-only', () => { ... });
+
+// From a scenario with "Platform: ios"
+describe('iOS Share Sheet extension @regression @P1 @ios-only', () => { ... });
+
+// From a scenario with "Platform: both" + locators with android:/ios: sub-objects
+describe('Flipkart — Add to Cart Through Checkout @regression @P1 @cross-platform', () => { ... });
+```
+
+**Wrong examples:**
+
+```typescript
+// WRONG — no platform tag
+describe('Flipkart — Add to Cart @regression @P1', () => { ... });
+
+// WRONG — two platform tags (must be exactly one)
+describe('Cart flow @smoke @android-only @cross-platform', () => { ... });
+
+// WRONG — bare @android tag (could partial-match other filters, e.g., @android-hybrid)
+describe('Login flow @smoke @android', () => { ... });
+```
+
+**Validation — fail-fast at generation time:** if the Builder is told to emit a `@cross-platform` spec but the scenario's locator JSON file(s) are missing `ios:` entries for any element, the Builder MUST refuse and emit an error:
+
+```
+ERROR: Scenario declares Platform: both but locators/mobile/flipkart-home-screen.locators.json
+is missing ios: sub-object for elements: [searchButton, cartIcon]. Either:
+  1. Add ios: strategies to those elements, OR
+  2. Change the scenario Platform: header to 'android' (producing @android-only tag)
+```
+
+This catches "I said both but I only captured Android" drift at spec generation, not at runtime.
+
+**Executor rule:** when running mobile specs, always pass the platform filter:
+
+```bash
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
+PLATFORM=ios     npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
+```
+
+Without the filter, `PLATFORM=android` would attempt to execute `@ios-only` specs — they would fail at the locator-lookup stage (no `android:` sub-object) and pollute the test report. The filter is the cheap safety net; the platform tag is the contract.
+
+**Reviewer rule (Dim 3 — Test Architecture):** every mobile spec MUST declare exactly one platform tag in the top-level `describe` title. Zero tags or multiple tags is a Dim 3 failure.
+
+### 16.4 PopupGuard for Apps with Overlays
 
 Most real-world apps show overlays: permission dialogs, promo banners, app rating requests, notification prompts, ad interstitials. `PopupGuard` handles these automatically for **any** app — not limited to specific apps.
 
@@ -932,7 +995,7 @@ Call `await guard.dismiss()` before critical interactions. PopupGuard checks for
 
 Simple demo/test apps (e.g., Sauce Labs demo) with no random popups may not need PopupGuard.
 
-### 14.5 Clean State Pattern
+### 16.5 Clean State Pattern
 
 Mobile apps maintain state between tests (unlike web which gets a fresh browser context). Use `force-stop + relaunch` for clean state:
 
@@ -949,7 +1012,7 @@ async function navigateToHome(): Promise<void> {
 }
 ```
 
-### 14.6 Coordinate Tap Fallback
+### 16.6 Coordinate Tap Fallback
 
 For Compose/SwiftUI elements with NO accessibility nodes (e.g., calendar date cells):
 
@@ -963,7 +1026,7 @@ await browser.action('pointer')
 
 **MUST** include `// FRAGILE:` comment explaining why selectors are not available.
 
-### 14.7 Mobile-Hybrid Spec Pattern
+### 16.7 Mobile-Hybrid Spec Pattern
 
 For `mobile-hybrid` type (native app + API calls):
 
@@ -971,7 +1034,7 @@ For `mobile-hybrid` type (native app + API calls):
 import { browser, expect } from '@wdio/globals';
 import axios from 'axios';
 
-describe('Mobile-Hybrid Flow', () => {
+describe('Mobile-Hybrid Flow @smoke @P1 @android-only', () => {
   it('should verify API data in mobile app', async () => {
     // API step — wrap in browser.call() for WDIO compatibility
     let resourceId: string;
@@ -992,7 +1055,7 @@ describe('Mobile-Hybrid Flow', () => {
 
 ---
 
-### 14.8 Mobile Anti-Patterns — NEVER Do These
+### 16.8 Mobile Anti-Patterns — NEVER Do These
 
 The following patterns are forbidden in mobile locator JSONs and screen-object code. The Builder MUST refactor any candidate locator that matches a Level 1 anti-pattern (see Builder genericization rules) before writing the file.
 
@@ -1046,7 +1109,7 @@ RIGHT: UiAutomator2 performance settings applied in the `before()` hook (see `te
 
 ---
 
-### 14.9 Mobile Lifecycle Hooks — Code Pattern
+### 16.9 Mobile Lifecycle Hooks — Code Pattern
 
 When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook. Mapping:
 
@@ -1062,7 +1125,7 @@ import { browser, expect } from '@wdio/globals';
 import { LoginScreen } from '../../../screens/LoginScreen';
 import { HomeScreen } from '../../../screens/HomeScreen';
 
-describe('Login Feature @smoke', () => {
+describe('Login Feature @smoke @android-only', () => {
   let loginScreen: LoginScreen;
   let homeScreen: HomeScreen;
 
@@ -1098,7 +1161,7 @@ describe('Login Feature @smoke', () => {
 
 ---
 
-### 14.10 Mobile VERIFY_SOFT — Code Pattern
+### 16.10 Mobile VERIFY_SOFT — Code Pattern
 
 WDIO's `expect-webdriverio` does NOT have `expect.soft()`. Mobile soft assertions use a `softAssertions: string[]` array at the describe scope, `BaseScreen.recordSoftFailure()` for screenshot + message capture, and a final conditional throw.
 
@@ -1106,7 +1169,7 @@ WDIO's `expect-webdriverio` does NOT have `expect.soft()`. Mobile soft assertion
 import { browser, expect } from '@wdio/globals';
 import { CartScreen } from '../../../screens/CartScreen';
 
-describe('Cart verification @regression', () => {
+describe('Cart verification @regression @android-only', () => {
   let cartScreen: CartScreen;
   let softAssertions: string[];
 
@@ -1151,7 +1214,7 @@ describe('Cart verification @regression', () => {
 
 ---
 
-### 14.11 Mobile DATASETS — Code Pattern
+### 16.11 Mobile DATASETS — Code Pattern
 
 ```typescript
 import { browser, expect } from '@wdio/globals';
@@ -1159,7 +1222,7 @@ import { LoginScreen } from '../../../screens/LoginScreen';
 import { HomeScreen } from '../../../screens/HomeScreen';
 import testData from '../../../test-data/mobile/login-datasets.json';
 
-describe('Login — data-driven @regression', () => {
+describe('Login — data-driven @regression @android-only', () => {
   for (const data of testData) {
     it(`Login: ${data.username || '(empty)'} — expects ${data.expectedResult} @regression`, async () => {
       const loginScreen = new LoginScreen(browser);

@@ -10,7 +10,7 @@ You are the **Builder** — the code generation agent of the Agentic QE Framewor
 
 **For web/hybrid scenarios:** Generate Playwright code — locator JSONs (`primary`/`fallbacks` format), Page Objects (extending `BasePage`), Playwright specs (`test.describe`/`test()`).
 
-**For mobile/mobile-hybrid scenarios:** Generate WDIO code — mobile locator JSONs (platform-keyed format with `android`/`ios` sub-objects), Screen Objects (extending `BaseScreen`), WDIO/Mocha specs (`describe`/`it`). See `agents/core/code-generation-rules.md` Section 14 for all mobile code patterns.
+**For mobile/mobile-hybrid scenarios:** Generate WDIO code — mobile locator JSONs (platform-keyed format with `android`/`ios` sub-objects), Screen Objects (extending `BaseScreen`), WDIO/Mocha specs (`describe`/`it`). See `agents/core/code-generation-rules.md` Section 16 for all mobile code patterns.
 
 **If a step has `<!-- ELEMENT_CAPTURE_FAILED -->` or `<!-- BLOCKED -->`, you generate `test.fixme('MISSING: ...')` (web) or a `// FIXME: MISSING` comment (mobile) — you do NOT invent a selector.**
 
@@ -417,7 +417,7 @@ If the answer is "no", refactor before writing the locator JSON.
 
 ### Anti-Pattern Reference
 
-The Builder MUST also obey the AP-1 through AP-7 anti-patterns in `code-generation-rules.md` Section 14.8. In particular:
+The Builder MUST also obey the AP-1 through AP-7 anti-patterns in `code-generation-rules.md` Section 16.8. In particular:
 - AP-1 Hardcoded test values → fail the genericization checklist above
 - AP-5 Assuming WebView without verification → only emit WebView code when the Explorer documented a `WEBVIEW_*` context
 - AP-6 No keyboard dismissal → BaseScreen `typeText`/`pressSequentially` already handle this; raw `setValue` calls do not

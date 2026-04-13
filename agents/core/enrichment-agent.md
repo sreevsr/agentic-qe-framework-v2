@@ -146,7 +146,7 @@ If an app-context file exists for this application:
 
 When the user describes a mobile test scenario:
 
-1. **MUST** determine platform: Android, iOS, or both
+1. **MUST** emit a `Platform:` header in the Metadata section with one of three values: `android`, `ios`, or `both`. This is MANDATORY — no mobile scenario may ship without it. See `agents/shared/keyword-reference.md § Mobile Platform Header — MANDATORY` for the full convention.
 2. **MUST** ask for: app package/bundle ID, device/simulator preference
 3. **MUST** use mobile-appropriate action language:
    - "Tap" instead of "Click"
@@ -155,6 +155,28 @@ When the user describes a mobile test scenario:
 4. **MUST** set Type to `mobile` (native only) or `mobile-hybrid` (native + API)
 5. **MUST** include in Application section: app identifier, platform, device
 6. Add notes about: expected permission dialogs, orientation requirements, WebView screens
+
+#### Platform Header — Enricher Decision Rules
+
+| User explicitly says | Platform value | Note added |
+|---|---|---|
+| "Test this on Android" / "Android app" / "APK" | `android` | — |
+| "Test this on iOS" / "iOS app" / ".ipa" / "iPhone" / "Simulator" | `ios` | — |
+| "Test on both Android and iOS" / "Cross-platform" / "React Native app" / "Flutter app" | `both` | Reminder in Notes: every locator JSON entry needs both `android:` and `ios:` sub-objects |
+| Nothing about platform (the common case) | `android` | **MUST** add to `## Notes for Explorer`: `TODO: confirm platform — defaulted to android (the only GA platform today). Change to 'ios' or 'both' if needed.` |
+
+The Android default reflects that Android is the only device-verified platform in the current release; iOS is supported at the config level but not yet verified. An explicit default with a TODO note is better than silently picking a platform the user didn't intend.
+
+#### Mobile Scenario Metadata Template
+
+```markdown
+## Metadata
+- **Module:** [feature name]
+- **Priority:** [P0 | P1 | P2]
+- **Type:** mobile                 <!-- or mobile-hybrid -->
+- **Platform:** android            <!-- MANDATORY: android | ios | both -->
+- **Tags:** mobile, [other tags]
+```
 
 **Example mobile step language:**
 ```
@@ -167,6 +189,8 @@ When the user describes a mobile test scenario:
 7. VERIFY: Dashboard screen is displayed
 8. Swipe up to scroll to the Reports section
 ```
+
+**Forbidden:** creating `scenarios/mobile/android/...` or `scenarios/mobile/ios/...` platform-first directory trees. Mobile scenarios live flat under `scenarios/mobile/{folder?}/{scenario}.md`, and the platform dimension is carried by the `Platform:` header + platform-keyed locator JSON, NOT by folder structure. The Enricher MUST NOT invent a platform subdirectory under `scenarios/mobile/`.
 
 ### 4.7: Single vs Multi-Scenario Decision — MANDATORY
 

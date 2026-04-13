@@ -31,7 +31,14 @@ Selectors come from the Explorer (captured from the MCP snapshot or via DOM prob
 
 **Test command by type:**
 - web/api/hybrid: `cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome`
-- **mobile/mobile-hybrid:** `cd output && npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts`
+- **mobile/mobile-hybrid (Android):** `cd output && PLATFORM=android npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts --mochaOpts.grep "@android-only|@cross-platform"`
+- **mobile/mobile-hybrid (iOS):** `cd output && PLATFORM=ios npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts --mochaOpts.grep "@ios-only|@cross-platform"`
+
+**Mobile platform filter — MANDATORY.** The `--mochaOpts.grep` filter ensures the Executor only runs specs tagged for the current `PLATFORM`. Without it, an `@ios-only` spec would execute under `PLATFORM=android` and fail at the locator-lookup stage (because the scenario's locator JSON has no `android:` sub-objects). The Executor MUST derive the filter from `PLATFORM`:
+- `PLATFORM=android` → `--mochaOpts.grep "@android-only|@cross-platform"`
+- `PLATFORM=ios` → `--mochaOpts.grep "@ios-only|@cross-platform"`
+
+If the Executor sees a mobile spec whose top-level `describe` title does NOT contain exactly one of `@android-only`, `@ios-only`, `@cross-platform`, that is a Builder defect — escalate to the user with: `MOBILE_SPEC_MISSING_PLATFORM_TAG: {spec-file} describe title must contain one of @android-only/@ios-only/@cross-platform per code-generation-rules.md §16.3a`. Do NOT run the spec until the tag is added.
 
 ### 3.1: TypeScript Check
 
@@ -126,7 +133,15 @@ cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --pr
 
 **Mobile/Mobile-Hybrid:**
 ```bash
-cd output && ANDROID_HOME=/path/to/android-sdk npx wdio run wdio.conf.ts --spec tests/mobile/[{folder}/]{scenario}.spec.ts
+# Android
+cd output && ANDROID_HOME=/path/to/android-sdk PLATFORM=android npx wdio run wdio.conf.ts \
+  --spec tests/mobile/[{folder}/]{scenario}.spec.ts \
+  --mochaOpts.grep "@android-only|@cross-platform"
+
+# iOS (macOS only)
+cd output && PLATFORM=ios npx wdio run wdio.conf.ts \
+  --spec tests/mobile/[{folder}/]{scenario}.spec.ts \
+  --mochaOpts.grep "@ios-only|@cross-platform"
 ```
 
 **MUST** run with JSON reporter to produce structured results. **MUST** specify the exact spec file — NEVER run the test runner without a file path (it executes ALL tests).

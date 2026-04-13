@@ -715,13 +715,76 @@ After writing the spec, count step markers vs source steps — they **MUST match
 
 The following keywords have mobile-specific generation patterns. The web sections above are authoritative for Playwright; this section is authoritative for WDIO/Mocha.
 
+### Mobile Platform Header — MANDATORY
+
+Every mobile scenario `.md` file MUST declare a `Platform:` header in the Metadata section. This is the single source of truth for which platform(s) the scenario runs on. The framework does NOT segregate mobile scenarios into `scenarios/mobile/android/` / `scenarios/mobile/ios/` subdirectories — the platform dimension is handled entirely through this header + the platform-keyed locator JSON (`{ android: {...}, ios: {...} }`).
+
+**Allowed values:**
+
+| Value | Meaning | When to use |
+|---|---|---|
+| `android` | Runs only on Android | Android-first scenarios, Android-only features (Quick Settings, back button), or app not yet released on iOS |
+| `ios` | Runs only on iOS | iOS-first scenarios, iOS-only features (Share Sheet extension, Haptic Touch), or app not yet released on Android |
+| `both` | Runs on both platforms via platform-keyed locators | The flow is identical on Android and iOS (~90% of scenarios). REQUIRES every locator JSON entry to have both `android:` and `ios:` sub-objects. |
+
+**Scenario format (the `_template.md` canonical form):**
+
+```markdown
+## Metadata
+- **Module:** Flipkart — Shopping Cart
+- **Priority:** P1
+- **Type:** mobile
+- **Platform:** both                   <!-- REQUIRED -->
+- **Tags:** mobile, regression, shopping, P1
+```
+
+**Enricher rule:** When converting a natural-language description into a mobile scenario `.md`, the Enricher MUST emit a `Platform:` line. If the user does not specify the target platform explicitly, the Enricher defaults to `android` (the only GA platform as of the mobile feature parity Android GA release) and emits a note in the `## Notes for Explorer` section: `TODO: confirm platform — defaulted to android`.
+
+**Builder rule:** When generating a spec from an enriched `.md`, the Builder MUST read the `Platform:` header and emit the corresponding tag in the top-level `describe` title string. The tag format is:
+
+| Platform header | Spec `describe` tag |
+|---|---|
+| `android` | `@android-only` |
+| `ios` | `@ios-only` |
+| `both` | `@cross-platform` |
+
+Example generated `describe` title:
+```typescript
+// From Platform: both
+describe('Flipkart — Add to Cart Through Checkout @regression @P1 @cross-platform', () => { ... });
+
+// From Platform: android
+describe('Android Quick Settings toggle @smoke @P2 @android-only', () => { ... });
+
+// From Platform: ios
+describe('iOS Share Sheet extension @regression @P1 @ios-only', () => { ... });
+```
+
+**Runtime filter — MUST pass to wdio on every mobile run:**
+
+```bash
+# Android device / emulator: run Android-only + cross-platform scenarios
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
+
+# iOS simulator / device: run iOS-only + cross-platform scenarios
+PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
+```
+
+Without the `--mochaOpts.grep` filter, a `PLATFORM=android` run would attempt to execute iOS-only specs (which would fail at the locator-lookup stage because the scenario's locator JSON has no `android:` entries). The filter is the cheap safety net.
+
+**Reviewer check:** Dim 3 (Test Architecture) MUST verify that every mobile `describe` title contains exactly ONE of the three platform tags (`@android-only`, `@ios-only`, `@cross-platform`). Missing or multiple tags is a failing Dim 3 dimension.
+
+**Locator JSON requirement for `Platform: both`:** When the scenario header says `both`, every element in every locator JSON used by the scenario's screen objects MUST have both an `android:` and an `ios:` sub-object with at least one valid strategy each. The Builder SHOULD refuse to emit a `@cross-platform` spec if any locator entry is missing one side (fail fast — this catches "I said both but I only captured Android" drift at generation time, not at runtime).
+
+---
+
 ### Mobile Lifecycle Hooks — Code Pattern
 
 ```typescript
 import { browser } from '@wdio/globals';
 import { LoginScreen } from '../../../screens/LoginScreen';
 
-describe('Feature Name @smoke', () => {
+describe('Feature Name @smoke @android-only', () => {
   let loginScreen: LoginScreen;
 
   before(async () => {
@@ -755,7 +818,7 @@ describe('Feature Name @smoke', () => {
 WDIO's `expect-webdriverio` does NOT have `expect.soft()`. The mobile pattern uses a try/catch + a `softAssertions: string[]` array declared at outer describe scope, and a final throw at the end of `it()` if any soft failures occurred. `BaseScreen.recordSoftFailure()` handles the screenshot + message formatting.
 
 ```typescript
-describe('Cart verification @regression', () => {
+describe('Cart verification @regression @android-only', () => {
   let cartScreen: CartScreen;
   let softAssertions: string[];
 
@@ -804,7 +867,7 @@ import { browser } from '@wdio/globals';
 import { LoginScreen } from '../../../screens/LoginScreen';
 import { HomeScreen } from '../../../screens/HomeScreen';
 
-describe('Login — data-driven @regression', () => {
+describe('Login — data-driven @regression @android-only', () => {
   for (const data of testData) {
     it(`Login: ${data.username || '(empty)'} — expects ${data.expectedResult} @regression`, async () => {
       const loginScreen = new LoginScreen(browser);

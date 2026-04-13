@@ -87,9 +87,10 @@ EOF
 # @QE Builder Run Builder for scenario speedtest-run-test, type mobile.
 # Input: scenarios/mobile/speedtest-run-test.enriched.md
 
-# 7. Run the test
+# 7. Run the test (platform filter is MANDATORY — see Mobile Platform Targeting below)
 cd output && PLATFORM=android npx wdio run wdio.conf.ts \
-  --spec tests/mobile/speedtest/speedtest-run-test.spec.ts
+  --spec tests/mobile/speedtest/speedtest-run-test.spec.ts \
+  --mochaOpts.grep "@android-only|@cross-platform"
 ```
 
 iOS Quick Start follows the same shape but requires macOS + Xcode + WebDriverAgent. See [Mobile Test Automation → iOS setup](#ios-setup) below.
@@ -729,6 +730,74 @@ The framework generates native mobile test specs for **Android** (UiAutomator2) 
 > - **No iOS example scenarios yet.** Use the Android scenarios as structural templates and add `ios:` sub-objects to your locator JSON files.
 > - **Contribution welcome.** When you run the framework on iOS for the first time, please contribute your iOS app-context patterns back to `scenarios/app-contexts/{app}-ios.md` so future users benefit.
 
+### Mobile Platform Targeting — `Platform:` Header Convention
+
+The framework uses a **flat directory structure** for mobile (`scenarios/mobile/{folder?}/{scenario}.md`) — there is no `scenarios/mobile/android/` or `scenarios/mobile/ios/` split. The platform dimension is carried by **two things inside the files**:
+
+1. A **mandatory `Platform:` header** in the scenario metadata (`android`, `ios`, or `both`)
+2. **Platform-keyed locator JSONs** with `android:` and/or `ios:` sub-objects per element
+
+This means ~90% of scenarios (where Android and iOS share the same flow) are authored once and run on both platforms. Only the locator entries differ, and that difference is captured inside the JSON file — not by duplicating the scenario, the spec, the screen objects, or the test data.
+
+**The three `Platform:` values:**
+
+| Header | When to use | Spec tag emitted by Builder | Runs when |
+|---|---|---|---|
+| `Platform: android` | Android-only features (Quick Settings tile, back button), or app not yet on iOS, or "Android-first" scenarios | `@android-only` | `PLATFORM=android` |
+| `Platform: ios` | iOS-only features (Share Sheet extension, Haptic Touch), or app not yet on Android | `@ios-only` | `PLATFORM=ios` |
+| `Platform: both` | Shared flow across Android + iOS (most common case — ~90% of scenarios). **REQUIRES** every locator JSON entry used by the scenario to have both `android:` and `ios:` sub-objects. | `@cross-platform` | Both `PLATFORM=android` AND `PLATFORM=ios` |
+
+**Scenario format:**
+
+```markdown
+## Metadata
+- **Module:** Flipkart — Shopping Cart
+- **Priority:** P1
+- **Type:** mobile
+- **Platform:** both                   <!-- MANDATORY -->
+- **Tags:** mobile, regression, shopping, P1
+```
+
+The Builder reads the `Platform:` header and emits the matching tag in the top-level `describe` title:
+
+```typescript
+// From Platform: both
+describe('Flipkart — Add to Cart Through Checkout @regression @P1 @cross-platform', () => { ... });
+
+// From Platform: android
+describe('Android Quick Settings toggle @smoke @P2 @android-only', () => { ... });
+
+// From Platform: ios
+describe('iOS Share Sheet extension @regression @P1 @ios-only', () => { ... });
+```
+
+**Running mobile tests — MANDATORY platform filter:**
+
+```bash
+# Android: runs @android-only + @cross-platform scenarios, skips @ios-only
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
+
+# iOS: runs @ios-only + @cross-platform scenarios, skips @android-only
+PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
+```
+
+Without the `--mochaOpts.grep` filter, a `PLATFORM=android` run would attempt to execute iOS-only specs and fail at the locator-lookup stage (no `android:` sub-object in the locator JSON). **The filter is the cheap safety net; the platform tag in the `describe` title is the contract.**
+
+**Why this architecture (vs. `scenarios/mobile/{platform}/` subdirectories)?**
+
+| Concern | Flat structure + `Platform:` header | Platform-first folders |
+|---|---|---|
+| Shared flows (~90% of scenarios) | Authored once, runs on both platforms | Duplicated — 2× the .md, .spec.ts, .json, screen objects |
+| Flow changes (add 1 step) | 1 file edit | 2 file edits + drift risk |
+| Test count | N scenarios × 2 platforms = accurate coverage | 2N scenarios, same coverage — wasted effort |
+| Platform-specific flows (Share Sheet, Quick Settings) | `Platform: android` or `Platform: ios` header — coexists in the same folder | Sibling directories |
+| Platform-owning teams | CODEOWNERS + tag-based CI splitting (`--mochaOpts.grep`) | Directory ownership — blunt instrument |
+| Leverages platform-keyed locator architecture | Yes — one locator file, `android:`/`ios:` sub-objects | No — duplicates the platform dimension across files |
+
+**Forbidden patterns:** do NOT create `scenarios/mobile/android/` or `scenarios/mobile/ios/` directory trees. Do NOT duplicate `output/tests/mobile/android/` vs `output/tests/mobile/ios/`. The Enricher, Explorer, and Builder will all refuse to write files into a platform subdirectory under `mobile/`. If you genuinely need platform-specific flow divergence (rare — estimated <10% of scenarios), write two scenarios in the same folder with `Platform: android` and `Platform: ios` headers — they live side by side, not segregated.
+
+Full convention reference: [`agents/shared/keyword-reference.md § Mobile Platform Header`](agents/shared/keyword-reference.md) and [`agents/core/code-generation-rules.md §16.3a`](agents/core/code-generation-rules.md).
+
 ### Writing a Mobile Scenario
 
 Same `.md` format as web, but declare `Type: mobile` (or `mobile-hybrid`). Here's the minimal SpeedTest reference scenario:
@@ -977,27 +1046,47 @@ PLATFORM=ios npx wdio run wdio.conf.ts --spec tests/mobile/customer/smoke.spec.t
 
 ### Running Mobile Tests
 
-**Single spec:**
+> **ALWAYS pass the platform filter.** Every mobile run must include `--mochaOpts.grep "@<platform>-only|@cross-platform"` so the wrong-platform specs are skipped. This is non-negotiable — see [Mobile Platform Targeting](#mobile-platform-targeting--platform-header-convention) above. The examples below show the filter on every command.
+
+**Single spec (Android):**
 ```bash
-PLATFORM=android npx wdio run wdio.conf.ts --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts
+PLATFORM=android npx wdio run wdio.conf.ts \
+  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
+  --mochaOpts.grep "@android-only|@cross-platform"
+```
+
+**Single spec (iOS):**
+```bash
+PLATFORM=ios npx wdio run wdio.conf.ts \
+  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
+  --mochaOpts.grep "@ios-only|@cross-platform"
 ```
 
 **All mobile specs in one command** (the `wdio.conf.ts` `specs` glob already matches `tests/mobile/**/*.spec.ts`):
 ```bash
-PLATFORM=android npx wdio run wdio.conf.ts
+# Android — runs @android-only + @cross-platform specs, skips @ios-only
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
+
+# iOS — runs @ios-only + @cross-platform specs, skips @android-only
+PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
 ```
 
 The `beforeSuite` hook in `wdio.conf.ts` calls `terminateApp` + `activateApp` before every spec file, so 20-30 specs run cleanly back-to-back without device-state contamination (~1s reset per spec vs ~15s for full session restart).
 
-**Filter by tag** (Mocha grep — mobile tags live in `describe`/`it` title strings, not a Mocha option):
+**Combine platform filter with other tags:**
 ```bash
-PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@smoke"
-PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@P0"
+# Android smoke tests across cross-platform scenarios
+PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "(@android-only|@cross-platform).*@smoke"
+
+# iOS P0 regression
+PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "(@ios-only|@cross-platform).*@P0"
 ```
 
-**Run a subtree:**
+**Run a subtree (still pass the platform filter):**
 ```bash
-PLATFORM=android npx wdio run wdio.conf.ts --spec 'tests/mobile/flipkart/**/*.spec.ts'
+PLATFORM=android npx wdio run wdio.conf.ts \
+  --spec 'tests/mobile/flipkart/**/*.spec.ts' \
+  --mochaOpts.grep "@android-only|@cross-platform"
 ```
 
 **Fail-fast (for smoke gates):** set `bail: 1` in `wdio.conf.ts`. Default is `0` — failing specs don't stop subsequent ones.
@@ -1164,7 +1253,7 @@ Device Farm handles per-device execution, sharding across the pool, retries, and
 
 ### Mobile Anti-Patterns (AP-1 through AP-7)
 
-The Builder enforces seven anti-patterns specific to mobile, documented in [`agents/core/code-generation-rules.md`](agents/core/code-generation-rules.md) §14.8. Quick reference:
+The Builder enforces seven anti-patterns specific to mobile, documented in [`agents/core/code-generation-rules.md`](agents/core/code-generation-rules.md) §16.8. Quick reference:
 
 | # | Anti-Pattern | Why It's Wrong | Right Answer |
 |---|---|---|---|

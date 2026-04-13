@@ -4,8 +4,44 @@
 - **Module:** [Feature/Module Name]
 - **Priority:** [P0 | P1 | P2]
 - **Type:** mobile
-- **Platform:** [android | ios | both]
+- **Platform:** [android | ios | both]    <!-- MANDATORY. See Platform Header Convention below. -->
 - **Tags:** [mobile, smoke, regression, P0, etc.]
+
+<!--
+PLATFORM HEADER CONVENTION (MANDATORY for all mobile scenarios):
+
+  android  → runs only on Android. Spec title gets @android-only tag.
+  ios      → runs only on iOS. Spec title gets @ios-only tag.
+  both     → runs on both platforms via platform-keyed locators in the JSON.
+             Spec title gets @cross-platform tag.
+
+DECISION GUIDE — which value should you pick?
+
+  Pick 'both' when:
+    - The flow is identical on Android and iOS (typical case — ~90% of scenarios)
+    - Your locator JSON has both `android:` and `ios:` sub-objects for every element
+    - You want one scenario authored, both platforms tested
+
+  Pick 'android' when:
+    - The scenario uses an Android-only feature (e.g., Quick Settings tile, back button)
+    - iOS doesn't have an equivalent flow yet
+    - The app isn't released on iOS
+    - You're writing for Android first and will port later (most common starting point)
+
+  Pick 'ios' when:
+    - The scenario uses an iOS-only feature (e.g., Share Sheet extension, Haptic Touch)
+    - Android doesn't have an equivalent flow
+    - The app is iOS-first
+
+RUNTIME BEHAVIOR:
+
+  PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
+    runs Android-only AND cross-platform scenarios (skips iOS-only)
+
+  PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
+    runs iOS-only AND cross-platform scenarios (skips Android-only)
+-->
+
 
 ## Application
 - **App Package (Android):** {{ENV.APP_PACKAGE}}

@@ -84,18 +84,21 @@
 | Property | Value |
 |----------|-------|
 | **Description** | Native mobile app test scenarios using Appium MCP |
-| **Scenario input** | `scenarios/mobile/{scenario}.md` or `scenarios/mobile/{folder}/{scenario}.md` |
+| **Scenario input** | `scenarios/mobile/{scenario}.md` or `scenarios/mobile/{folder}/{scenario}.md` — **FLAT structure; NO platform subdirectories** (`scenarios/mobile/android/` is forbidden) |
+| **Platform targeting** | **MANDATORY** `Platform:` header in scenario metadata, one of: `android`, `ios`, `both`. See `agents/shared/keyword-reference.md § Mobile Platform Header — MANDATORY`. |
 | **Requires browser exploration?** | Yes — Explorer/Builder uses Appium MCP for native app interaction |
 | **Explorer/Builder source** | Scenario `.md` file |
 | **Explorer/Builder inputs** | Scenario `.md` + app-context (if exists) |
 | **Test fixture** | WDIO driver (not Playwright fixtures) |
-| **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` |
-| **Test data path** | `output/test-data/mobile/{scenario}.json` |
-| **Creates locator JSONs?** | Yes — `output/locators/mobile/{screen-name}.locators.json` |
-| **Creates page objects?** | Yes — `output/screens/{ScreenName}Screen.ts` (Screen Objects, not Page Objects) |
+| **Test spec path** | `output/tests/mobile/[{folder}/]{scenario}.spec.ts` — FLAT, no platform subdir |
+| **Test data path** | `output/test-data/mobile/{scenario}.json` — FLAT, no platform subdir |
+| **Creates locator JSONs?** | Yes — `output/locators/mobile/{screen-name}.locators.json` (platform-keyed format with `android:` and `ios:` sub-objects — the locator file is where the platform dimension lives) |
+| **Creates page objects?** | Yes — `output/screens/{ScreenName}Screen.ts` (Screen Objects, not Page Objects). One screen object per screen — shared across platforms. |
 | **Helper files apply?** | Yes — `output/screens/{ScreenName}Screen.helpers.ts` |
+| **Platform tag in spec title** | **MANDATORY** — the top-level `describe` MUST include exactly one of `@android-only`, `@ios-only`, `@cross-platform`. Enforced by Reviewer Dim 3. |
+| **Runtime platform filter** | **MANDATORY** — Executor MUST pass `--mochaOpts.grep "@android-only\|@cross-platform"` (for `PLATFORM=android`) or `--mochaOpts.grep "@ios-only\|@cross-platform"` (for `PLATFORM=ios`) |
 | **Explorer report used?** | No |
-| **Selector externalization** | Required — accessibility_id > id > class chain/predicate > xpath |
+| **Selector externalization** | Required — Android priority: accessibility_id > id > uiautomator > xpath. iOS priority: accessibility_id > id > class_chain > predicate_string > xpath |
 | **Executor source file** | Explorer report |
 | **Executor debugging context** | Explorer report + parsed results + page source XML |
 | **Reviewer: Dimension 4** | Locator Strategy Quality — audits accessibility_id preference, no index-based xpath |
