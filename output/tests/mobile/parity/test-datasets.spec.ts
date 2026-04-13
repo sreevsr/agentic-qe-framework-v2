@@ -9,7 +9,7 @@ import testData from '../../../test-data/mobile/test-datasets-datasets.json';
  * The for...of loop is INSIDE describe() and OUTSIDE any it() so Mocha
  * discovers each row as a separate test at file load time.
  */
-describe('Framework parity — mobile DATASETS @parity @P2', () => {
+describe('Framework parity — mobile DATASETS @parity @P2 @android-only', () => {
   for (const data of testData) {
     it(`Row ${data.caseId} (${data.label}) — launch verification @parity @P2`, async () => {
       const homeScreen = new SpeedtestHomeScreen(browser);

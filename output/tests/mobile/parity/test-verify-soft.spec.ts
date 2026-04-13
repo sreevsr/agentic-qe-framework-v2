@@ -11,7 +11,7 @@ import { SpeedtestHomeScreen } from '../../../screens/SpeedtestHomeScreen';
  *   3. The conditional throw at the end fails the test reporting all soft failures
  *   4. recordSoftFailure() saves a labelled screenshot
  */
-describe('Framework parity — mobile VERIFY_SOFT @parity @P0', () => {
+describe('Framework parity — mobile VERIFY_SOFT @parity @P0 @android-only', () => {
   let homeScreen: SpeedtestHomeScreen;
   let softAssertions: string[];
 

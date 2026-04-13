@@ -9,7 +9,7 @@ import { SpeedtestHomeScreen } from '../../../screens/SpeedtestHomeScreen';
  * matching Mocha hooks (before / beforeEach / afterEach / after) and
  * that they fire in the expected order.
  */
-describe('Framework parity — mobile lifecycle hooks @parity @P0', () => {
+describe('Framework parity — mobile lifecycle hooks @parity @P0 @android-only', () => {
   let homeScreen: SpeedtestHomeScreen;
   const hookOrder: string[] = [];
 

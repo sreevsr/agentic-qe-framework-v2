@@ -13,7 +13,7 @@ import { saveState, loadState, clearState } from '../../../core/shared-state';
  *   3. saveState() writes to shared-state.json
  *   4. A second scenario can read the saved value via loadState()
  */
-describe('Framework parity — mobile SHARED_DATA + saveState @parity @P2', () => {
+describe('Framework parity — mobile SHARED_DATA + saveState @parity @P2 @android-only', () => {
   // SHARED_DATA: mobile-users
   const testData = loadTestData('mobile/test-shared-data', ['mobile-users']);
   const STATE_KEY = 'lastMobileRunTimestamp';

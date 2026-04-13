@@ -54,7 +54,7 @@ async function navigateToFlipkartHome(): Promise<void> {
   await dismissPopups();
 }
 
-describe('Flipkart — Search and Add to Cart @smoke @P0', () => {
+describe('Flipkart — Search and Add to Cart @smoke @P0 @android-only', () => {
   let searchScreen: FlipkartSearchScreen;
   let productScreen: FlipkartProductScreen;
   let cartScreen: FlipkartCartScreen;

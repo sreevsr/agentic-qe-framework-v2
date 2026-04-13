@@ -34,7 +34,7 @@ async function launchFlipkartApp(): Promise<void> {
   await browser.pause(3000);
 }
 
-describe('Flipkart — Product Search, Buy Now Navigation, and Cart Verification @regression @P1', () => {
+describe('Flipkart — Product Search, Buy Now Navigation, and Cart Verification @regression @P1 @android-only', () => {
   let homeScreen: FlipkartHomeScreen;
   let searchScreen: FlipkartSearchScreen;
   let searchResultsScreen: FlipkartSearchResultsScreen;
