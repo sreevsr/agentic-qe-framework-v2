@@ -4,7 +4,7 @@ This guide covers setting up the Agentic QE Framework v2 to run mobile tests on 
 
 **Target audience:** teams that need real-device coverage across many Android + iOS models without maintaining a physical device lab, or teams running CI/CD pipelines without dedicated device hardware.
 
-**Estimated time:** 45-90 minutes for first-time setup (including account creation + first upload).
+**Estimated time:** 20-40 minutes for first-time setup + first green run (walkthrough-verified 2026-04-14 on BrowserStack with a minimal smoke spec). The minimum viable path is: sign up → install WDIO service → set auth env vars → upload one APK + one IPA → write a 10-line smoke spec → run. Expect **Android sessions to take ~20-30 seconds** on a hot device pool, and **iOS sessions to take 90-120 seconds** the first time due to WebDriverAgent install overhead — iOS is normally 3-5× slower per session than Android regardless of how minimal the test is.
 
 **When to use a cloud farm vs local emulator/device:**
 - ✅ You need cross-device coverage (Pixel 8 + Galaxy S23 + iPhone 15 + iPad Pro all in one test run)
@@ -19,6 +19,8 @@ This guide covers setting up the Agentic QE Framework v2 to run mobile tests on 
 **Assumption:** you have already completed the core framework setup from the [main README](../../README.md#setup) — `npm install`, `npm run setup`, VS Code with GitHub Copilot installed, Node 18+ verified.
 
 > **📘 Cross-platform note — Windows users:** this guide uses Unix-style shell syntax for `export VAR=...` (setting auth env vars) and `curl` (uploading app bundles to vendor storage). The fastest path to follow it unchanged is to run the commands inside **WSL 2** (Windows Subsystem for Linux) or **Git Bash** (bundled with [Git for Windows](https://git-scm.com/download/win)) — in both, every example below works as-written. If you prefer **native PowerShell**, the auth env var examples are translated inline below. `curl` is available natively in Windows 10+ PowerShell, so the app-upload commands work identically in PowerShell with minor quote-escaping. `npm`, `npx wdio`, and the framework CLI are all cross-platform. For CI secrets (GitHub Actions, Azure DevOps, etc.), use your CI provider's native secret management regardless of shell.
+
+> **⚠️ Golden rule — always `cd output` before running `npx wdio` commands.** The framework's WDIO config, test specs, and `node_modules` all live under `output/`. Running `npx wdio` from the project root will trigger WDIO's interactive setup wizard (it won't find a config) and try to scaffold a new test project in the wrong place. If you see a wizard prompt, press `Ctrl+C`, `cd output`, and retry.
 
 ---
 
@@ -95,7 +97,43 @@ npm install --save-dev wdio-lambdatest-service
 
 Each vendor has its own upload API and returns a vendor-specific URL that you paste into the capabilities. Upload the APK/IPA once per app version (not per test run).
 
-### BrowserStack
+> **⚠️ Order of operations:** the upload commands below use `$BROWSERSTACK_USERNAME` and `$BROWSERSTACK_ACCESS_KEY` (or equivalent env vars for Sauce Labs / LambdaTest). You must set those env vars **BEFORE** running the upload — jump to [§ 4 Set Authentication Env Vars](#4-set-authentication-env-vars) first, set them, then come back here. The sections are numbered 3 → 4 for reference-reading, but the workflow order is 4 → 3.
+
+### Trial Quick-Start — Use BrowserStack's Published Sample Apps
+
+If you don't yet have your own APK/IPA (first-time trial, evaluation run), BrowserStack publishes two free sample apps you can use to validate the entire cross-platform pipeline in under 20 minutes:
+
+| Sample | Platform | Download URL |
+|---|---|---|
+| `WikipediaSample.apk` | Android | https://www.browserstack.com/app-automate/sample-apps/android/WikipediaSample.apk |
+| `BStackSampleApp.ipa` | iOS | https://www.browserstack.com/app-automate/sample-apps/ios/BStackSampleApp.ipa |
+
+**⚠️ These are DIFFERENT apps**, not the same app cross-built for both platforms. WikipediaSample is a Wikipedia search UI; BStackSampleApp is an e-commerce demo. This means a single cross-platform scenario **cannot drive both apps' business logic** — you'd need two separate app-specific scenarios OR an **app-agnostic smoke spec** that only validates "session creation + screenshot" without touching any UI element.
+
+**The framework ships an app-agnostic smoke spec ready to use** at [`output/tests/mobile/browserstack-trial/smoke-cross-platform.spec.ts`](../../output/tests/mobile/browserstack-trial/smoke-cross-platform.spec.ts). It tags itself `@cross-platform`, runs on any Appium-compatible app (cloud or local), and validates the full pipeline (session → driver → device → screenshot) in ~3 seconds of actual test time per platform. This is the fastest path to a green cross-platform run for trial evaluation.
+
+**Download and upload the two sample apps:**
+
+```bash
+# Download to /tmp (this step doesn't need your BrowserStack credentials)
+curl -L -o /tmp/WikipediaSample.apk https://www.browserstack.com/app-automate/sample-apps/android/WikipediaSample.apk
+curl -L -o /tmp/BStackSampleApp.ipa https://www.browserstack.com/app-automate/sample-apps/ios/BStackSampleApp.ipa
+
+# Upload (requires $BROWSERSTACK_USERNAME and $BROWSERSTACK_ACCESS_KEY from § 4)
+curl -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+  -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+  -F "file=@/tmp/WikipediaSample.apk" \
+  -F "custom_id=WikipediaSample-trial"
+
+curl -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+  -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+  -F "file=@/tmp/BStackSampleApp.ipa" \
+  -F "custom_id=BStackSampleApp-trial"
+```
+
+**Save both `app_url` values** (the two `bs://<hex-id>` strings from the responses) — you'll paste them into `wdio.browserstack.conf.ts` in § 5. The framework ships a [ready-to-use BrowserStack config template](../../output/wdio.browserstack.conf.ts) that already has the placeholder structure — just replace the two `bs://REPLACE-WITH-YOUR-*-APP-ID` strings with your actual URLs.
+
+### BrowserStack — Your Own App
 
 ```bash
 curl -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
@@ -249,6 +287,8 @@ The framework's default `output/wdio.conf.ts` is configured for local Appium. Fo
 
 ### Example 1 — BrowserStack (`output/wdio.browserstack.conf.ts`)
 
+> **A ready-to-use template of this file already exists at [`output/wdio.browserstack.conf.ts`](../../output/wdio.browserstack.conf.ts) in the framework's committed state.** The template has placeholder `bs://REPLACE-WITH-YOUR-*-APP-ID` strings that you swap with your own uploaded app URLs, or you can override via the `BROWSERSTACK_ANDROID_APP_URL` / `BROWSERSTACK_IOS_APP_URL` env vars. The block below is the same structure — reproduced here for reference.
+
 ```typescript
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -258,51 +298,70 @@ const env = process.env.TEST_ENV || 'dev';
 dotenv.config({ path: path.join(__dirname, `.env.${env}`) });
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+// Per-capability app URLs. Use this pattern when you have DIFFERENT apps for
+// Android and iOS (e.g., BrowserStack's WikipediaSample + BStackSampleApp).
+// If you have the SAME app for both platforms, you can alternatively set
+// `app` at the service level (see comment below) instead of per-capability.
+const ANDROID_APP_URL =
+  process.env.BROWSERSTACK_ANDROID_APP_URL
+  || 'bs://REPLACE-WITH-YOUR-ANDROID-APP-ID';
+
+const IOS_APP_URL =
+  process.env.BROWSERSTACK_IOS_APP_URL
+  || 'bs://REPLACE-WITH-YOUR-IOS-APP-ID';
+
 export const config = {
   runner: 'local',
-  specs: ['./tests/mobile/**/*.spec.ts'],
+
+  // Narrow glob — only pick up cross-platform trial specs, NOT your local
+  // Flipkart/parity specs (which are tagged @android-only and would skip anyway).
+  specs: ['./tests/mobile/browserstack-trial/**/*.spec.ts'],
   exclude: [],
-  maxInstances: 5,                 // parallel session cap — match your BrowserStack plan
+
+  // BrowserStack FREE TRIAL = 1 parallel session. Setting to 1 forces
+  // capabilities to run sequentially. Increase to your plan's concurrent
+  // session cap once you're on a paid plan (typically 2-10 for standard
+  // plans, up to 50+ for enterprise).
+  maxInstances: 1,
 
   user: process.env.BROWSERSTACK_USERNAME,
   key: process.env.BROWSERSTACK_ACCESS_KEY,
 
   services: [
     ['browserstack', {
-      app: process.env.BROWSERSTACK_APP_URL || 'bs://abc123def456...',
-      browserstackLocal: false,     // true if testing an app that talks to localhost services
+      // NOTE: NOT setting `app` at the service level. Each capability has its
+      // own `appium:app` (per-capability override) below. If you use the SAME
+      // app for all capabilities, uncomment this line and delete the
+      // `appium:app` entries in each capability block:
+      //   app: ANDROID_APP_URL,
+      browserstackLocal: false,   // true if testing an app that talks to localhost services
     }],
   ],
 
   capabilities: [
     {
+      // ─── Android ──────────────────────────────────────────────────
       platformName: 'Android',
+      'appium:app': ANDROID_APP_URL,   // per-capability app override
       'bstack:options': {
-        deviceName: 'Google Pixel 8',
-        osVersion: '14.0',
+        deviceName: 'Samsung Galaxy S22',
+        osVersion: '12.0',
         projectName: 'agentic-qe',
-        buildName: `mobile-regression-${process.env.GITHUB_RUN_NUMBER || 'local'}`,
-        sessionName: 'flipkart-checkout',
+        buildName: `trial-${new Date().toISOString().slice(0, 10)}`,
+        sessionName: 'cross-platform-smoke-android',
         appiumVersion: '2.0.1',
       },
     },
     {
-      platformName: 'Android',
-      'bstack:options': {
-        deviceName: 'Samsung Galaxy S23',
-        osVersion: '13.0',
-        projectName: 'agentic-qe',
-        buildName: `mobile-regression-${process.env.GITHUB_RUN_NUMBER || 'local'}`,
-        appiumVersion: '2.0.1',
-      },
-    },
-    {
+      // ─── iOS ──────────────────────────────────────────────────────
       platformName: 'iOS',
+      'appium:app': IOS_APP_URL,       // per-capability app override
       'bstack:options': {
-        deviceName: 'iPhone 15',
-        osVersion: '17.0',
+        deviceName: 'iPhone 14',
+        osVersion: '16',
         projectName: 'agentic-qe',
-        buildName: `mobile-regression-${process.env.GITHUB_RUN_NUMBER || 'local'}`,
+        buildName: `trial-${new Date().toISOString().slice(0, 10)}`,
+        sessionName: 'cross-platform-smoke-ios',
         appiumVersion: '2.0.1',
       },
     },
@@ -311,27 +370,30 @@ export const config = {
   framework: 'mocha',
   mochaOpts: {
     ui: 'bdd',
-    timeout: 600000,
-    retries: 0,
+    timeout: 300000,   // 5 min — iOS sessions can take 90-120s to provision before test starts
   },
   reporters: [
     'spec',
     ['json', {
       outputDir: './test-results',
-      outputFileFormat: () => 'browserstack-results.json',
+      outputFileFormat: () => 'browserstack-trial-results.json',
     }],
   ],
   waitforTimeout: 15000,
   waitforInterval: 500,
+  logLevel: 'info',
 
-  // Optional: use the same beforeSuite hook as the local wdio.conf.ts
-  async beforeSuite(_suite: any) {
-    // Cloud-farm sessions already start each test with a fresh app launch,
-    // so the terminateApp + activateApp dance isn't strictly necessary.
-    // Remove this hook entirely for cloud runs if you want.
-  },
+  // Intentionally NO `beforeSuite` hook here — cloud-farm sessions already
+  // start each test with a fresh app launch. The local wdio.conf.ts uses
+  // terminateApp + activateApp to handle NO_RESET=true contamination on
+  // local emulators; BrowserStack does that automatically.
 };
 ```
+
+**Two patterns for the `app` setting:**
+
+- **Per-capability `appium:app`** (shown above) — use when you have **different apps** for Android and iOS, e.g., BrowserStack's two published sample apps (`WikipediaSample.apk` for Android + `BStackSampleApp.ipa` for iOS), or your own Android APK + iOS IPA when the apps are genuinely different builds.
+- **Service-level `app`** — use when you have the **same app** cross-built for both platforms. Set it once in the `services[0][1].app` field and every capability inherits it. Useful for React Native / Flutter / cross-platform Xamarin apps where one codebase produces both APK and IPA from the same build pipeline.
 
 ### Example 2 — Sauce Labs (`output/wdio.saucelabs.conf.ts`)
 
@@ -399,30 +461,54 @@ export const config = {
 ## 6. Run Tests Against the Cloud Farm
 
 ```bash
-cd output
+cd output     # ALWAYS — see the Golden Rule callout at the top of this guide
 
 # Make sure your auth env vars are set
 echo $BROWSERSTACK_USERNAME      # should NOT be empty
 
-# Run against BrowserStack — note: --config overrides the default wdio.conf.ts
-PLATFORM=android npx wdio run wdio.browserstack.conf.ts \
-  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
-  --mochaOpts.grep "@android-only|@cross-platform"
+# Run against BrowserStack — the config's specs glob picks up the trial spec
+npx wdio run wdio.browserstack.conf.ts
 
-# Against Sauce Labs
-PLATFORM=android npx wdio run wdio.saucelabs.conf.ts \
-  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
-  --mochaOpts.grep "@android-only|@cross-platform"
+# Same run, with an explicit spec and grep filter (useful for running a
+# specific scenario when you have multiple trial specs)
+npx wdio run wdio.browserstack.conf.ts \
+  --spec tests/mobile/browserstack-trial/smoke-cross-platform.spec.ts \
+  --mochaOpts.grep "@cross-platform"
 
-# Against LambdaTest
-PLATFORM=android npx wdio run wdio.lambdatest.conf.ts \
-  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
-  --mochaOpts.grep "@android-only|@cross-platform"
+# Against Sauce Labs / LambdaTest — same pattern, different config file
+npx wdio run wdio.saucelabs.conf.ts
+npx wdio run wdio.lambdatest.conf.ts
 ```
 
-**Default behavior:** since your capabilities list has 3 entries (Pixel 8, Galaxy S23, iPhone 15), WDIO runs ALL specs on ALL 3 devices in parallel = cross-device coverage. A single spec file runs 3 times (once per device).
+**⚠️ `PLATFORM=android` is NOT needed for cloud-farm runs.** The local `output/wdio.conf.ts` uses the `PLATFORM` env var to switch between `androidCapabilities` and `iosCapabilities` in `output/core/capabilities.ts` (for local Appium). Cloud-farm configs (`wdio.browserstack.conf.ts`, etc.) hardcode the full capabilities array with per-capability `platformName`, so the `PLATFORM` env var has no effect. If you see `PLATFORM=android` in your cloud run command, it's harmless but unnecessary — drop it for clarity.
+
+**Default behavior with multiple capabilities:** WDIO runs ALL specs on ALL capabilities = cross-device coverage. A single spec file with 2 capabilities (Android + iOS) executes 2 times, once per platform. With `maxInstances: 1` (BrowserStack free trial), they run sequentially. With `maxInstances: N` (paid plans), they run in parallel up to N concurrent sessions.
 
 **For sharded speed-up** (run each spec on ONE device, total time = total_specs / N): use `--shard X/N` from N parallel CI jobs, each with a single-device capabilities list. See the main README's [Multi-Device Parallelism](../../README.md#multi-device-parallelism) section.
+
+### Viewing Results on the Cloud Dashboard
+
+All three providers auto-print a **build URL** at the end of every run — watch the final lines of your WDIO console output for something like:
+
+```
+Visit https://automation.browserstack.com/builds/<build-id> to view build report, insights, and many more debugging information all at one place!
+```
+
+Click the link (or copy it into your browser) to land on the build detail page. Inside a build, you'll see one session entry per capability that ran. Each session has:
+
+- **Video** — playable recording of the device screen during the test. This is the most important debugging artifact — if the video shows your app launching and rendering correctly but the test still fails, you've narrowed the problem to your spec assertions (not the device/app/driver).
+- **Logs Timeline** — chronological list of every Appium command your spec sent (`newSession`, `getWindowSize`, `findElement`, `click`, `takeScreenshot`, `deleteSession`) plus their responses. Expandable per-command.
+- **Network Logs** — HTTP traffic from the app under test (if the app made any network calls during the session).
+- **App Performance** — CPU / memory / battery metrics from the device during the session. Useful for perf-sensitive scenarios.
+- **Other Logs** (dropdown) — sub-tabs for:
+  - **Device** — Android logcat / iOS syslog output from the device during the session (noisy but useful for debugging real scenarios)
+  - **Appium** — raw Appium server logs (lower-level than Logs Timeline)
+  - **Terminal** — your spec's `console.log(...)` output as it ran
+  - **Raw Logs** — everything else combined, useful for sending to vendor support
+
+**Walkthrough tip:** for a simple smoke test, the Video tab alone is usually enough to confirm the pipeline works. Dive into Logs Timeline / Other Logs only when debugging a failing scenario.
+
+**Note on dashboard UI:** BrowserStack (and the other vendors) occasionally rename and rearrange these tabs. The labels above match the April 2026 UI. If you see different labels, the information is still there — look for "logs," "video," and "screenshots" keywords in the tab list.
 
 ---
 
@@ -492,7 +578,8 @@ jobs:
 | Tests run locally but fail on cloud with "Element not found" | All | Cloud devices may have different screen sizes / resolutions / keyboard layouts than your local emulator. Scenario locators that work locally may need platform-keyed variants. Run Explorer against the cloud device to capture vendor-specific locators. |
 | "WDA launch failed" on iOS real device in BrowserStack/Sauce/LambdaTest | All (iOS) | Cloud vendors handle WDA signing for you, so this usually means an Appium version mismatch. Try bumping `appiumVersion` in your capabilities to the latest (check vendor docs for supported versions). |
 | Test passes on first cloud session, fails on re-run | All | Cloud farms usually give you a fresh session with a fresh app install per test, so state contamination is rare. If it's happening, check that your `'app'` reference is correct and the app isn't being cached in a bad state. |
-| Slow session startup (60-90s each) | All | Normal for cloud farms — device provisioning adds 30-60s on top of your test time. Use `maxInstances` to parallelize and amortize. |
+| Slow session startup on Android (20-30s) | All | Normal for cloud farms — Android provisioning adds 20-30s on top of your test time on a hot device pool. Use `maxInstances` to parallelize and amortize (paid plans only — free trial = 1 parallel). |
+| **iOS sessions take 90-120 seconds even for a 3-second test** | All (iOS) | **Normal — not a bug.** iOS provisioning includes WebDriverAgent installation on the cloud device, which the vendor handles automatically but still takes 60-120 seconds every time. This is intrinsic to the Appium XCUITest driver model, not specific to any vendor. Budget ~2 minutes per iOS session regardless of test body length. Walkthrough-measured: Android 22s, iOS 112s for an identical 3-second spec. |
 | CI network can't reach cloud endpoint | All | Corporate firewall / egress rules blocking the vendor endpoint. Whitelist the vendor's API domain (`api-cloud.browserstack.com`, `ondemand.us-west-1.saucelabs.com`, `hub.lambdatest.com`) at the network layer. |
 | Costs exploding unexpectedly | All | Check your WDIO `--shard` setup — if you're accidentally running all specs on all capabilities, you're consuming N× the minutes you planned. For sharding, use 1 device per capability + `--shard X/N` from N parallel jobs. |
 | "Tunnel connection failed" for apps that need localhost access | BrowserStack, Sauce Labs | You need to start the vendor's local tunnel (BrowserStack Local, Sauce Connect) before the test run. Each vendor ships a CLI binary for this — see their docs for tunnel setup. |
