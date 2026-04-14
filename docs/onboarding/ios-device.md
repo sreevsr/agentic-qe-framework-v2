@@ -7,6 +7,8 @@ This guide is a **placeholder with the known-correct setup steps, awaiting first
 **Estimated time:** 2-4 hours on first setup (Apple Developer enrollment alone can take 24+ hours for approval).
 
 > **⚠️ macOS-only guide:** real iOS device testing requires macOS hardware because Xcode, WebDriverAgent code-signing, and device provisioning are macOS-exclusive. Neither Windows (WSL 2, Git Bash, or native PowerShell) nor Linux can complete this setup. **If you're on Windows or Linux and need iOS real-device coverage, use [cloud-farms.md](cloud-farms.md)** (BrowserStack / Sauce Labs / LambdaTest all offer real iOS devices in the cloud) **or [aws-device-farm.md](aws-device-farm.md)**. These cloud providers handle the WebDriverAgent signing ceremony and device provisioning server-side — you skip the hardest 80% of this guide entirely.
+>
+> **The cloud-farms.md path is walkthrough-verified as of 2026-04-14** (BrowserStack App Automate, iPhone 14 / iOS 16, a minimal smoke spec plus a real 14-step scenario exercising Screen Objects, iOS class chain locators, native iOS alert handling, and tab bar navigation — both green on first run). Local real-iOS-device testing via this guide is still un-walked; see the "Not Yet Device-Verified" warning below.
 
 ---
 
