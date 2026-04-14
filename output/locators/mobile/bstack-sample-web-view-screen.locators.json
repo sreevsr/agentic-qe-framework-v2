@@ -1,0 +1,23 @@
+{
+  "webView": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeWebView"
+    },
+    "description": "Full-screen WKWebView element. Its presence is the primary 'screen loaded' indicator because the Web View tab has NO navigation bar on the Sample iOS app.",
+    "type": "webview"
+  },
+  "webViewTab": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeTabBar/XCUIElementTypeButton[`name == 'Web View'`]"
+    },
+    "description": "Bottom tab bar: Web View tab (selected while this screen is active).",
+    "type": "tab"
+  },
+  "uiElementsTab": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeTabBar/XCUIElementTypeButton[`name == 'UI Elements'`]"
+    },
+    "description": "Bottom tab bar: UI Elements tab. Tap to return to the UI Elements screen.",
+    "type": "tab"
+  }
+}

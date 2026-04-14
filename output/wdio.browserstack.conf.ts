@@ -63,9 +63,13 @@ export const config = {
     }],
   ],
 
-  capabilities: [
-    {
-      // ─── Android — WikipediaSample ────────────────────────────────
+  // Capability filter: set PLATFORM=ios or PLATFORM=android in the env to run
+  // only one device. Unset (or PLATFORM=both) runs both sequentially. This lets
+  // the same config cover cross-platform smoke AND single-platform scenario runs
+  // without maintaining two config files.
+  capabilities: (() => {
+    const platformFilter = (process.env.PLATFORM || 'both').toLowerCase();
+    const androidCap = {
       platformName: 'Android',
       'appium:app': ANDROID_APP_URL,
       'bstack:options': {
@@ -73,24 +77,27 @@ export const config = {
         osVersion: '12.0',
         projectName: 'agentic-qe-framework',
         buildName: BUILD_NAME,
-        sessionName: 'cross-platform-smoke-android',
+        sessionName: 'browserstack-android',
         appiumVersion: '2.0.1',
       },
-    },
-    {
-      // ─── iOS — BStackSampleApp ────────────────────────────────────
+    };
+    const iosCap = {
       platformName: 'iOS',
       'appium:app': IOS_APP_URL,
+      'appium:automationName': 'XCUITest',
       'bstack:options': {
         deviceName: 'iPhone 14',
         osVersion: '16',
         projectName: 'agentic-qe-framework',
         buildName: BUILD_NAME,
-        sessionName: 'cross-platform-smoke-ios',
+        sessionName: 'browserstack-ios',
         appiumVersion: '2.0.1',
       },
-    },
-  ],
+    };
+    if (platformFilter === 'ios') return [iosCap];
+    if (platformFilter === 'android') return [androidCap];
+    return [androidCap, iosCap];
+  })(),
 
   framework: 'mocha',
   mochaOpts: {

@@ -1,0 +1,51 @@
+{
+  "navBarTitle": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeNavigationBar/XCUIElementTypeStaticText[`name == 'UI Elements'`]"
+    },
+    "description": "Navigation bar title 'UI Elements' — stable screen-loaded identifier",
+    "type": "text"
+  },
+  "textButton": {
+    "ios": {
+      "accessibility_id": "Text Button"
+    },
+    "description": "Main content 'Text' button (row 1)",
+    "type": "button"
+  },
+  "alertButton": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeButton[`name == 'Alert'`]"
+    },
+    "description": "Main content 'Alert' button (row 2) — triggers a native iOS alert. class_chain scopes to XCUIElementTypeButton so it does not collide with XCUIElementTypeAlert (same name) when the alert overlay is up.",
+    "type": "button"
+  },
+  "uiElementsTab": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeTabBar/XCUIElementTypeButton[`name == 'UI Elements'`]"
+    },
+    "description": "Bottom tab bar: UI Elements tab. class_chain scopes to the tab bar so it does not collide with the nav bar title of the same name.",
+    "type": "tab"
+  },
+  "webViewTab": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeTabBar/XCUIElementTypeButton[`name == 'Web View'`]"
+    },
+    "description": "Bottom tab bar: Web View tab",
+    "type": "tab"
+  },
+  "nativeAlert": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeAlert"
+    },
+    "description": "Native iOS alert overlay (XCUIElementTypeAlert). Used to assert the alert is visible. Dismiss via the alertOkButton or BaseScreen helper.",
+    "type": "alert"
+  },
+  "alertOkButton": {
+    "ios": {
+      "class_chain": "**/XCUIElementTypeAlert/**/XCUIElementTypeButton[`name == 'OK'`]"
+    },
+    "description": "The single 'OK' button inside the native iOS alert. Sample iOS app's alert has no Cancel button.",
+    "type": "button"
+  }
+}
