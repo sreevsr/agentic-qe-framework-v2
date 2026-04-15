@@ -726,6 +726,44 @@ USE_HELPER: ExamsPage.calculateSeatingCapacity -> {{seats}}
 
 The Enricher does **not** auto-discover helpers — it won't add `USE_HELPER` unless you explicitly name one. This is deliberate: the Enricher has no file system access to verify helpers exist, and silent auto-insertion would hide implementation details from the scenario author. If you're unsure whether a helper exists, leave it out; the Explorer/Builder will write the interaction inline from the live app. For the full `USE_HELPER` contract (capture syntax, missing-helper warnings, mobile equivalent), see [agents/shared/keyword-reference.md](agents/shared/keyword-reference.md).
 
+#### Cross-Scenario Data Flow — `Produces` and `Depends On` in Natural Language
+
+If one of your scenarios needs to publish a value (order number, user ID, auth token) for another scenario to reuse, say so in plain words — the Enricher will set up `SAVE` + `Produces:` on the writer and `Depends On:` + `{{SHARED.*}}` on the reader.
+
+**Publishing a value (writer side):** use verbs like *save*, *capture for later*, *remember*, *record*, *publish*, *make available to downstream tests*.
+
+> *"...after the order is placed, **save the order number so other tests can use it**."*
+
+becomes
+
+```markdown
+- **Produces:** orderNumber (saved to shared-state)
+
+...
+N. CAPTURE: order number from confirmation page as {{orderNumber}}
+N+1. SAVE: {{orderNumber}} to shared-state as "orderNumber"
+```
+
+**Reading a value (reader side):** you **must** refer to the upstream scenario with the word `scenario` after its name. This is a hard rule, not a stylistic preference. Without the suffix, a name like `user-create` or `checkout-flow` is ambiguous — it could be a feature, a page, a class, a helper, a CI job, or a scenario. The `scenario` suffix is the **sole signal** the Enricher uses to recognize a cross-scenario reference.
+
+> ✅ *"...**use the userId from the user-create scenario** and look up that user's profile."*
+
+becomes
+
+```markdown
+- **Depends On:** user-create (needs: userId)
+
+...
+1. Navigate to {{ENV.BASE_URL}}/users/{{SHARED.userId}}
+2. VERIFY: Profile page for the created user is displayed
+```
+
+> ❌ *"use the userId from user-create"* — **will not** trigger a `Depends On` declaration. The Enricher will add a `## Notes` entry telling you to restate with `"user-create scenario"` and re-run.
+
+**Preconditions vs. dependencies — don't confuse them.** *"Assume the user is logged in"* is a precondition (a state to set up at the start of the scenario) and does **not** become a `Depends On`. A precondition just adds login steps. A dependency references a **specific value** that a **specific named scenario** saved via `SAVE`.
+
+**Both fields default to `None`.** Most scenarios are self-contained and need neither. If you don't mention publishing or consuming shared state, the Enricher emits `- **Depends On:** None` and `- **Produces:** None` — template-compliant and unambiguous.
+
 ### Authentication
 
 All credentials go in `output/.env` — never hardcoded in scenarios or generated code.

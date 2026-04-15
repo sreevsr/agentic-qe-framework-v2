@@ -164,6 +164,56 @@ If the resolved slot is empty, or the file doesn't exist under `scenarios/app-co
     - **Do NOT verify the helper exists.** The Enricher has no file system access beyond scenario files. The Builder's `USE_HELPER` contract already has a hard-stop with a clear warning if the helper file or method is missing (see `agents/shared/keyword-reference.md § USE_HELPER`). Trust that mechanism — passing through an unverified helper name is safe because the Builder will fail loudly, not silently.
     - **Do NOT auto-discover helpers.** Even if you suspect a helper exists for a given step, do NOT add `USE_HELPER` unless the user's words explicitly name it. The Enricher's job is intent capture, not implementation inference. If you think a helper would fit, mention it in the `## Notes` section as a suggestion: `Consider: a CartPage.calculateTotalPrice helper may already exist — the Explorer/Builder can decide.`
     - **Mobile equivalent:** the same rule applies to mobile helpers under `output/screens/*.helpers.ts`. Emit `USE_HELPER: ScreenName.methodName` when the user explicitly names a screen-helper method.
+13. **Cross-scenario data flow — `Produces` / `Depends On` / `SAVE` passthrough:** Scenarios can publish values for other scenarios to read via `shared-state.json`. The Enricher **MUST** emit `Produces:` / `Depends On:` metadata + matching `SAVE` / `{{SHARED.*}}` steps **only when the user explicitly expresses the intent** in natural language. Never auto-detect, never guess. Both fields default to `None` when not mentioned.
+    - **Produces (write side) — trigger vocabulary:**
+      - "save the X so other tests can use it"
+      - "capture X and make it available to downstream scenarios"
+      - "remember the X for later"
+      - "record X", "publish X", "persist X for downstream tests"
+    - **Produces — emission:** add a `SAVE` step at the point in the flow where the value is captured, and add `Produces: <keyName>` to the Metadata block. Extract the key name from the user's phrasing (*"save the order number"* → key `orderNumber`).
+      ```markdown
+      ## Metadata
+      - **Produces:** orderNumber (saved to shared-state)
+
+      ## Steps
+      N. CAPTURE: order number from confirmation page as {{orderNumber}}
+      N+1. SAVE: {{orderNumber}} to shared-state as "orderNumber"
+      ```
+    - **Depends On (read side) — trigger vocabulary:**
+      - "use the X from the Y **scenario**"
+      - "assuming the Y **scenario** has run"
+      - "take the X saved by the Y **scenario**"
+      - "this test requires the X from the Y **scenario**"
+      - "after the Y **scenario** produces X"
+      - "building on the Y **scenario**"
+    - **MANDATORY: the word "scenario" MUST appear as a suffix after the referenced scenario name (case-insensitive).** This is a **hard requirement** — not a stylistic preference. Without the suffix, names like `user-create`, `checkout-flow`, or `login-setup` are ambiguous (they could be feature names, page names, class names, endpoints, or anything else). The `scenario` suffix is the **sole disambiguation signal** the Enricher uses to decide whether a phrase is a cross-scenario reference.
+      - ✅ **Correct — triggers `Depends On`:** "use the `userId` from the **user-create scenario**"
+      - ✅ **Correct:** "assuming the **checkout-flow scenario** has run, look up the order number it saved"
+      - ✅ **Correct:** "this test requires the auth token from the **login-setup scenario**"
+      - ❌ **Wrong — does NOT trigger `Depends On`:** "use the `userId` from user-create"  *(no "scenario" suffix — ambiguous)*
+      - ❌ **Wrong:** "assuming user-create has run"  *(ambiguous — could be a fixture, a migration, a CI job, or a scenario)*
+      - ❌ **Wrong:** "take the order number saved by checkout-flow"  *(ambiguous — could be a feature flag, a page, or a helper)*
+    - **Depends On — emission:** add `Depends On: <scenario-name> (needs: <keyName>)` to the Metadata block, and reference the value in steps as `{{SHARED.<keyName>}}`.
+      ```markdown
+      ## Metadata
+      - **Depends On:** user-create (needs: userId)
+
+      ## Steps
+      1. Navigate to {{ENV.BASE_URL}}/users/{{SHARED.userId}}
+      2. VERIFY: The profile page for the created user is displayed
+      ```
+    - **Ambiguous phrasing without the "scenario" suffix — MANDATORY handling:** if the Enricher detects a phrase that *looks* like a dependency reference (e.g., mentions a name and a value that "came from" something) but the `scenario` suffix is missing, the Enricher MUST:
+      1. **NOT** emit a `Depends On` declaration
+      2. Add a line in the `## Notes` section flagging the ambiguity so the user knows how to fix it. Example: `Note: your description mentioned "user-create" but without the "scenario" suffix, so no Depends On declaration was added. If you meant a cross-scenario dependency, please restate as "user-create scenario" and re-run the Enricher.`
+    - **Preconditions are NOT dependencies — do NOT conflate them.** If the user writes *"assume the user is already logged in"*, that is a **precondition** (a state to establish at the start of the scenario — typically via login steps or `storageState`), NOT a cross-scenario dependency. `Depends On` is for **specific values** published by **specific named scenarios** via `SAVE`. Compare:
+      - *"assume the user is logged in"* → add login steps; `Depends On: None`
+      - *"use the `userId` saved by the **user-create scenario**"* → `Depends On: user-create (needs: userId)`; no repeat of user-create's steps
+    - **Both default to `None`.** Most scenarios are self-contained. If the user mentions neither publishing nor consuming shared state, emit:
+      ```markdown
+      - **Depends On:** None
+      - **Produces:** None
+      ```
+      These lines are part of template compliance and **MUST** be present in every enriched scenario, even when both values are `None`.
 
 ### 4.6: Mobile Scenario Enrichment
 
