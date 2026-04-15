@@ -151,6 +151,19 @@ If the resolved slot is empty, or the file doesn't exist under `scenarios/app-co
     - "try ... if not found ..." / "attempt ... otherwise" → use **TRY_ELSE**
     - **NEVER unroll a loop into hardcoded repeated steps.** "Swipe through all photos and screenshot each" is ONE `REPEAT_UNTIL` step, NOT five copy-pasted swipe+screenshot steps. The iteration count is unknown until runtime.
     - **NEVER flatten a conditional into an unconditional step.** "If the notification appears, dismiss it" is an `IF` step, NOT "dismiss the notification" (which implies it always appears).
+12. **Helper method hints — USE_HELPER passthrough:** Teams maintain reusable helper methods in `output/pages/*.helpers.ts` (web) and `output/screens/*.helpers.ts` (mobile). If the user's natural language **explicitly names** a helper method, the Enricher **MUST** emit a `USE_HELPER` step in the scenario. Do NOT invent helper references the user didn't mention — the Enricher has no way to know which helpers exist and MUST NOT guess.
+    - **Trigger phrases** (explicit mention by the user):
+      - "use the `CartPage.calculateTotalPrice` helper"
+      - "call the helper method `LoginPage.loginAsRole`"
+      - "there's a helper for this — `CheckoutPage.applyCoupon`"
+      - "use `FlipkartHomeScreen.dismissLoginPrompt` from the helpers file"
+    - **Format the emitted step as:**
+      - `USE_HELPER: PageName.methodName` — when the helper returns nothing or the result is not captured
+      - `USE_HELPER: PageName.methodName -> {{variableName}}` — when the user wants the return value captured into a variable
+    - **Extract the variable name from context.** If the user says "use calculateTotalPrice and save the total as cartTotal" → emit `USE_HELPER: CartPage.calculateTotalPrice -> {{cartTotal}}`. If no variable is mentioned, omit the `->` clause.
+    - **Do NOT verify the helper exists.** The Enricher has no file system access beyond scenario files. The Builder's `USE_HELPER` contract already has a hard-stop with a clear warning if the helper file or method is missing (see `agents/shared/keyword-reference.md § USE_HELPER`). Trust that mechanism — passing through an unverified helper name is safe because the Builder will fail loudly, not silently.
+    - **Do NOT auto-discover helpers.** Even if you suspect a helper exists for a given step, do NOT add `USE_HELPER` unless the user's words explicitly name it. The Enricher's job is intent capture, not implementation inference. If you think a helper would fit, mention it in the `## Notes` section as a suggestion: `Consider: a CartPage.calculateTotalPrice helper may already exist — the Explorer/Builder can decide.`
+    - **Mobile equivalent:** the same rule applies to mobile helpers under `output/screens/*.helpers.ts`. Emit `USE_HELPER: ScreenName.methodName` when the user explicitly names a screen-helper method.
 
 ### 4.6: Mobile Scenario Enrichment
 

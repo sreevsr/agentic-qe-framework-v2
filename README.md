@@ -712,6 +712,20 @@ You can also use the Enricher agent with a Swagger spec:
 @QE Enricher Parse swagger spec at scenarios/api/swagger-specs/my-api.json and generate API test scenarios
 ```
 
+#### Hinting Team Helpers in Natural Language
+
+If your team maintains reusable helpers under `output/pages/*.helpers.ts` (web) or `output/screens/*.helpers.ts` (mobile) and you want the Enricher to reference one when converting natural language to a scenario, **mention the helper by name in the description** — the Enricher will pass it through as a `USE_HELPER` step:
+
+> *"Log in as Director, navigate to Exams, then **use the `ExamsPage.calculateSeatingCapacity` helper** and save the result as `seats`. Verify the seat count equals 24."*
+
+The Enricher emits this as:
+
+```
+USE_HELPER: ExamsPage.calculateSeatingCapacity -> {{seats}}
+```
+
+The Enricher does **not** auto-discover helpers — it won't add `USE_HELPER` unless you explicitly name one. This is deliberate: the Enricher has no file system access to verify helpers exist, and silent auto-insertion would hide implementation details from the scenario author. If you're unsure whether a helper exists, leave it out; the Explorer/Builder will write the interaction inline from the live app. For the full `USE_HELPER` contract (capture syntax, missing-helper warnings, mobile equivalent), see [agents/shared/keyword-reference.md](agents/shared/keyword-reference.md).
+
 ### Authentication
 
 All credentials go in `output/.env` — never hardcoded in scenarios or generated code.
