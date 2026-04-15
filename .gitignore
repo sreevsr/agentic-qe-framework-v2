@@ -5,7 +5,11 @@ output/node_modules/
 # Environment secrets — NEVER commit
 .env
 .env.local
+.env.*
+!.env.*.example
 output/**/.env
+output/**/.env.*
+!output/**/.env.*.example
 *.pem
 *.key
 

@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
+import * as path from 'path';
 
-dotenv.config();
+// Per-environment .env loader. Set TEST_ENV=qa|stg|preprd|prd before running
+// Playwright to load output/.env.{TEST_ENV}. Defaults to plain .env.
+const testEnv = process.env.TEST_ENV;
+dotenv.config({ path: path.join(__dirname, testEnv ? `.env.${testEnv}` : '.env') });
 
 export default defineConfig({
   testDir: './tests',
@@ -43,9 +47,10 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         channel: 'chrome',
         headless: process.env.HEADLESS !== 'false',
-        viewport: { width: 1920, height: 1080 },
+        viewport: null, // null = match window size instead of forcing size to 1920x1080, else provide the size of rendered web page area, for ex., { width: 1920, height: 1080 }
         launchOptions: {
           args: [
+            '--start-maximized',
             // Suppress Chrome's Private Network Access permission prompt
             '--disable-features=PrivateNetworkAccessPermissionPrompt',
             // Uncomment if CORS blocks test API calls from the browser:

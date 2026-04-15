@@ -1633,6 +1633,103 @@ IOS_BUNDLE_ID=com.example.app                  # mutually exclusive with IOS_APP
 # IOS_APP_PATH=/absolute/path/to/app.app       # alternative: install fresh .app each session
 ```
 
+#### Per-Environment `.env` Files (dev / qa / stg / preprd / prd)
+
+The framework supports a single `.env` by default, plus an optional per-environment pattern for teams that run the same suite against multiple deployments. Pick the pattern that fits your team — both are supported out of the box.
+
+**Pattern A — single `.env` (default).** Edit `output/.env` for whichever environment you happen to be testing. Simple, zero config, works for teams that run against one environment at a time.
+
+**Pattern B — per-environment files.** Create one file per target environment, all sitting next to each other in `output/`:
+
+```
+output/
+├── .env          ← default / local dev (gitignored)
+├── .env.qa       ← QA environment (gitignored)
+├── .env.stg      ← Staging (gitignored)
+├── .env.preprd   ← Pre-prod (gitignored)
+└── .env.prd      ← Production smoke (gitignored)
+```
+
+Each file contains the same keys (`BASE_URL`, `TEST_USERNAME`, etc.) but with environment-specific values. The framework ships with `.env.qa` and `.env.stg` as starter copies you can edit — they are gitignored, so your real values never leak.
+
+**Select the environment at run time** via the `TEST_ENV` variable:
+
+```bash
+# Linux / macOS
+TEST_ENV=qa npx playwright test
+TEST_ENV=stg npx playwright test
+
+# Windows PowerShell
+$env:TEST_ENV='qa'; npx playwright test
+
+# Windows cmd
+set TEST_ENV=qa && npx playwright test
+```
+
+No `TEST_ENV` means `output/.env` is loaded (Pattern A stays the default). `TEST_ENV=qa` loads `output/.env.qa` instead, `TEST_ENV=stg` loads `output/.env.stg`, and so on. The loader lives in [output/playwright.config.ts](output/playwright.config.ts) — it reads `process.env.TEST_ENV` and hands the resolved path to `dotenv.config()`.
+
+**Adding a new environment** (e.g. `preprd`):
+
+1. `cp output/.env output/.env.preprd` — start from the default file
+2. Edit `output/.env.preprd` with pre-prod URLs, credentials, and any env-specific flags
+3. Run with `TEST_ENV=preprd npx playwright test`
+
+No code changes needed — the loader already understands any suffix you pass via `TEST_ENV`.
+
+#### Secrets Management — Vault / CI Secret Store
+
+The `.env` / `.env.*` files are gitignored precisely because they typically contain passwords, API tokens, BrowserStack keys, and similar secrets. For anything beyond a single developer's laptop, secrets should live in a dedicated store, not on disk. Two patterns that work well with this framework:
+
+**Option 1 — Split config from secrets (recommended for most teams).**
+
+Put *non-secret* per-environment values (URLs, feature flags, timeouts) in files you can version-control as documentation — e.g. `output/.env.qa.example` — and keep actual secrets (`TEST_PASSWORD`, `API_TOKEN`, `BROWSERSTACK_ACCESS_KEY`) out of every committed file. At run time, your CI job injects the secrets as real environment variables, and the non-secret file fills in the rest:
+
+```bash
+# In the CI job (e.g. GitHub Actions, GitLab CI, Jenkins)
+export TEST_PASSWORD="$(vault read -field=password secret/qe/qa)"
+export BROWSERSTACK_ACCESS_KEY="$BS_KEY_FROM_CI_SECRET_STORE"
+TEST_ENV=qa npx playwright test
+```
+
+`process.env.*` always wins over `.env.*` files in Node.js when both exist, so secrets injected by the CI runner override anything in the file. This lets you commit `.env.qa.example` as living documentation of what keys exist, without ever committing values.
+
+**Option 2 — Secrets pulled from a vault at job start.**
+
+For teams already running HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager, have the CI job fetch secrets at the start and write them into a short-lived `.env.{env}` file that is deleted at job end:
+
+```yaml
+# GitHub Actions example
+- name: Fetch QA secrets from Vault
+  run: |
+    vault read -format=json secret/qe/qa \
+      | jq -r '.data | to_entries[] | "\(.key)=\(.value)"' \
+      > output/.env.qa
+- name: Run tests
+  run: TEST_ENV=qa npx playwright test
+- name: Shred secrets file
+  if: always()
+  run: rm -f output/.env.qa
+```
+
+The file exists only for the duration of the job, lives only inside the CI runner's workspace, and is shredded unconditionally at the end. The repo never sees it.
+
+**CI secret store equivalents for common platforms:**
+
+| Platform | Where secrets live | How to inject |
+|---|---|---|
+| **GitHub Actions** | Repository → Settings → Secrets and variables → Actions | `env: TEST_PASSWORD: ${{ secrets.QA_TEST_PASSWORD }}` at step level |
+| **GitLab CI** | Project → Settings → CI/CD → Variables (masked + protected) | Automatically exposed as env vars in every job |
+| **Jenkins** | Credentials plugin → Secret text / Username with password | `withCredentials([string(...)]) { sh 'npx playwright test' }` |
+| **Azure DevOps** | Pipeline → Variables → mark as "keep secret" | `$(SECRET_NAME)` interpolation in tasks |
+| **CircleCI** | Project Settings → Environment Variables | Automatically exposed as env vars |
+
+**Hard rules for secrets — regardless of platform:**
+
+1. **Never commit a `.env.*` file that contains real secrets.** The `.gitignore` already excludes them, but double-check before any commit touching env files: `git check-ignore -v output/.env.prd` should say the file is ignored.
+2. **Rotate any secret that accidentally lands in git history.** Removing the file in a later commit is not enough — treat it as compromised and issue a new credential.
+3. **Separate per-environment secrets.** A prod token should never be reachable from a QA run. Use distinct vault paths (`secret/qe/qa`, `secret/qe/prd`) with distinct IAM policies.
+4. **Least privilege for CI.** The QA pipeline's vault token should only be able to read QA secrets, not prod ones.
+
 ---
 
 ## File Ownership
