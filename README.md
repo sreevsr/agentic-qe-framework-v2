@@ -461,6 +461,133 @@ Mobile scenarios use a different keyword-to-code mapping (no `test.step()`, uses
 1. Click "Logout"
 ```
 
+### Step 1b: Or Describe in Natural Language — the Enrichment Agent
+
+If you don't want to write a structured scenario by hand, **describe what you want to test in plain English** and let the Enrichment Agent convert it into a properly structured `.md` file. This is the recommended path for new users, exploratory testing, or when you want to iterate quickly on a test idea.
+
+#### How to invoke the Enricher
+
+**VS Code Copilot:**
+```
+@QE Enricher I want to test the National Specialty grid — log in via SSO, navigate to SME Insights,
+expand the grid, sort by Specialty, filter for "Sports", check pagination, and verify the "By specialty"
+dropdown filter. Type web.
+```
+
+**Claude Code CLI:**
+```
+@QE Enricher Convert the following description into a structured scenario .md file, type web.
+Save to scenarios/web/national-specialty-grid.md
+```
+
+The Enricher reads the description, determines the scenario type, and produces a fully structured `.md` file with numbered steps, keywords, metadata, test data, and a `## Notes for Explorer` section — ready for the Explorer to walk.
+
+#### What the Enricher does with your input
+
+The Enricher classifies your input into one of four categories and acts accordingly:
+
+| Input type | How the Enricher detects it | What happens |
+|---|---|---|
+| **Natural language** | Free text, no `.md` structure | **Full enrichment** — the Enricher asks questions, reads app-context, and produces a structured scenario |
+| **Partial/mixed** | File path to `.md` with some structure but vague/missing steps | **Gap fill** — the Enricher asks about gaps, then completes the scenario |
+| **Structured `.md`** | File path to existing `.md` with numbered steps, keywords, metadata | **Passthrough** — the Enricher validates format, fills minor gaps (missing type, missing tags), and hands off without rewriting. No enrichment report generated. |
+| **Swagger/OpenAPI spec** | File path to `.json` with `openapi` or `swagger` field | **Spec → scenarios** — the Enricher parses the spec and generates one or more API scenario files per resource group |
+
+For natural language and partial inputs, the Enricher performs the full enrichment workflow described below.
+
+#### The enrichment workflow (natural language → structured scenario)
+
+**1. Intent extraction.** The Enricher reads your description and extracts: what application, what user flow, what type (web/api/hybrid/mobile), and what should be verified.
+
+**2. App-context lookup.** If an app-context file exists for your application type (configured in `framework-config.json → appContext`), the Enricher reads it to understand: auth method, UI framework, known component patterns, navigation structure. This avoids asking questions the app-context already answers. For example, if the app-context says "Microsoft SSO login", the Enricher knows to include SSO login steps without asking you about authentication.
+
+**3. Clarifying questions (if needed).** When your description is ambiguous or missing critical details, the Enricher asks clarifying questions. Key rules:
+
+- **All questions are asked in one batch** — not one at a time. You'll see a single message with all the questions the Enricher needs answered.
+- **Maximum 2 rounds of questions.** After 2 rounds, the Enricher produces the best scenario it can and documents its assumptions in the `## Notes` section.
+- **If you say "use defaults" or "you decide"**, the Enricher picks sensible defaults and documents every choice it made.
+- **If you don't answer** (e.g., you close the chat or ignore the questions), the Enricher cannot proceed — it needs your input to resolve ambiguities. Reopen the chat and answer the questions, or provide a more detailed description in a new session.
+- **Questions are asked in the chat** — VS Code Copilot chat panel or Claude Code CLI terminal, depending on how you invoked the Enricher. There is no separate UI.
+
+Common questions the Enricher asks:
+
+| Missing information | Question you'll see |
+|---|---|
+| No URL | "What is the application URL? (or should I use `{{ENV.BASE_URL}}`?)" |
+| No auth details | "How does the user authenticate? (SSO, username/password, API token?)" |
+| Vague action | "You said 'check the dashboard' — what specifically should be verified?" |
+| No assertion | "After [action], what should we verify?" |
+| Ambiguous navigation | "After login, which page should we navigate to?" |
+| No test data | "What test data should we use? (specific username? search term?)" |
+| Multiple possible flows | "Which flow: [option A] or [option B]?" |
+
+**4. Scenario generation.** The Enricher produces a structured `.md` file with:
+- **Metadata** — Module, Priority, Type, Tags, Depends On, Produces
+- **Application** — URL and credentials as `{{ENV.*}}` placeholders (never real values)
+- **Numbered steps** — every action as a separate step, with VERIFY after each significant state change, SCREENSHOT after key milestones
+- **Test Data table** — values referenced in steps, with source notes
+- **Notes for Explorer** — hints about UI patterns, selectors, iframe structure, or app quirks that help the Explorer navigate the app efficiently
+- **Detail Level note** — how much of the scenario was inferred vs provided by you (see below)
+
+**5. Output.** The enriched scenario is saved to `scenarios/{type}/{scenario-name}.md` (kebab-case filename). For Swagger input, multiple scenario files are generated plus a generation summary.
+
+#### Detail Level — what was inferred vs what you provided
+
+Every enriched scenario includes a `## Detail Level` note that tells you how much the Enricher had to infer:
+
+| Detail level | When | What it means |
+|---|---|---|
+| **HIGH-LEVEL** | You gave a one-liner like "test checkout" | Steps are based on common patterns and assumptions. The Explorer will discover specifics (actual navigation, fields, interactions) during the live walkthrough and may expand, reorder, or add steps. |
+| **MEDIUM** | You gave moderate detail like "login, add Widget Pro, pay by invoice" | Steps include your specific items but some interactions are inferred. Fewer assumptions than HIGH-LEVEL. |
+| **PASSTHROUGH** | You provided a fully structured `.md` with every click and verify | No enrichment performed. The Enricher validated format and handed off as-is. |
+
+**HIGH-LEVEL scenarios are starting points, not final specifications.** The Explorer produces the definitive `.enriched.md` with actual discovered steps after walking the live app.
+
+#### Confidence score
+
+After enrichment, the Enricher assesses its confidence in the generated scenario:
+
+| Score | Meaning | What you should do |
+|---|---|---|
+| **0.9 – 1.0** | You provided clear details, app-context exists, minimal assumptions | Ready for Explorer. Run the pipeline. |
+| **0.7 – 0.8** | Some details inferred from app-context or common patterns | Ready for Explorer, but review the `## Notes` section for assumptions. |
+| **0.5 – 0.6** | Significant assumptions made | **Review the scenario before running Explorer.** Check the `## Notes` section — every assumption is listed with its potential impact. |
+| **Below 0.5** | Too vague — critical information missing | **Do not run Explorer yet.** Either answer the Enricher's questions or provide a more detailed description. |
+
+The confidence score appears in the **Enrichment Report** (see below).
+
+#### The Enrichment Report
+
+For natural language, partial, and Swagger inputs (NOT passthrough), the Enricher generates a report at `output/reports/enrichment-report-{scenario}.md`. The report contains:
+
+| Section | What it tells you |
+|---|---|
+| **Header** | Scenario name, type, date, pipeline stage, outcome |
+| **Input Analysis** | What type of input was received, what app-context was loaded |
+| **Clarification Q&A** | Every question asked and your answer (Round 1 and Round 2 if applicable) |
+| **Enrichment Decisions** | Key decisions made: type inference, step structure, keyword usage |
+| **Assumptions** | Table of every assumption with: what was assumed, why, and impact if wrong |
+| **Confidence Assessment** | Four-factor table (user clarity, app-context availability, assumption count, overall score) with interpretation |
+| **Output Files** | Paths to generated scenario files |
+
+**No report is generated for passthrough** — if the input was already a well-structured `.md`, no enrichment was performed and there's nothing to report.
+
+#### Scenario size guidance
+
+If your description would produce a scenario with **40+ steps**, the Enricher will:
+1. Inform you: *"This scenario is ~N steps. Consider breaking it into 2-3 smaller scenarios."*
+2. Suggest natural breakpoints for splitting
+3. If you want a single scenario, it proceeds but adds a note recommending subagent splitting for the Explorer
+
+#### Tips for getting the best results from the Enricher
+
+1. **Be specific about what to verify.** "Test the grid" produces a HIGH-LEVEL scenario with guessed assertions. "Sort the Specialty column A–Z, filter for 'Sports', verify every row shows 'Sports', paginate to page 2" produces a MEDIUM scenario with exact steps.
+2. **Mention the app's auth method.** "Log in via Microsoft SSO" is better than "log in" — the Enricher knows to include the SSO-specific flow.
+3. **Name test data explicitly.** "Filter for 'Sports'" is better than "apply a filter" — the Enricher can create a Test Data table entry.
+4. **Reference helpers by name** if your team has them. "Use the `SSOLoginPage.login` helper for login" avoids the Enricher generating inline login steps. See [Hinting Team Helpers in Natural Language](#hinting-team-helpers-in-natural-language) above.
+5. **Reference upstream scenarios by name with the "scenario" suffix** if there are data dependencies. "Use the userId from the **user-create scenario**" triggers proper `Depends On` metadata. See [Cross-Scenario Data Flow](#cross-scenario-data-flow--produces-and-depends-on-in-natural-language) above.
+6. **Say "use defaults" if you don't care about specifics.** The Enricher will pick sensible defaults and document them — you can edit the scenario file later.
+
 ### Step 2: Run the Pipeline
 
 #### Agent Prompts — Quick Reference
