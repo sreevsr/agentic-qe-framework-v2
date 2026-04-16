@@ -482,6 +482,80 @@ function collectDim3_TestArchitecture(manifest) {
     });
   }
 
+  // @steps drift check: verify every USE_HELPER reference has a matching @steps block
+  evidence.helperStepsDrift = [];
+  if (scenarioContent) {
+    const useHelperRefs = scenarioContent.match(/USE_HELPER:\s*(\w+)\.(\w+)/g) || [];
+    for (const ref of useHelperRefs) {
+      const match = ref.match(/USE_HELPER:\s*(\w+)\.(\w+)/);
+      if (!match) continue;
+      const [, pageName, methodName] = match;
+      const webHelper = path.join(OUTPUT, 'pages', `${pageName}.helpers.ts`);
+      const mobileHelper = path.join(OUTPUT, 'screens', `${pageName}.helpers.ts`);
+      const helperPath = fs.existsSync(webHelper) ? webHelper : fs.existsSync(mobileHelper) ? mobileHelper : null;
+
+      if (!helperPath) {
+        evidence.helperStepsDrift.push({
+          reference: `${pageName}.${methodName}`,
+          helperFile: null,
+          fileExists: false,
+          hasStepsTag: false,
+          issue: `Helper file not found: ${pageName}.helpers.ts`,
+        });
+        continue;
+      }
+
+      const helperContent = readFile(helperPath);
+      if (!helperContent) {
+        evidence.helperStepsDrift.push({
+          reference: `${pageName}.${methodName}`,
+          helperFile: path.relative(ROOT, helperPath),
+          fileExists: true,
+          hasStepsTag: false,
+          issue: `Helper file exists but could not be read`,
+        });
+        continue;
+      }
+
+      // Look for the @steps JSDoc tag above the target function
+      // Pattern: /** ... @steps ... */ followed by export ... function methodName or export async function methodName
+      const stepsPattern = new RegExp(
+        `\\/\\*\\*[\\s\\S]*?@steps[\\s\\S]*?\\*\\/\\s*export\\s+(?:async\\s+)?function\\s+${methodName}\\b`
+      );
+      const hasSteps = stepsPattern.test(helperContent);
+
+      // Also check if the function exists at all (even without @steps)
+      const fnPattern = new RegExp(`export\\s+(?:async\\s+)?function\\s+${methodName}\\b`);
+      const fnExists = fnPattern.test(helperContent);
+
+      if (!fnExists) {
+        evidence.helperStepsDrift.push({
+          reference: `${pageName}.${methodName}`,
+          helperFile: path.relative(ROOT, helperPath),
+          fileExists: true,
+          hasStepsTag: false,
+          issue: `Function '${methodName}' not found in ${pageName}.helpers.ts`,
+        });
+      } else if (!hasSteps) {
+        evidence.helperStepsDrift.push({
+          reference: `${pageName}.${methodName}`,
+          helperFile: path.relative(ROOT, helperPath),
+          fileExists: true,
+          hasStepsTag: false,
+          issue: `Function '${methodName}' exists but has no @steps JSDoc tag — Explorer cannot walk this helper`,
+        });
+      } else {
+        evidence.helperStepsDrift.push({
+          reference: `${pageName}.${methodName}`,
+          helperFile: path.relative(ROOT, helperPath),
+          fileExists: true,
+          hasStepsTag: true,
+          issue: null,
+        });
+      }
+    }
+  }
+
   return evidence;
 }
 
@@ -938,6 +1012,7 @@ function main() {
       'dim3.lifecycleHooks',
       'dim3.loadTestDataImport',
       'dim3.helperImports',
+      'dim3.helperStepsDrift',
       'dim4.channelChrome',
       'dim4.timeouts',
       'dim4.screenshotConfig',

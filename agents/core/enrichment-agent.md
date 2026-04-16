@@ -164,6 +164,12 @@ If the resolved slot is empty, or the file doesn't exist under `scenarios/app-co
     - **Do NOT verify the helper exists.** The Enricher has no file system access beyond scenario files. The Builder's `USE_HELPER` contract already has a hard-stop with a clear warning if the helper file or method is missing (see `agents/shared/keyword-reference.md § USE_HELPER`). Trust that mechanism — passing through an unverified helper name is safe because the Builder will fail loudly, not silently.
     - **Do NOT auto-discover helpers.** Even if you suspect a helper exists for a given step, do NOT add `USE_HELPER` unless the user's words explicitly name it. The Enricher's job is intent capture, not implementation inference. If you think a helper would fit, mention it in the `## Notes` section as a suggestion: `Consider: a CartPage.calculateTotalPrice helper may already exist — the Explorer/Builder can decide.`
     - **Mobile equivalent:** the same rule applies to mobile helpers under `output/screens/*.helpers.ts`. Emit `USE_HELPER: ScreenName.methodName` when the user explicitly names a screen-helper method.
+    - **USE_HELPER in Common Setup / Teardown sections:** When the user's NL says something like *"use the SSOLoginPage.login helper for login in every test"* or *"call the cleanup helper after all tests"*, the Enricher MUST place the `USE_HELPER` step in the appropriate section:
+      - "for every test" / "before each test" → `## Common Setup`
+      - "once before all tests" / "at the start" → `## Common Setup Once`
+      - "after each test" / "cleanup after every test" → `## Common Teardown`
+      - "once at the end" / "final cleanup" → `## Common Teardown Once`
+      - If ambiguous, default to `## Common Setup Once` for setup helpers and `## Common Teardown Once` for cleanup helpers — these are the safest (run once, least duplication).
 13. **Cross-scenario data flow — `Produces` / `Depends On` / `SAVE` passthrough:** Scenarios can publish values for other scenarios to read via `shared-state.json`. The Enricher **MUST** emit `Produces:` / `Depends On:` metadata + matching `SAVE` / `{{SHARED.*}}` steps **only when the user explicitly expresses the intent** in natural language. Never auto-detect, never guess. Both fields default to `None` when not mentioned.
     - **Produces (write side) — trigger vocabulary:**
       - "save the X so other tests can use it"

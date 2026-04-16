@@ -383,7 +383,30 @@ If interaction fails after max attempts → record in enriched.md:
 
 **Continue to the next step. DO NOT stop the entire exploration.**
 
-### 4.7: Record Page Transitions
+### 4.7: USE_HELPER Steps — Walk for State Advancement
+
+When the Explorer encounters a `USE_HELPER` step in the scenario (in any section — Steps, Common Setup Once, Common Setup, Common Teardown, Common Teardown Once):
+
+1. **Resolve the helper file.** `USE_HELPER: SSOLoginPage.login` → look for `output/pages/SSOLoginPage.helpers.ts` (web) or `output/screens/SSOLoginPage.helpers.ts` (mobile).
+2. **Read the function's `@steps` JSDoc block.** Parse the `@steps` tag above the referenced function. Extract the numbered DSL steps.
+3. **Walk each `@steps` step in the live browser.** Process each DSL step exactly as you would process a regular scenario step — click, fill, navigate, verify, screenshot. Use MCP Playwright (web) or Appium MCP (mobile) as usual. This **advances the application state** so that subsequent scenario steps find the app in the expected condition (e.g., logged in, on the right page).
+4. **Do NOT capture elements.** No ELEMENT annotations, no selector recording, no DOM probes for helper steps. The helper's TypeScript implementation is human-written — the human is responsible for selectors. The Explorer's job here is purely state advancement.
+5. **Record the helper walkthrough in enriched.md as a collapsed marker**, not as expanded sub-steps:
+   ```markdown
+   8. USE_HELPER: SSOLoginPage.login with {{ENV.SSO_EMAIL}} / {{ENV.SSO_PASSWORD}} <!-- ORIGINAL -->
+      <!-- HELPER_WALKED: SSOLoginPage.login — 6 @steps executed, state advanced -->
+   ```
+6. **If the helper file or function is missing:** record in enriched.md and continue:
+   ```markdown
+   8. USE_HELPER: SSOLoginPage.login <!-- ORIGINAL -->
+      <!-- HELPER_NOT_FOUND: SSOLoginPage.helpers.ts does not exist or has no 'login' function with @steps -->
+   ```
+7. **If an `@steps` step fails during the walkthrough:** apply the same Bug Detection Gate (§4.6) as for regular steps. Record the failure, continue to the next step. Do NOT stop the entire exploration because a helper step failed.
+8. **CAPTURE in `@steps`:** If a helper's `@steps` block contains a CAPTURE keyword, the Explorer processes it during the walkthrough (reads the value from the live app). This verifies the value is capturable. The Explorer does NOT need to persist the captured value — at runtime, the human-written function handles the capture and return.
+
+**MANDATORY:** The Explorer MUST walk `@steps` every time it encounters a `USE_HELPER` with a `@steps` block. There is no caching or "skip if already walked" — each scenario execution needs the app state advanced from the beginning.
+
+### 4.8: Record Page Transitions
 
 When you navigate to a new page (URL changes or significant DOM change), record it as a **section header** in the enriched.md. This creates the routing table the Builder uses:
 

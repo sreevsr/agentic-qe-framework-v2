@@ -764,6 +764,92 @@ becomes
 
 **Both fields default to `None`.** Most scenarios are self-contained and need neither. If you don't mention publishing or consuming shared state, the Enricher emits `- **Depends On:** None` and `- **Produces:** None` — template-compliant and unambiguous.
 
+#### Writing Explorer-Walkable Helpers with `@steps`
+
+Team-maintained helper functions in `output/pages/*.helpers.ts` (web) and `output/screens/*.helpers.ts` (mobile) can carry a **`@steps` JSDoc tag** with scenario DSL — the same numbered steps and keywords used in scenario `.md` files. This makes helpers transparent to the Explorer: instead of treating a `USE_HELPER` call as an opaque black box, the Explorer reads the `@steps` block and walks each step in the live browser.
+
+**Why this matters:** Without `@steps`, a helper that does state-changing work (login, form submission, navigation) is invisible to the Explorer. The Explorer skips the interactions, the application stays in the wrong state, and every step after the helper call fails. With `@steps`, the Explorer performs every interaction, the app state advances correctly, and all subsequent steps succeed.
+
+**How to write a helper with `@steps`:**
+
+```typescript
+// output/pages/SSOLoginPage.helpers.ts
+import { Page } from '@playwright/test';
+
+/**
+ * @steps
+ * 1. Navigate to {{ENV.BASE_URL}}
+ * 2. Enter {{email}} in the email field on the Microsoft SSO login page
+ * 3. Enter {{password}} in the password field
+ * 4. Click the Sign In button
+ * 5. Wait for the ServicerHome page to load
+ * 6. VERIFY: ServicerHome page is loaded and the left navigation panel is visible
+ */
+export async function login(page: Page, email: string, password: string): Promise<void> {
+  await page.goto(process.env.BASE_URL!);
+  await page.fill('#loginfmt', email);
+  await page.click('#idSIButton9');
+  await page.fill('#passwordInput', password);
+  await page.click('#submitButton');
+  await page.waitForURL('**/ServicerHome/**');
+}
+```
+
+**How to reference it in a scenario:**
+
+```markdown
+## Common Setup Once
+1. USE_HELPER: SSOLoginPage.login with {{ENV.SSO_EMAIL}} / {{ENV.SSO_PASSWORD}}
+
+## Steps
+2. Click "SMEs" on the left navigation panel
+3. VERIFY: SME Insights page is loaded
+...
+```
+
+**What happens at each pipeline stage:**
+
+| Stage | What happens |
+|---|---|
+| **Enricher** | Passes `USE_HELPER` through (no verification) |
+| **Explorer** | Reads `SSOLoginPage.helpers.ts`, finds `login()`, parses the `@steps` block, walks all 6 steps in the live browser. **No element capture** — selectors are the human engineer's responsibility. Records `<!-- HELPER_WALKED: SSOLoginPage.login — 6 @steps executed -->` in enriched.md. |
+| **Builder** | Generates a single function call: `await ssoLoginPage.login(page, email, password)` in the appropriate lifecycle hook (`test.beforeAll` for Common Setup Once). |
+| **Executor** | Runs the test. The helper function executes the human-written TypeScript implementation. |
+
+**Rules for `@steps`:**
+
+1. **Same DSL as scenario files.** Numbered steps, standard keywords (VERIFY, CAPTURE, SCREENSHOT, etc.).
+2. **Explorer walks for state advancement only — no element capture, ever.** The human engineer is responsible for selectors in the implementation.
+3. **Exported functions WITH `@steps` are callable via `USE_HELPER`.** Functions without `@steps` are treated as internal utilities and cannot be referenced from scenarios.
+4. **`USE_HELPER` works in all scenario sections:** `## Steps`, `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`. The Builder maps it to the correct lifecycle hook.
+
+**Returning values from helpers (CAPTURE):**
+
+If the helper captures a value, the `@steps` block documents what the function returns. The scenario captures it with `-> {{variable}}`:
+
+```typescript
+/**
+ * @steps
+ * 1. Click "Create User"
+ * 2. Fill in the user form
+ * 3. Click "Submit"
+ * 4. CAPTURE: the new user ID from the confirmation as {{userId}}
+ */
+export async function createTestUser(page: Page, data: UserData): Promise<string> {
+  // ... implementation
+  return userId;
+}
+```
+
+```markdown
+5. USE_HELPER: UserManagementPage.createTestUser -> {{newUserId}}
+6. Navigate to {{ENV.BASE_URL}}/users/{{newUserId}}
+```
+
+**Drift detection:** `scripts/review-precheck.js` verifies that every `USE_HELPER` reference in a scenario points to a function that has a `@steps` block. Missing blocks are flagged as precheck warnings — zero LLM tokens, runs in CI.
+
+**When NOT to use `@steps`:** Internal utility functions that don't interact with the app (data formatters, calculation helpers, assertion utilities). These don't need Explorer walkthrough and should NOT have `@steps`. They remain callable from TypeScript code directly but are not callable via `USE_HELPER` from scenarios.
+
 ### Authentication
 
 All credentials go in `output/.env` — never hardcoded in scenarios or generated code.

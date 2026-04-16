@@ -1111,7 +1111,7 @@ RIGHT: UiAutomator2 performance settings applied in the `before()` hook (see `te
 
 ### 16.9 Mobile Lifecycle Hooks — Code Pattern
 
-When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook. Mapping:
+When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook. `USE_HELPER` steps in these sections are emitted as helper function calls inside the hook — see `keyword-reference.md § USE_HELPER in lifecycle hooks` for the full pattern. Mapping:
 
 | Section in `.md` | Mocha hook |
 |---|---|

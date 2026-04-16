@@ -221,11 +221,107 @@ await cartPage.validateAllCartPrices();
 
 **Format:** `USE_HELPER: PageName.methodName` or `USE_HELPER: PageName.methodName -> {{variable}}`
 
+**Where USE_HELPER can appear:** Any section of a scenario — `## Steps`, `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`. The Builder maps it to the corresponding Playwright lifecycle hook or test body.
+
 **HARD STOP:** If the helpers file does not exist or the method is not found:
 - Do NOT create the helpers file
 - Do NOT add the method to the base page object
 - Emit a warning comment: `// WARNING: USE_HELPER requested CartPage.calculateTotalPrice but CartPage.helpers.ts not found`
 - Mark the test step with `test.fixme('MISSING HELPER: CartPage.calculateTotalPrice')`
+
+### `@steps` — DSL in Helper Functions (Explorer-Walkable Helpers)
+
+Team-maintained helper functions can carry a **`@steps` JSDoc tag** containing scenario DSL — the same numbered steps and keywords used in scenario `.md` files. This makes helpers **transparent to the Explorer**: instead of treating `USE_HELPER` as an opaque black box, the Explorer reads the `@steps` block and walks each step in the live browser for **state advancement**.
+
+**Why this matters:** Without `@steps`, a `USE_HELPER` that does state-changing work (login, form submission, navigation) leaves the application in the wrong state — the Explorer skipped the interactions, so everything after the helper call fails. With `@steps`, the Explorer performs every interaction, the app state advances correctly, and all subsequent steps succeed.
+
+#### Format
+
+```typescript
+// SSOLoginPage.helpers.ts
+import { Page } from '@playwright/test';
+
+/**
+ * @steps
+ * 1. Navigate to {{ENV.BASE_URL}}
+ * 2. Enter {{email}} in the email field on the Microsoft SSO login page
+ * 3. Enter {{password}} in the password field
+ * 4. Click the Sign In button
+ * 5. Wait for the ServicerHome page to load
+ * 6. VERIFY: ServicerHome page is loaded and the left navigation panel is visible
+ */
+export async function login(page: Page, email: string, password: string): Promise<void> {
+  await page.goto(process.env.BASE_URL!);
+  await page.fill('#loginfmt', email);
+  await page.click('#idSIButton9');
+  await page.fill('#passwordInput', password);
+  await page.click('#submitButton');
+  await page.waitForURL('**/ServicerHome/**');
+}
+
+/**
+ * @steps
+ * 1. Click "SMEs" on the left navigation panel
+ * 2. VERIFY: The SME Insights page is loaded and the National Specialty widget is visible
+ * 3. Wait for the data grid within the National Specialty widget to finish loading
+ */
+export async function navigateToNationalSpecialty(page: Page): Promise<void> {
+  await page.click('a:has-text("SMEs")');
+  await page.waitForSelector('[id="ProducerDataGrid2"]');
+}
+```
+
+#### Rules
+
+1. **`@steps` uses the same DSL as scenario files.** Numbered steps, same keywords (VERIFY, VERIFY_SOFT, CAPTURE, SCREENSHOT, etc.). The Explorer processes them identically to regular scenario steps.
+2. **Explorer walks `@steps` for state advancement ONLY — no element capture, ever.** The helper code is human-written, so the Explorer does not need to discover selectors. It clicks, fills, navigates, and verifies — but does NOT produce ELEMENT annotations for helper steps. Selectors are the human engineer's responsibility.
+3. **Exported functions WITH `@steps` → callable via `USE_HELPER`.** The Explorer reads and walks the steps; the Builder generates a function call.
+4. **Exported functions WITHOUT `@steps` → internal utilities.** NOT callable via `USE_HELPER`. If a scenario references a function that has no `@steps` block, the Builder MUST emit the same hard-stop as a missing function: `// WARNING: USE_HELPER requested X but no @steps found` + `test.fixme('MISSING @steps: X')`.
+5. **Non-exported functions** are invisible to the framework entirely.
+
+#### CAPTURE in `@steps` — Return Values
+
+When a helper's `@steps` block contains a CAPTURE keyword, it serves as a **specification** for what the function returns. At runtime, the human-written TypeScript function implements the capture logic and returns the value. The calling scenario captures it via the `-> {{variable}}` syntax.
+
+**Single CAPTURE** → function returns a value directly:
+```typescript
+/**
+ * @steps
+ * 1. Click "Create User" button
+ * 2. Fill in the user form with test data
+ * 3. Click "Submit"
+ * 4. Wait for success confirmation
+ * 5. CAPTURE: the new user ID from the confirmation message as {{userId}}
+ */
+export async function createTestUser(page: Page, userData: UserData): Promise<string> {
+  // ... implementation
+  return userId;
+}
+```
+
+Scenario: `USE_HELPER: UserManagementPage.createTestUser -> {{newUserId}}`
+Builder generates: `const newUserId = await userManagementPage.createTestUser(page, userData);`
+
+**Multiple CAPTUREs** → function returns an object:
+```typescript
+/**
+ * @steps
+ * 1. Place the order
+ * 2. CAPTURE: order number as {{orderNumber}}
+ * 3. CAPTURE: confirmation code as {{confirmationCode}}
+ */
+export async function placeOrder(page: Page): Promise<{ orderNumber: string; confirmationCode: string }> {
+  // ... implementation
+  return { orderNumber, confirmationCode };
+}
+```
+
+Scenario: `USE_HELPER: CheckoutPage.placeOrder -> {{orderResult}}`
+Subsequent steps use: `{{orderResult.orderNumber}}`, `{{orderResult.confirmationCode}}`
+
+#### Drift Detection
+
+The `@steps` block and the TypeScript implementation can drift if someone updates one but not the other. This is checked by `scripts/review-precheck.js` — see the script's `@steps` validation check. It verifies that every `USE_HELPER` reference in the spec points to a function that has a `@steps` block, and flags missing blocks as a precheck warning.
 
 ---
 
@@ -620,6 +716,36 @@ test.describe('Feature Name', () => {
 });
 ```
 
+**USE_HELPER in lifecycle hooks:** `USE_HELPER` steps can appear in any section. The Builder generates the helper function call inside the corresponding hook:
+
+```typescript
+test.describe('National Specialty Suite', () => {
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    // USE_HELPER: SSOLoginPage.login — from Common Setup Once
+    await ssoLoginPage.login(page, process.env.SSO_EMAIL!, process.env.SSO_PASSWORD!);
+    await page.context().storageState({ path: 'test-results/.auth/session.json' });
+    await page.close();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // USE_HELPER: NavigationHelper.goToNationalSpecialty — from Common Setup
+    await navigationHelper.goToNationalSpecialty(page);
+  });
+
+  test('Sort by Specialty', { tag: ['@regression'] }, async ({ page }) => {
+    // Scenario steps start here — grid is already loaded
+  });
+
+  test.afterAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    // USE_HELPER: SSOLoginPage.logout — from Common Teardown Once
+    await ssoLoginPage.logout(page);
+    await page.close();
+  });
+});
+```
+
 **beforeAll/afterAll fixture constraint:** These hooks receive only `{ browser }` from Playwright. If the hook steps require a page, create one manually: `const page = await browser.newPage()` and close it when done. If they require API calls, create a request context: `const ctx = await playwrightRequest.newContext()` and dispose it when done. Always clean up created resources.
 
 **Executor rule:** If `beforeAll` or `afterAll` code uses `{ page }` or `{ request }` fixtures directly, that is a code error — fix by switching to `{ browser }` and creating resources manually.
@@ -917,6 +1043,20 @@ await homeScreen.dismissLoginPrompt();
 ```
 
 The helper file lives at `output/screens/{ScreenName}.helpers.ts` and exports an `applyHelpers(screen)` function (or extends the class). The Builder MUST NOT create or modify helper files — they are team-owned.
+
+**`@steps` for mobile helpers:** The same `@steps` JSDoc convention applies to mobile helpers. The Explorer (via Appium MCP) walks the `@steps` in the live app for state advancement — no element capture. Use mobile-appropriate action language in the `@steps` block (Tap instead of Click, Swipe instead of Scroll).
+
+```typescript
+/**
+ * @steps
+ * 1. Tap "Not Now" or "Later" if a login prompt appears
+ * 2. Tap the close button if a promotional banner is visible
+ * 3. VERIFY: The home screen search bar is visible
+ */
+export function dismissLoginPrompt(screen: FlipkartHomeScreenWithHelpers): Promise<void> {
+  // ... implementation
+}
+```
 
 **HARD STOP:** Same as web — if the helpers file does not exist or the method is missing:
 - Do NOT create the helpers file
