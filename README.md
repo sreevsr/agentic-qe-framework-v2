@@ -543,6 +543,25 @@ Every enriched scenario includes a `## Detail Level` note that tells you how muc
 
 **HIGH-LEVEL scenarios are starting points, not final specifications.** The Explorer produces the definitive `.enriched.md` with actual discovered steps after walking the live app.
 
+#### Original description preservation
+
+When the Enricher converts natural language to a structured scenario, it **preserves your original input** as a `## Original Description` section at the bottom of the generated file:
+
+```markdown
+## Notes for Explorer
+- App uses Microsoft SSO
+- Grid uses PCF with SVG filter icons
+
+## Original Description
+> I want to test the National Specialty grid — log in via SSO, navigate to
+> SME Insights, expand the grid, sort by Specialty, filter for "Sports",
+> check pagination, and verify the "By specialty" dropdown filter.
+```
+
+Your exact words are kept — typos, abbreviations, and all. This serves as a record of what you originally asked for, making it easy to compare your intent against the structured steps the Enricher produced. If you re-enrich with updated NL, the section is replaced with your new input.
+
+The `## Original Description` section is **not added** for passthrough (your input was already structured) or Swagger-to-scenario generation (the spec file path is recorded in the enrichment report instead).
+
 #### Confidence score
 
 After enrichment, the Enricher assesses its confidence in the generated scenario:

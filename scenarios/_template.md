@@ -108,3 +108,9 @@
 - [For API scenarios: no browser exploration needed]
 - [For Hybrid: API steps use request fixture, UI steps use browser]
 - [For Mobile: specify platform (Android/iOS) and app package/bundle ID]
+
+<!-- ## Original Description -->
+<!-- Enrichment Agent ONLY: when converting natural language to structured steps, -->
+<!-- preserve the user's original NL input here as a blockquote. Omit this section -->
+<!-- for passthrough (input was already structured) or hand-written scenarios. -->
+<!-- > [user's original natural language description] -->

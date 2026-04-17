@@ -129,6 +129,37 @@ If the resolved slot is empty, or the file doesn't exist under `scenarios/app-co
    - Assertion steps use "VERIFY:" or "VERIFY_SOFT:"
    - After each significant action, add a VERIFY step (the user may not think to ask for it)
 4. **Tags** — at minimum: the test type and a priority
+5. **`## Original Description`** — preserve the user's original natural language input as the LAST section of the file (after `## Notes for Explorer`). See §4.4a below.
+
+### 4.4a: Original Description Preservation — MANDATORY
+
+**Users must never lose their original natural language input.** When the Enricher converts NL to structured steps, it MUST capture the original text and include it as a `## Original Description` section at the very end of the output file, formatted as a blockquote.
+
+**When to include:**
+
+| Input type | Include `## Original Description`? |
+|---|---|
+| **Natural language** (free text, inline in chat or in a file) | **YES** — capture the exact original text |
+| **Partial/mixed** (file with some structure but vague steps) | **YES** — capture the original file content before enrichment |
+| **Swagger/OpenAPI spec** | **NO** — the spec is a structured input, not prose. The spec file path is recorded in the enrichment report instead. |
+| **Structured `.md` (passthrough)** | **NO** — no enrichment was performed, the file is not overwritten |
+
+**Format:**
+
+```markdown
+## Original Description
+> I want to test the National Specialty grid — log in via SSO, navigate to
+> SME Insights, expand the grid, sort by Specialty, filter for "Sports",
+> check pagination, and verify the "By specialty" dropdown filter.
+```
+
+**Rules:**
+1. **Capture the EXACT original text** — do not paraphrase, summarize, or clean up the user's words. Preserve typos, abbreviations, and informal language. The original is a record of what the user asked for.
+2. **Use blockquote (`>`) formatting** — this visually distinguishes the original NL from the structured sections above it.
+3. **Place as the LAST section** — after `## Notes for Explorer`, after `## Detail Level`, after everything else. The structured specification is primary; the original is a reference appendix.
+4. **If the input was provided inline in the chat** (not as a file), capture the user's message text — everything they typed as the scenario description, excluding meta-instructions like "type web" or "save to scenarios/web/...".
+5. **If the input was a file** (e.g., `scenarios/web/my-test.md` containing NL), read the file's content BEFORE overwriting, and use that content as the original description.
+6. **On re-enrichment:** if the file already has a `## Original Description` section and the user is providing NEW NL input, replace the old `## Original Description` with the new input. If the user is re-enriching without new input (e.g., "re-enrich this scenario"), preserve the existing `## Original Description` as-is.
 
 ### 4.5: Enrichment Rules — MANDATORY
 
