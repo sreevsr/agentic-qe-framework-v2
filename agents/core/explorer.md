@@ -565,6 +565,54 @@ The Explorer report documents:
 
 ---
 
+## 6a. Time Tracking and Metrics — MANDATORY
+
+**HARD STOP: Every Explorer run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before any pre-flight reads): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after writing enriched.md, explorer report, and all outputs): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the explorer report: replace `~{N} minutes` with the actual duration.
+
+### Metrics JSON — MANDATORY Output
+
+**MUST** write a metrics file to `output/reports/metrics/explorer-metrics-{scenario}.json` on EVERY run.
+
+```json
+{
+  "agent": "explorer",
+  "scenario": "{scenario-name}",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp}",
+  "endTime": "{ISO timestamp}",
+  "durationMs": 0,
+  "stepsExplored": 0,
+  "stepsVerifiedFirstTry": 0,
+  "stepsRequiredRetry": 0,
+  "stepsBlocked": 0,
+  "elementsDiscovered": 0,
+  "pagesVisited": 0,
+  "helpersWalked": 0,
+  "appContextUpdated": false,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
+}
+```
+
+**Field rules:**
+- `stepsExplored`: total steps walked (including helper @steps)
+- `stepsVerifiedFirstTry`: steps that succeeded on first attempt
+- `stepsRequiredRetry`: steps that needed retries (up to maxAttemptsPerStep)
+- `stepsBlocked`: steps that failed after all retries
+- `elementsDiscovered`: count of ELEMENT annotations produced
+- `pagesVisited`: count of distinct page sections in enriched.md
+- `helpersWalked`: count of USE_HELPER steps where @steps were walked
+
+---
+
 ## 7. App-Context Updates
 
 If the Explorer discovers new patterns during flow verification (e.g., a modal appears after clicking a button, a page redirects unexpectedly), update the app-context file:

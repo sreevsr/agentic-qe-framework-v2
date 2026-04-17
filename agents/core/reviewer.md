@@ -219,6 +219,52 @@ Save scorecard to:
 
 ---
 
+## 7a. Time Tracking and Metrics — MANDATORY
+
+**HARD STOP: Every Reviewer run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before reading precheck report or any files): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after writing the scorecard): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+
+### Metrics JSON — MANDATORY Output
+
+**MUST** write a metrics file to `output/reports/metrics/reviewer-metrics-{scenario}.json` on EVERY run.
+
+```json
+{
+  "agent": "reviewer",
+  "scenario": "{scenario-name}",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp}",
+  "endTime": "{ISO timestamp}",
+  "durationMs": 0,
+  "verdict": "APPROVED|NEEDS FIXES",
+  "overallScore": 0.0,
+  "dimensionScores": {
+    "dim1": 0, "dim2": 0, "dim3": 0, "dim4": 0, "dim5": 0,
+    "dim6": 0, "dim7": 0, "dim8": 0, "dim9": 0
+  },
+  "criticalIssues": 0,
+  "recommendations": 0,
+  "precheckUsed": true,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
+}
+```
+
+**Field rules:**
+- `overallScore`: the final weighted score (0-10 scale)
+- `dimensionScores`: individual score per dimension (1-9)
+- `criticalIssues`: count of issues that forced NEEDS FIXES verdict
+- `recommendations`: count of non-blocking suggestions
+- `precheckUsed`: true if `review-precheck.js` output was available and consumed
+
+---
+
 ## 8. What the Reviewer MUST NOT Do
 
 - **MUST NOT modify ANY files** — auditor, not fixer

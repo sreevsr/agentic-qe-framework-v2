@@ -580,6 +580,49 @@ Save to: `output/reports/enrichment-report-{scenario}.md`
 
 ---
 
+## 7a. Time Tracking and Metrics — MANDATORY
+
+**HARD STOP: Every Enrichment Agent run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before any pre-flight reads or input processing): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after writing the enriched scenario, report, and all outputs): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the enrichment report: replace `~{N} minutes` with the actual duration.
+
+### Metrics JSON — MANDATORY Output
+
+**MUST** write a metrics file to `output/reports/metrics/enrichment-metrics-{scenario}.json` on EVERY run (including passthrough — even passthrough has a duration).
+
+```json
+{
+  "agent": "enricher",
+  "scenario": "{scenario-name}",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp from step 1}",
+  "endTime": "{ISO timestamp from step 2}",
+  "durationMs": 0,
+  "inputType": "{natural-language|partial|swagger|passthrough}",
+  "clarificationRounds": 0,
+  "confidenceScore": 0.0,
+  "stepsProduced": 0,
+  "assumptionCount": 0,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
+}
+```
+
+**Field rules:**
+- `confidenceScore`: 0.0 for passthrough (no enrichment performed), otherwise the actual score from §4.8
+- `clarificationRounds`: 0 if no questions asked, 1 or 2 otherwise
+- `stepsProduced`: count of numbered steps in the output scenario
+- `assumptionCount`: count of assumptions listed in the `## Notes` section
+- `contextWindowPercent` and `tokenEstimate`: write the literal string shown above — most platforms do not expose these values. If the platform DOES expose them, write the actual values.
+
+---
+
 ## 8. Output Location
 
 **MUST** save the enriched scenario to:

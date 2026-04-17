@@ -48,7 +48,7 @@ if (fs.existsSync(resultsFile)) {
 const agentMetrics = [];
 if (fs.existsSync(metricsDir)) {
   fs.readdirSync(metricsDir)
-    .filter(f => f.match(/^(explorer|executor|enrichment|reviewer)-metrics-/))
+    .filter(f => f.match(/^(enrichment|explorer|builder|executor|reviewer|healer|orchestrator)-metrics-/))
     .filter(f => !scenarioFilter || f.includes(scenarioFilter))
     .forEach(f => {
       try { agentMetrics.push(JSON.parse(fs.readFileSync(path.join(metricsDir, f), 'utf-8'))); }

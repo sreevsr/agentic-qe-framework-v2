@@ -261,7 +261,18 @@ Before saving this report, verify:
 
 ---
 
-## 8. Healer Metrics — MANDATORY
+## 8. Time Tracking and Healer Metrics — MANDATORY
+
+**HARD STOP: Every Healer run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before reading the scorecard or any files): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after all fix cycles complete and the healer report is written): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the healer report: replace `~{N} minutes` with the actual duration.
+
+### Metrics JSON — MANDATORY Output
 
 **MUST** write to `output/reports/metrics/healer-metrics-{scenario}.json`:
 
@@ -269,9 +280,9 @@ Before saving this report, verify:
 {
   "agent": "healer",
   "scenario": "{scenario-name}",
-  "type": "{web|api|hybrid}",
-  "startTime": "ISO timestamp",
-  "endTime": "ISO timestamp",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp from step 1}",
+  "endTime": "{ISO timestamp from step 2}",
   "durationMs": 0,
   "issuesReceived": 0,
   "issuesCritical": 0,
@@ -288,8 +299,8 @@ Before saving this report, verify:
   "scoreBefore": 0,
   "scoreAfter": 0,
   "scoreDelta": 0,
-  "contextWindowPercent": 0,
-  "tokenEstimate": 0,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
   "metricsVersion": "2.1.0"
 }
 ```

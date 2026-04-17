@@ -431,6 +431,72 @@ Where:
 
 ---
 
+## 8a. Time Tracking and Stage Boundary Timestamps — MANDATORY
+
+**HARD STOP: The Orchestrator MUST track its own wall-clock time AND timestamp every stage boundary.**
+
+### Orchestrator Timer
+
+1. **FIRST ACTION** (before any pre-flight reads): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `pipelineStartTime`.
+2. **LAST ACTION** (after writing the pipeline summary): run the same command and record as `pipelineEndTime`.
+3. Compute `pipelineDurationMs` and fill the **Pipeline Duration** field in the pipeline summary.
+
+### Stage Boundary Timestamps
+
+**Before delegating to EACH agent and after receiving its output**, record the timestamp. This produces a stage-by-stage timing breakdown:
+
+```
+[2026-04-17T10:00:05Z] Pipeline START
+[2026-04-17T10:00:10Z] Stage 0 (Enricher) START
+[2026-04-17T10:02:30Z] Stage 0 (Enricher) END — 2m 20s
+[2026-04-17T10:02:32Z] Stage 1-pre (Incremental Detection) START
+[2026-04-17T10:02:35Z] Stage 1-pre (Incremental Detection) END — 3s
+[2026-04-17T10:02:36Z] Stage 1a (Explorer) START
+[2026-04-17T10:15:00Z] Stage 1a (Explorer) END — 12m 24s
+...
+```
+
+**How to record:** Before each stage, run `date -u +"%Y-%m-%dT%H:%M:%SZ"`. After receiving the agent's output, run it again. Store both timestamps. You will use these to populate the **Stage Duration** table in the pipeline summary.
+
+### Orchestrator Metrics JSON — MANDATORY Output
+
+**MUST** write to `output/reports/metrics/orchestrator-metrics-{scenario}.json`:
+
+```json
+{
+  "agent": "orchestrator",
+  "scenario": "{scenario-name}",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "pipelineStartTime": "{ISO timestamp}",
+  "pipelineEndTime": "{ISO timestamp}",
+  "pipelineDurationMs": 0,
+  "stageBoundaries": [
+    { "stage": "enricher", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|skipped|failed" },
+    { "stage": "incremental-detection", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|skipped" },
+    { "stage": "explorer", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|failed" },
+    { "stage": "builder", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|failed" },
+    { "stage": "cleanup-annotations", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|skipped" },
+    { "stage": "executor", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|failed" },
+    { "stage": "reviewer", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|failed" },
+    { "stage": "healer", "startTime": "{ISO}", "endTime": "{ISO}", "durationMs": 0, "status": "completed|skipped" }
+  ],
+  "stagesCompleted": 0,
+  "stagesSkipped": 0,
+  "stagesFailed": 0,
+  "finalVerdict": "APPROVED|NEEDS FIXES|TESTS FAILING",
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
+}
+```
+
+**Field rules:**
+- `stageBoundaries`: one entry per stage that was attempted. Omit stages that were never reached (e.g., if Executor fails, Reviewer and Healer entries are omitted).
+- `status`: `completed` (agent finished successfully), `skipped` (stage was conditional and not needed — e.g., Enricher skipped for structured input, Healer skipped for APPROVED verdict), `failed` (agent failed or returned incomplete output).
+- Timestamps come from the `date` commands run at each stage boundary — NOT estimated, NOT rounded.
+
+---
+
 ## 9. Subagent Context Rules
 
 - Each subagent gets its own context window — it does NOT see your history

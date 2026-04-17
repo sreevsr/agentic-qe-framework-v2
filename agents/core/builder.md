@@ -367,6 +367,54 @@ Save to: `output/reports/builder-report-{scenario}.md`
 
 ---
 
+## 6a. Time Tracking and Metrics — MANDATORY
+
+**HARD STOP: Every Builder run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before any pre-flight reads): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after writing all generated files and the builder report): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the builder report: replace `~{N} minutes` with the actual duration.
+
+### Metrics JSON — MANDATORY Output
+
+**MUST** write a metrics file to `output/reports/metrics/builder-metrics-{scenario}.json` on EVERY run.
+
+```json
+{
+  "agent": "builder",
+  "scenario": "{scenario-name}",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp}",
+  "endTime": "{ISO timestamp}",
+  "durationMs": 0,
+  "filesGenerated": 0,
+  "locatorKeysCreated": 0,
+  "pageObjectsCreated": 0,
+  "specStepsGenerated": 0,
+  "methodsGenerated": 0,
+  "incrementalMode": false,
+  "stepsChanged": 0,
+  "stepsUnchanged": 0,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
+}
+```
+
+**Field rules:**
+- `filesGenerated`: total count of files written (page objects + locators + spec + test data)
+- `locatorKeysCreated`: total keys across all locator JSON files
+- `pageObjectsCreated`: count of page/screen object `.ts` files
+- `specStepsGenerated`: count of `test.step()` blocks (web) or `// Step N —` markers (mobile)
+- `methodsGenerated`: count of methods across all page/screen objects
+- `incrementalMode`: true if `builder-instructions.json` existed (incremental update)
+- `stepsChanged` / `stepsUnchanged`: from incremental mode markers (0 if not incremental)
+
+---
+
 ## 7. What the Builder MUST NOT Do
 
 | Action | Belongs To | Why |

@@ -508,7 +508,18 @@ The executor metrics JSON MUST include these fields for cross-validation:
 
 ---
 
-## 6. Metrics — MANDATORY
+## 6. Time Tracking and Metrics — MANDATORY
+
+**HARD STOP: Every Executor run MUST track its own wall-clock duration and write a metrics JSON file.**
+
+### Recording Time
+
+1. **FIRST ACTION** (before any pre-flight checks): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
+2. **LAST ACTION** (after all fix cycles complete and the executor report is written): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
+3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the executor report: replace `~{N}s` and `~{N} minutes` with the actual duration.
+
+### Metrics JSON — MANDATORY Output
 
 **MUST** write to `output/reports/metrics/executor-metrics-{scenario}.json`:
 
@@ -516,20 +527,25 @@ The executor metrics JSON MUST include these fields for cross-validation:
 {
   "agent": "executor",
   "scenario": "{scenario-name}",
-  "type": "{web|api|hybrid}",
-  "startTime": "ISO timestamp",
-  "endTime": "ISO timestamp",
+  "type": "{web|api|hybrid|mobile|mobile-hybrid}",
+  "startTime": "{ISO timestamp from step 1}",
+  "endTime": "{ISO timestamp from step 2}",
   "durationMs": 0,
   "preFlightIssuesFixed": 0,
   "cyclesRun": 0,
+  "testExecutionCount": 0,
   "finalStatus": "PASSING|FAILING",
   "testsPassed": 0,
   "testsFailed": 0,
   "testsTotal": 0,
   "fixesApplied": 0,
+  "healedSelectors": 0,
   "escalatedIssues": 0,
   "unfixableMarkers": 0,
-  "appContextUpdated": false
+  "appContextUpdated": false,
+  "contextWindowPercent": "Platform does not expose context window usage",
+  "tokenEstimate": "Platform does not expose token count",
+  "metricsVersion": "2.1.0"
 }
 ```
 

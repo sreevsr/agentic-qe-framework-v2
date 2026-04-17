@@ -5,10 +5,6 @@
     "maxAttemptsPerStep": 5,
     "snapshotTimeoutMs": 5000,
     "interactionTimeoutMs": 60000,
-    "browser": {
-      "viewport": null,
-      "$comment": "viewport: { \"width\": 1920, \"height\": 1080 } to set Explorer browser size. null = browser default. Override per-developer via EXPLORER_VIEWPORT=1920,1080 in output/.env."
-    },
     "$comment": "maxAttemptsPerStep: how many times Explorer retries a failing interaction before flagging in enriched.md"
   },
 
@@ -54,13 +50,8 @@
   },
 
   "appContext": {
-    "web": "uat-scout.md",
-    "api": "",
-    "mobile": {
-      "android": "flipkart-android.md",
-      "ios": ""
-    },
-    "$comment": "Per-type app-context filenames in scenarios/app-contexts/. The recommended model is ONE REPO PER APPLICATION — a team owns one app that may have web + mobile + API sides, and all three sit in this block. Agents MUST resolve the filename from this block by the scenario's type (and platform for mobile), not from the scenario name, folder, or URL. Resolution rules: web → appContext.web; api → appContext.api; hybrid → appContext.web (+ optionally merge appContext.api); mobile → appContext.mobile.{android|ios} based on PLATFORM env var at runtime; mobile-hybrid → appContext.mobile.{android|ios} (+ optionally merge appContext.api). Empty string means 'no app-context for this type — skip the load cleanly.' For mobile, android and ios split because UI frameworks (Jetpack Compose vs SwiftUI), permission flows, and gesture patterns often differ enough to warrant separate learned-pattern files; use the same filename in both slots if your app shares enough across platforms. `hybrid` and `mobile-hybrid` are NOT separate keys here because they are scenario compositions (UI + API calls) that reuse the underlying type's app-context. The API slot is often empty — useful only when the API has non-standard auth, pagination, or error-code idioms that need documentation. The legacy flat `filename` key from earlier releases is NO LONGER READ — migrate by moving the filename under the slot matching your primary scenario type."
+    "filename": "uat-scout.md",
+    "$comment": "filename: the app-context file name in scenarios/app-contexts/. ALL agents MUST use this exact filename — do NOT guess from URL, domain, or app name. Change this value when onboarding a different application."
   },
 
   "mobile": {
