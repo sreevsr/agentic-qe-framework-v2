@@ -163,14 +163,17 @@ test.describe('{Feature Name}', () => {
     const loginPage = new LoginPage(page);
 
     await test.step('Step 1 — Navigate to login page', async () => {
+      console.log(`[${new Date().toISOString()}] Step 1 — Navigate to login page`);
       await loginPage.goto(process.env.BASE_URL!);
     });
 
     await test.step('Step 2 — Enter username', async () => {
+      console.log(`[${new Date().toISOString()}] Step 2 — Enter username`);
       await loginPage.fillUsername(process.env.TEST_USERNAME!);
     });
 
     await test.step('Step 3 — VERIFY: Login successful', async () => {
+      console.log(`[${new Date().toISOString()}] Step 3 — VERIFY: Login successful`);
       await expect(page).toHaveURL(/\/dashboard/);
     });
   });
@@ -187,6 +190,7 @@ test.describe('{Feature Name}', () => {
 6. **All `{{ENV.VARIABLE}}` MUST become `process.env.VARIABLE`** — NEVER hardcode values
 7. **DO NOT add steps that are not in the scenario** — the spec is a faithful translation, not an enhancement
 8. **DO NOT combine, merge, or simplify steps** — every scenario step = one test.step block
+9. **EVERY `test.step()` MUST begin with a `console.log` as the first line inside the block** — this provides real-time terminal visibility during test execution and CI/CD pipeline logs. Format: `` console.log(`[${new Date().toISOString()}] Step N — {description}`) ``. Use template literals for runtime values so the log shows actual data. This rule applies to ALL scenario types that use `test.step()` (web, api, hybrid). For mobile/Mocha patterns see §16 below.
 
 ---
 
@@ -884,22 +888,28 @@ describe('Speedtest — Run Speed Test @smoke @P0 @android-only', () => {
 
   it('should run a speed test and verify results @smoke @P0', async () => {
     // Step 1 — Wait for home screen
+    console.log(`[${new Date().toISOString()}] Step 1 — Wait for home screen`);
     await homeScreen.waitForScreen();
 
     // Step 2 — VERIFY: GO button visible
+    console.log(`[${new Date().toISOString()}] Step 2 — VERIFY: GO button visible`);
     expect(await homeScreen.isGoButtonVisible()).toBe(true);
 
     // Step 3 — Tap GO
+    console.log(`[${new Date().toISOString()}] Step 3 — Tap GO`);
     await homeScreen.tapGoButton();
 
     // Step 4 — Wait for results
+    console.log(`[${new Date().toISOString()}] Step 4 — Wait for results`);
     await resultsScreen.waitForResults(testData.timeouts.testCompletionMs);
 
     // Step 5 — VERIFY: Download speed > 0
+    console.log(`[${new Date().toISOString()}] Step 5 — VERIFY: Download speed > 0`);
     const downloadSpeed = await resultsScreen.getDownloadSpeed();
     expect(parseFloat(downloadSpeed)).toBeGreaterThan(0);
 
     // Step 6 — SCREENSHOT
+    console.log(`[${new Date().toISOString()}] Step 6 — SCREENSHOT`);
     await resultsScreen.takeScreenshot('speedtest-results');
   });
 });
@@ -916,6 +926,7 @@ describe('Speedtest — Run Speed Test @smoke @P0 @android-only', () => {
 8. **Platform tag MANDATORY** — every top-level `describe` title MUST include exactly one of `@android-only`, `@ios-only`, or `@cross-platform` (see §16.3a below)
 9. **Screen instantiation** — `new ScreenName(browser)` in `before()` hook, NOT in each test
 10. **CAPTURE variables** — `let` in outer `describe` scope, assigned inside `it()`
+11. **EVERY `// Step N —` comment marker MUST be followed by a `console.log` as the next line** — format: `` console.log(`[${new Date().toISOString()}] Step N — {description}`) ``. This provides real-time terminal visibility during mobile test execution and CI/CD pipeline logs. Consistent with the web/api/hybrid `test.step()` logging rule.
 
 ### 16.3a Platform Tag — MANDATORY in every mobile spec title
 

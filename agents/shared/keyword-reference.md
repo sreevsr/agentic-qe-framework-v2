@@ -138,12 +138,13 @@ await test.info().attach('checkout-overview', { body: screenshot, contentType: '
 // The step label with interpolated runtime value IS the primary report.
 // Use template literals so the HTML report shows real data.
 await test.step(`Step 8 — REPORT: Subtotal=${subtotal}, Tax=${tax}, Total=${total}`, async () => {
+  console.log(`[${new Date().toISOString()}] Step 8 — REPORT: Subtotal=${subtotal}, Tax=${tax}, Total=${total}`);
   test.info().annotations.push({ type: 'subtotal', description: subtotal });
   test.info().annotations.push({ type: 'tax', description: tax });
   test.info().annotations.push({ type: 'total', description: total });
 });
 ```
-**MANDATORY:** The `test.step()` label with template literals IS the report — humans read step labels in the HTML report. `console.log()` is NOT required. `annotations.push()` adds machine-readable data.
+**MANDATORY:** Every `test.step()` MUST begin with a `console.log` as its first line — format: `` console.log(`[${new Date().toISOString()}] Step N — {description}`) ``. This provides real-time terminal visibility during execution and CI/CD pipeline logs. The `test.step()` label with template literals IS the HTML report. `annotations.push()` adds machine-readable data.
 
 ---
 
@@ -821,9 +822,9 @@ console.log(`Download speed: ${downloadSpeed}`);
 
 ## Step Completeness Rule — MANDATORY
 
-**For web/api/hybrid:** Every step in the source scenario MUST produce a corresponding `await test.step('Step N — [description]', async () => { ... })` block in the test spec. NEVER combine, merge, or skip steps.
+**For web/api/hybrid:** Every step in the source scenario MUST produce a corresponding `await test.step('Step N — [description]', async () => { ... })` block in the test spec. The first line inside every `test.step()` MUST be a `console.log` with timestamp and step label: `` console.log(`[${new Date().toISOString()}] Step N — {description}`) ``. NEVER combine, merge, or skip steps.
 
-**For mobile/mobile-hybrid:** Every step MUST produce a `// Step N — [description]` comment marker (no `test.step()` in WDIO/Mocha). Count comment markers vs source steps — they **MUST match exactly**.
+**For mobile/mobile-hybrid:** Every step MUST produce a `// Step N — [description]` comment marker (no `test.step()` in WDIO/Mocha) followed immediately by a `console.log` with timestamp and step label: `` console.log(`[${new Date().toISOString()}] Step N — {description}`) ``. Count comment markers vs source steps — they **MUST match exactly**.
 
 After writing the spec, count step markers vs source steps — they **MUST match exactly**.
 
