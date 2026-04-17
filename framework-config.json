@@ -5,6 +5,10 @@
     "maxAttemptsPerStep": 5,
     "snapshotTimeoutMs": 5000,
     "interactionTimeoutMs": 60000,
+    "browser": {
+      "viewport": null,
+      "$comment": "viewport: { \"width\": 1920, \"height\": 1080 } to set Explorer browser size. null = browser default. Override per-developer via EXPLORER_VIEWPORT=1920,1080 in output/.env."
+    },
     "$comment": "maxAttemptsPerStep: how many times Explorer retries a failing interaction before flagging in enriched.md"
   },
 

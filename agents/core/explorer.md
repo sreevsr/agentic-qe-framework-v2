@@ -146,6 +146,23 @@ Read `output/.env` to get actual URLs and credentials for browser navigation. **
 - Do NOT update the enriched.md annotation for this step
 - If a FAST-walk interaction fails → escalate to DEEP (the step may have broken due to upstream changes)
 
+### Step 3.5: Browser Viewport Configuration — Before First Step
+
+**BEFORE walking any steps**, the Explorer MUST check for a viewport configuration and resize the browser if one is set. Some applications render differently at different resolutions — elements may be hidden behind responsive breakpoints, hamburger menus, or collapsible panels. Matching the target viewport ensures the Explorer sees the app exactly as it will render during test execution.
+
+**Resolution order (first non-empty value wins):**
+
+1. **`EXPLORER_VIEWPORT` in `output/.env`** — format: `EXPLORER_VIEWPORT=1920,1080` (width,height). If set to a non-empty value, use it. If set but blank (`EXPLORER_VIEWPORT=`), treat as "no preference" — skip to step 3.
+2. **`framework-config.json → exploration.browser.viewport`** — format: `{ "width": 1920, "height": 1080 }`. If present and not `null`, use it.
+3. **Both null/blank/unset → skip resize.** The browser opens at whatever size Playwright MCP defaults to. This is the current behavior and the safe default.
+
+**How to apply:** If a viewport is resolved from step 1 or 2, call the Playwright MCP `browser_resize` tool (or equivalent viewport resize action) with the resolved width and height as the very first action — before navigating to any URL or walking any step. This happens once per exploration session, not per step.
+
+**Log the decision:** Record in the Explorer report which viewport was applied and where it came from:
+- `Viewport: 1920×1080 (from EXPLORER_VIEWPORT in .env)`
+- `Viewport: 1920×1080 (from framework-config.json → exploration.browser.viewport)`
+- `Viewport: browser default (no viewport configured)`
+
 ---
 
 ## 4. The Core Loop — Navigate, Verify, Capture, Document
