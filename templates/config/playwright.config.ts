@@ -47,10 +47,9 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         channel: 'chrome',
         headless: process.env.HEADLESS !== 'false',
-        viewport: null, // null = match window size instead of forcing size to 1920x1080, else provide the size of rendered web page area, for ex., { width: 1920, height: 1080 }
+        viewport: { width: 1920, height: 1080 },
         launchOptions: {
           args: [
-            '--start-maximized',
             // Suppress Chrome's Private Network Access permission prompt
             '--disable-features=PrivateNetworkAccessPermissionPrompt',
             // Uncomment if CORS blocks test API calls from the browser:
