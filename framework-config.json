@@ -50,8 +50,13 @@
   },
 
   "appContext": {
-    "filename": "uat-scout.md",
-    "$comment": "filename: the app-context file name in scenarios/app-contexts/. ALL agents MUST use this exact filename — do NOT guess from URL, domain, or app name. Change this value when onboarding a different application."
+    "web": "",
+    "api": "",
+    "mobile": {
+      "android": "",
+      "ios": ""
+    },
+    "$comment": "Per-type app-context filenames in scenarios/app-contexts/. The recommended model is ONE REPO PER APPLICATION — a team owns one app that may have web + mobile + API sides, and all three sit in this block. Each team fills in their own filenames for the application they automate (e.g., 'web': 'my-app.md'). Agents MUST resolve the filename from this block by the scenario's type (and platform for mobile), not from the scenario name, folder, or URL. Resolution rules: web → appContext.web; api → appContext.api; hybrid → appContext.web (+ optionally merge appContext.api); mobile → appContext.mobile.{android|ios} based on PLATFORM env var at runtime; mobile-hybrid → appContext.mobile.{android|ios} (+ optionally merge appContext.api). Empty string means 'no app-context for this type — skip the load cleanly.' For mobile, android and ios split because UI frameworks (Jetpack Compose vs SwiftUI), permission flows, and gesture patterns often differ enough to warrant separate learned-pattern files; use the same filename in both slots if your app shares enough across platforms. `hybrid` and `mobile-hybrid` are NOT separate keys here because they are scenario compositions (UI + API calls) that reuse the underlying type's app-context. The API slot is often empty — useful only when the API has non-standard auth, pagination, or error-code idioms that need documentation. The legacy flat `filename` key from earlier releases is NO LONGER READ — migrate by moving the filename under the slot matching your primary scenario type."
   },
 
   "mobile": {
