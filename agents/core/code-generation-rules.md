@@ -707,6 +707,37 @@ When the Builder needs structural locators that weren't explicitly captured as i
 }
 ```
 
+### 12.6: Div-Based Table Readers — MANDATORY When `role=row` Is Primary
+
+When an ELEMENT annotation has `"type": "structural"` and its `primary` starts with `role=row`, the underlying element is an ARIA-role container div (common in OrangeHRM, Salesforce Lightning, Kendo/MUI/Ant Design data grids — apps where the table is built from `<div role="table">`, not native `<table><tr><td>`).
+
+**Critical Playwright behavior:** `locator.textContent()` on a `role=row` div returns the container's direct text, which for ARIA divs is typically empty string — content lives in child `div[role="cell"]` elements. This silently produces `""`, which passed through `expect.soft(text).toContain(...)` would make the assertion fail softly forever without investigation.
+
+**Rule — when generating a row-reader method for a `role=row` structural locator:**
+
+```typescript
+// ✅ CORRECT — collects text from child cells, works for div-based AND native <tr> tables
+async getClaimRowText(rowKey: string): Promise<string> {
+  const row = this.page.locator(this.loc.get(rowKey));
+  await row.waitFor({ state: 'visible', timeout: this.timeouts?.actionTimeoutMs ?? 30000 });
+  // ARIA div-tables: textContent on role=row is empty — collect from child cells
+  const cells = await row.locator('div[role="cell"], td').allTextContents();
+  return cells.map(c => c.trim()).filter(Boolean).join(' ');
+}
+
+// ❌ WRONG — returns "" on ARIA div-based tables; soft assertions then never verify
+async getClaimRowText(rowKey: string): Promise<string> {
+  return (await this.page.locator(this.loc.get(rowKey)).textContent()) ?? '';
+}
+```
+
+**Decision rule for the Builder:**
+- If primary selector starts with `role=row` → generate the child-cells reader above.
+- If primary selector is `tr:has-text(...)`, `tbody tr`, or another native `<tr>` pattern → `.textContent()` is acceptable (native rows have direct text nodes).
+- If unsure → default to the child-cells pattern. It works for BOTH native and ARIA tables, so it is the safer default.
+
+This rule exists because a "green" test that reads `""` for every row is worse than a red test — it hides a real assertion gap. See Explorer's "Row-Scoped Interactive Elements" table in the explorer report for row anchors.
+
 ---
 
 ## 13. Reusing Existing Code — MANDATORY Checks
@@ -1260,3 +1291,123 @@ describe('Login — data-driven @regression @android-only', () => {
 - The test data JSON file lives at `output/test-data/mobile/{scenario}-datasets.json`
 - Each row's identifying field MUST appear in the `it()` title for clear reporting
 - Tags appear in the title string (`@regression` etc.) — Mocha has no `tag` parameter
+
+---
+
+## 17. Visibility Assertions — MUST Have Bounded Wait (MANDATORY — HARD RULE)
+
+**This is the single most common source of flaky tests and Executor cycle waste across enterprise apps (SPAs, server-rendered apps with JS hydration, apps with animated modals, slow-hydrating grids, and anything whose DOM paints after the initial load event).**
+
+### 17.1 The Core Distinction — Snapshot vs Retrying Assertion
+
+Playwright has two different "is this visible?" APIs with very different semantics. Builder MUST use the correct one based on intent:
+
+| Intent (in the scenario) | Correct API | Reason |
+|---|---|---|
+| "Wait for the X page to load. VERIFY: X is displayed." | `await expect(loc).toBeVisible({ timeout })` | Retrying assertion — waits up to timeout for the element to render. Correct for VERIFY / VERIFY_SOFT. |
+| "VERIFY: X is NOT displayed (after an action)." | `await expect(loc).toBeHidden({ timeout })` or `.not.toBeVisible({ timeout })` | Retrying — waits for the transition. |
+| "If optional banner X is present, dismiss it." (existence gate) | `await loc.isVisible().catch(() => false)` | Synchronous snapshot — "is it there RIGHT NOW?" |
+| Inside a page-object `is{X}Visible(): Promise<boolean>` helper intended to drive branching control flow | `try { await loc.waitFor({state:'visible', timeout}); return true } catch { return false }` | Wrapped wait — returns bool only after bounded wait, not instant-false |
+
+**HARD RULE: `locator.isVisible()` is a synchronous DOM snapshot — it does NOT wait.** It returns `false` the instant the element is not rendered yet. On any app where the DOM paints after navigation (which is almost all enterprise apps — SPAs, React/Vue/Angular hydration, slow-loading grids, animated transitions), bare `isVisible()` followed by `expect(bool).toBeTruthy()` is the #1 cause of "element not found" Executor cycles.
+
+### 17.2 Spec File — How to Translate VERIFY Visibility Steps
+
+When the scenario says *"VERIFY: Dashboard page is displayed"* or *"Wait for X page to load. VERIFY: X is displayed"*:
+
+```typescript
+// ✅ CORRECT — retrying assertion via BasePage.getLocator()
+await test.step('Step 5 — VERIFY: Dashboard page is displayed', async () => {
+  console.log(`[${new Date().toISOString()}] Step 5 — VERIFY: Dashboard page is displayed`);
+  await expect(dashboardPage.getLocator('dashboardHeading')).toBeVisible({ timeout: 30000 });
+});
+
+// ✅ ALSO CORRECT — page-object is*Visible() helper that uses a bounded waitFor
+await test.step('Step 5 — VERIFY: Dashboard page is displayed', async () => {
+  console.log(`[${new Date().toISOString()}] Step 5 — VERIFY: Dashboard page is displayed`);
+  expect(await dashboardPage.isDashboardHeadingVisible()).toBeTruthy();
+});
+
+// ❌ WRONG — snapshot-based helper; returns false on slow SPA render
+// Page object:
+async isDashboardHeadingVisible(): Promise<boolean> {
+  return await this.page.locator(this.loc.get('dashboardHeading')).isVisible();
+}
+// Spec:
+expect(await dashboardPage.isDashboardHeadingVisible()).toBeTruthy();
+```
+
+**Preferred style:** Use `expect(pageObj.getLocator('key')).toBeVisible()` directly in the spec for VERIFY/VERIFY_SOFT when no special state logic is needed. It is shorter, has Playwright's built-in auto-retry, and makes the wait explicit in the spec. `BasePage.getLocator()` already exists and resolves via LocatorLoader.
+
+### 17.3 Page-Object `is{X}Visible()` Helpers — MANDATORY Wrapped Wait
+
+When a page object does need a boolean helper (e.g., to branch on optional widget presence, or because multiple spec steps reuse the same boolean), the helper MUST wrap a bounded `waitFor` — **never** bare `isVisible()`.
+
+```typescript
+// ✅ CORRECT — wrapped waitFor; returns false only after real wait
+async isDashboardHeadingVisible(timeoutMs?: number): Promise<boolean> {
+  try {
+    await this.page.locator(this.loc.get('dashboardHeading'))
+      .waitFor({ state: 'visible', timeout: timeoutMs ?? 30000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ❌ WRONG — instant-false snapshot; masquerades as a visibility check
+async isDashboardHeadingVisible(): Promise<boolean> {
+  return await this.page.locator(this.loc.get('dashboardHeading')).isVisible();
+}
+```
+
+**Timeout source:** read from config, do NOT hardcode in page objects where possible. If BasePage exposes `waitForReady`/`isReady` (added to the BasePage primitives), prefer those — they source the default timeout from one place and are trivially swappable to `expect(...).toBeVisible()` later. If BasePage primitives are not yet available in this project, the inline `waitFor` pattern above is fine.
+
+### 17.4 When Bare `isVisible()` IS Permitted — The Only Exceptions
+
+`locator.isVisible()` with NO wait is correct in exactly two cases:
+
+1. **Existence gates with `.catch(() => false)` — optional element is present RIGHT NOW**, dismiss it if so:
+   ```typescript
+   const cookieBanner = page.locator('[data-testid="cookie-accept"]');
+   if (await cookieBanner.isVisible({ timeout: 3000 }).catch(() => false)) {
+     await cookieBanner.click();
+   }
+   ```
+   The `{ timeout: 3000 }` makes this a **bounded** existence check, and `.catch(() => false)` makes it safe when the element is absent. This IS the correct pattern for optional popups, NOT a violation.
+
+2. **Post-wait confirmation on the SAME element** — after a prior `waitFor` or `expect(...).toBeVisible()` on the same element has already succeeded, a subsequent `isVisible()` is purely informational and carries no timing risk.
+
+**Everywhere else:** Use `expect(...).toBeVisible({ timeout })`, `locator.waitFor({ state: 'visible', timeout })`, or a page-object helper that wraps those.
+
+### 17.5 The `isWidgetVisible(key)` Generic Helper — Same Rule
+
+Generic multi-element helpers like `DashboardPage.isWidgetVisible(key)` follow the same rule. If VERIFY_SOFT steps call it, it MUST wait:
+
+```typescript
+// ✅ CORRECT
+async isWidgetVisible(key: string, timeoutMs = 10000): Promise<boolean> {
+  try {
+    await this.page.locator(this.loc.get(key)).waitFor({ state: 'visible', timeout: timeoutMs });
+    return true;
+  } catch { return false; }
+}
+```
+
+A shorter default timeout (e.g., 10s) is appropriate for VERIFY_SOFT widget checks where a fast-negative is desirable — a widget that isn't visible after 10s almost certainly isn't going to render.
+
+### 17.6 Summary — Builder Decision Tree
+
+```
+Scenario step is VERIFY / VERIFY_SOFT on element visibility?
+  ├── Prefer: await expect(pageObj.getLocator('key')).toBeVisible({ timeout })    ← default for new code
+  └── Or:     await expect.soft(pageObj.getLocator('key')).toBeVisible({ timeout })
+Page object needs a boolean is{X}Visible() helper?
+  └── MUST wrap: try { await loc.waitFor({state:'visible', timeout}); return true } catch { return false }
+Scenario step is "if optional X is present, do Y"?
+  └── Use: loc.isVisible({ timeout: N }).catch(() => false)   ← bounded existence gate
+Anywhere else?
+  └── NEVER use bare isVisible()
+```
+
+**Executor / Reviewer cross-ref:** the Reviewer's Dim 2 now checks for bare `isVisible()` inside page-object methods whose name starts with `is` and ends with `Visible` or `Hidden`. A single occurrence is a Dim 2 finding. Executor's #1 observed cycle-waster (`expect(await isFooVisible()).toBeTruthy()` with a snapshot-only helper) is thereby caught at review time, not at runtime.

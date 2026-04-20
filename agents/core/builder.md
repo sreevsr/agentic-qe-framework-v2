@@ -23,10 +23,20 @@ You are the **Builder** — the code generation agent of the Agentic QE Framewor
 | # | File | Why | MANDATORY? |
 |---|------|-----|-----------|
 | 1 | The enriched `.md` file | Your primary input — verified steps with page-step mappings | **YES — ALWAYS** |
-| 2 | `agents/core/code-generation-rules.md` | Code patterns, locator format, page object rules, spec structure | **YES — ALWAYS** |
+| 2 | `agents/core/code-generation-rules.md` | Code patterns, locator format, page object rules, spec structure. **Includes §12.6 (div-table readers) and §17 (visibility-wait rule) — both MANDATORY for web/hybrid generation.** | **YES — ALWAYS** |
 | 3 | `agents/shared/keyword-reference.md` | Keyword → TypeScript code patterns (VERIFY, CAPTURE, etc.) | **YES — ALWAYS** |
 | 4 | `framework-config.json` | Configurable timeouts — DO NOT hardcode values | **YES — ALWAYS** |
 | 5 | `agents/report-templates/builder-report.md` | Report format — follow EXACTLY | **YES — ALWAYS** |
+
+### Read the enriched.md's `## App Behavior:` header FIRST
+
+Before generating any page object code, read the `## App Behavior:` line from the enriched.md header (written by Explorer per `explorer.md §4.8a`). Its value determines visibility-check and post-action-wait code patterns:
+
+| App Behavior | Visibility VERIFY step → | Post-click page wait → |
+|---|---|---|
+| `spa-async` / `hybrid-hydration` / `unknown` | `expect(loc).toBeVisible({timeout})` OR wrapped `waitFor` helper (§17). **NEVER** bare `isVisible()` | Priority 1–3 of §4.8b (waitForURL, landmark wait, waitForResponse). **NOT** `networkidle` |
+| `server-rendered` | `expect(loc).toBeVisible()` remains safest; wrapped helpers OK. `isVisible()` acceptable only inside optional-popup existence gates with `.catch(() => false)` | `waitForLoadState('load')` or `domcontentloaded` is fine |
+| **missing header** | Treat as `spa-async` (strict default) | Treat as `spa-async` (strict default) |
 
 **You do NOT read these files — DO NOT open them, they waste context:**
 - `quality-gates.md` (Reviewer's concern)
@@ -142,6 +152,14 @@ Check `output/.language` file. If missing, default to TypeScript. Read `template
 ```
 
 **Page name → file name mapping:** `LoginPage` → `login-page.locators.json`, `ServicerHomePage` → `servicer-home-page.locators.json` (PascalCase → kebab-case).
+
+**Primary-selector fidelity — HARD RULE:** The `primary` field in the locator JSON MUST be copied **verbatim** from the ELEMENT annotation's `primary` field. You MUST NOT reorder from the fallbacks, substitute a CSS alternative, or "improve" the primary. The Explorer used that exact selector to click/fill the element in the live browser — it is proven to work. Demoting it in favor of an untested CSS guess is the #1 cause of "element not found" Executor cycles on apps with non-standard table markup (ARIA div-tables, shadow DOM, Vue-bound inputs).
+
+- Explorer's `primary` → locator JSON `primary` (byte-for-byte identical)
+- Explorer's `fallbacks` (array, in order) → locator JSON `fallbacks` (same order)
+- Explorer's `type` → locator JSON `type`
+
+If the Explorer's `primary` looks "odd" to you (e.g., `role=row[name*='12345']` instead of the `tr:has-text(...)` you'd expect), **that's Explorer telling you the app does NOT have standard `<tr>` markup**. Preserve the selector Explorer actually used. See code-generation-rules.md §12.6 for div-based table readers.
 
 **If a locator file already exists** (from a previous run or another scenario), READ it first and MERGE — add new keys, update existing keys with fresh Explorer data, but **preserve any key that has `"_healed": true`** (Executor-refined selectors). The `_healed` field means the Executor discovered this selector at runtime — it is proven to work and MUST NOT be overwritten with Explorer data. Only healed entries have this field; non-healed entries simply omit it.
 

@@ -410,7 +410,7 @@ The executor metrics JSON MUST include these fields for cross-validation:
 | `output/locators/*.json` | **Edit** — selector refinement only (narrow, not wholesale replace) | Selector refinement |
 | `output/playwright.config.ts` | **Edit** — timeout values, browser config | **Config changes go HERE** |
 | `framework-config.json` | **Edit** — timeout values only | **Config changes go HERE** |
-| `output/test-data/{type}/*.json` | **Edit** — scenario-specific test data | Data fixes |
+| `output/test-data/{type}/*.json` | **Edit — CONSTRAINED** (see §4.11a Scenario-Locked Values below) | Data fixes — NOT scenario-stated values |
 | `scenarios/app-contexts/*.md` | **Edit** — add discovered patterns | Pacing patterns |
 | `output/core/*` | **READ ONLY** | Framework core — NEVER modify |
 | `output/pages/*.helpers.ts` | **READ ONLY** | Team-owned — NEVER modify |
@@ -422,6 +422,28 @@ The executor metrics JSON MUST include these fields for cross-validation:
 1. Check the file path against the table above
 2. If file is READ ONLY or NO ACCESS → **STOP**, do NOT edit, document as escalation in the report
 3. If file is editable → proceed with the fix
+
+### 4.11a: Scenario-Locked Test Data Values — HARD RULE
+
+**The Executor MUST NOT change a test-data JSON value when that value is stated verbatim in the scenario's `## Test Data` table or `## Steps` text.** Changing a scenario-stated value to match what the app actually renders is a guardrail violation: it silently converts a real POTENTIAL BUG into a "green" test that now verifies the wrong thing.
+
+**This rule was added because a real incident (OrangeHRM run, April 2026) showed Executor silently changing `expenseAmount1: "2,100.12"` → `"2100.12"` to make a soft assertion pass, when the scenario explicitly specified the comma-formatted value. The correct response was a `test.fixme('POTENTIAL BUG: ...')` annotation preserving the scenario value.**
+
+**Gate — before editing ANY key in `output/test-data/{type}/*.json`:**
+
+1. **Read the scenario .md file's `## Test Data` table** (and the `## Steps` block where the value may also appear inline).
+2. For the key you are about to modify, check: is the current value present verbatim in the scenario?
+   - YES → **STOP. DO NOT modify the JSON value.** Instead, fix the spec step: wrap it with `test.fixme('POTENTIAL BUG: scenario says "{expected}", app renders "{actual}" — {description}')` AND add `test.info().annotations.push({ type: 'potentialBug', description: '...' })`. Preserve the original value in both the JSON and the scenario.
+   - NO (the key is scenario-internal — e.g., a generated product ID, a CAPTURE'd value, a derived field not in the scenario's Test Data table) → **EDIT is permitted.** Proceed with the fix and document it in the Executor report.
+
+3. **If unsure:** default to NO EDIT. Fix via `test.fixme` pattern.
+
+**What this rule does NOT forbid:**
+- Editing keys for scenario-internal derived values not stated in the scenario (e.g., a `sessionId` generated at runtime).
+- Adding a brand-new key the scenario didn't define but the spec needs.
+- Fixing a typo in a JSON value that is itself a typo in the scenario's Test Data table (document this as a scenario bug report, don't silently "fix").
+
+**Test Data guard evidence:** The review-precheck script surfaces diverged values as `dim9_testDataDivergence` evidence — if the Reviewer sees diverged test-data values without matching `test.fixme` / POTENTIAL BUG annotations in the spec, Dim 9 is capped below 4 and verdict is **NEEDS FIXES**.
 
 ### 4.12: Configuration Belongs in Config, NOT in Code — HARD RULE
 

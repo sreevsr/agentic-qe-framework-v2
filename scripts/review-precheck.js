@@ -917,7 +917,164 @@ function collectDim9_Fidelity() {
     evidence.specHasLoadTestData = /loadTestData|loadSharedData/.test(specContent);
   }
 
+  // --- Test-data divergence check (scenario-locked values) ---
+  // Detect test-data JSON values that differ from values stated in the scenario's
+  // `## Test Data` table, when there's no matching `test.fixme` / POTENTIAL BUG
+  // annotation in the spec. This surfaces the Executor guardrail violation from
+  // executor.md §4.11a (silent test-data mutation to make assertions pass).
+  evidence.testDataDivergence = collectTestDataDivergence(scenarioContent, specContent);
+
+  // --- Soft-fail surfacing ---
+  // Parse last-run-parsed.json for soft-expect failures. A test can report status=passed
+  // while still containing N soft-expect failures that were never investigated. Surface
+  // them so the Reviewer can cite specific soft-failed steps.
+  evidence.softFailures = collectSoftFailures();
+
   return evidence;
+}
+
+// Detect test-data values that diverged from the scenario's ## Test Data table.
+// Returns: { checked, divergences: [{ field, scenarioValue, testDataValue, hasFixmeAnnotation }], testDataFile, scenarioTable }
+function collectTestDataDivergence(scenarioContent, specContent) {
+  const result = {
+    checked: false,
+    divergences: [],
+    testDataFiles: [],
+    scenarioTableRowCount: 0,
+    note: null,
+  };
+
+  if (!scenarioContent) {
+    result.note = 'Scenario not readable — divergence check skipped';
+    return result;
+  }
+
+  // Extract the ## Test Data markdown table from the scenario.
+  // Format: | field | value | notes |
+  const tdMatch = scenarioContent.match(/##\s*Test Data\s*\n([\s\S]*?)(?=\n##\s|\n---|\Z)/i);
+  if (!tdMatch) {
+    result.note = 'Scenario has no ## Test Data table — divergence check not applicable';
+    return result;
+  }
+  const tableBody = tdMatch[1];
+  const rowPattern = /^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/gm;
+  const scenarioTable = {};
+  let m;
+  while ((m = rowPattern.exec(tableBody)) !== null) {
+    const field = m[1].trim();
+    const value = m[2].trim();
+    // Skip header row and separator row
+    if (!field || field.toLowerCase() === 'field' || /^[-:\s]+$/.test(field)) continue;
+    // Skip values that are env-interpolations — those are resolved at runtime
+    if (/^\{\{\s*ENV\./.test(value) || value === '—' || value === '-') continue;
+    scenarioTable[field] = value;
+  }
+  result.scenarioTableRowCount = Object.keys(scenarioTable).length;
+  if (result.scenarioTableRowCount === 0) {
+    result.note = 'Scenario ## Test Data table is present but empty after filtering — divergence check skipped';
+    return result;
+  }
+
+  // Collect all test-data/{type}/*.json files for this scenario.
+  const typeSubdir = isMobile ? 'mobile' : type;
+  const testDataDir = path.join(OUTPUT, 'test-data', typeSubdir);
+  if (!fs.existsSync(testDataDir)) {
+    result.note = `No test-data dir at ${path.relative(ROOT, testDataDir)}`;
+    return result;
+  }
+  const candidates = fs
+    .readdirSync(testDataDir)
+    .filter(f => f.endsWith('.json'))
+    .filter(f => f.toLowerCase().startsWith(scenario.toLowerCase()) || f.toLowerCase() === `${scenario.toLowerCase()}.json`);
+
+  if (candidates.length === 0) {
+    result.note = 'No matching test-data JSON found — divergence check skipped';
+    return result;
+  }
+
+  result.checked = true;
+  for (const f of candidates) {
+    const fp = path.join(testDataDir, f);
+    result.testDataFiles.push(path.relative(ROOT, fp));
+    let td;
+    try {
+      td = JSON.parse(readFile(fp) || '{}');
+    } catch {
+      continue;
+    }
+    for (const [field, scenarioValue] of Object.entries(scenarioTable)) {
+      if (!(field in td)) continue;
+      const tdValue = String(td[field]);
+      if (tdValue === scenarioValue) continue;
+      // Divergence detected — check if spec has a fixme / POTENTIAL BUG annotation referencing this field OR its value
+      const fieldRx = new RegExp(
+        '(test\\.fixme|POTENTIAL BUG|potentialBug)[\\s\\S]{0,400}?' +
+          '(' + escapeRx(field) + '|' + escapeRx(scenarioValue) + '|' + escapeRx(tdValue) + ')',
+        'i'
+      );
+      const hasFixmeAnnotation = specContent ? fieldRx.test(specContent) : false;
+      result.divergences.push({
+        field,
+        scenarioValue,
+        testDataValue: tdValue,
+        hasFixmeAnnotation,
+        testDataFile: path.relative(ROOT, fp),
+      });
+    }
+  }
+  return result;
+}
+
+function escapeRx(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Detect soft-expect failures in the last parsed Playwright run.
+// Looks for test-results/last-run-parsed.json and, fallback, results.json.
+function collectSoftFailures() {
+  const result = { checked: false, softFailuresDetected: 0, details: [], source: null };
+  const parsed = path.join(OUTPUT, 'test-results', 'last-run-parsed.json');
+  const rawJson = path.join(OUTPUT, 'test-results', 'results.json');
+  let source = null;
+  let data = null;
+  if (fs.existsSync(parsed)) {
+    try { data = JSON.parse(readFile(parsed) || 'null'); source = 'last-run-parsed.json'; } catch {}
+  }
+  if (!data && fs.existsSync(rawJson)) {
+    try { data = JSON.parse(readFile(rawJson) || 'null'); source = 'results.json'; } catch {}
+  }
+  if (!data) {
+    result.note = 'No Playwright results JSON found — soft-fail check skipped';
+    return result;
+  }
+  result.checked = true;
+  result.source = source;
+
+  // Soft failures in Playwright JSON surface as test.results[].errors[] where the
+  // outer status is 'passed' (soft assertions don't fail the test). Walk the suite
+  // tree and count error entries inside passed results.
+  const collectFromSuites = suites => {
+    if (!Array.isArray(suites)) return;
+    for (const suite of suites) {
+      for (const spec of suite.specs || []) {
+        for (const t of spec.tests || []) {
+          for (const r of t.results || []) {
+            const errs = Array.isArray(r.errors) ? r.errors : [];
+            if (r.status === 'passed' && errs.length > 0) {
+              result.softFailuresDetected += errs.length;
+              result.details.push({
+                title: spec.title,
+                softErrors: errs.map(e => (e.message || '').split('\n')[0].slice(0, 200)),
+              });
+            }
+          }
+        }
+      }
+      collectFromSuites(suite.suites);
+    }
+  };
+  collectFromSuites(data.suites);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -1034,6 +1191,8 @@ function main() {
       'dim9.lifecycleHooks',
       'dim9.sharedData',
       'dim9.apiBehavior',
+      'dim9.testDataDivergence',
+      'dim9.softFailures',
       'testExecution.executorStatus',
       'testExecution.passFailCounts',
       'testExecution.fixCycles',

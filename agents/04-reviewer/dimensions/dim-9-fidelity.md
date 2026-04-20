@@ -43,6 +43,21 @@
 - [ ] Assertions at same position in test flow as in scenario — not batched at end
 - [ ] Count: VERIFY in scenario = `expect()` in spec | VERIFY_SOFT = `expect.soft()` blocks
 
+## 9c-alpha. Scenario-Locked Test Data — MANDATORY (Guardrail)
+
+The Executor MUST NOT silently change a test-data JSON value that is stated verbatim in the scenario's `## Test Data` table. Such changes hide real POTENTIAL BUGs — the correct response is `test.fixme('POTENTIAL BUG: ...')` with a `test.info().annotations.push({ type: 'potentialBug', ... })`.
+
+- [ ] Read precheck evidence `dim9_fidelity.testDataDivergence`. For every divergence entry where `hasFixmeAnnotation === false`: **CRITICAL — cap Dim 9 at 3/5 and cite in findings.** The spec must preserve the scenario value and annotate the divergence, not mutate the JSON.
+- [ ] For divergence entries where `hasFixmeAnnotation === true`: verify the fixme reason cites both the scenario value and the observed app value. Partial annotation is acceptable but should be noted as a recommendation.
+
+## 9c-beta. Soft-Fail Surfacing — MANDATORY
+
+A test whose `expect.soft()` assertion fails still passes overall in Playwright. Silent soft failures can indicate: (a) a helper returning `""` / `null` so the assertion never actually verifies, (b) a real app bug being accepted without annotation, (c) a flaky selector that was never investigated.
+
+- [ ] Read precheck evidence `dim9_fidelity.softFailures`. If `softFailuresDetected > 0`:
+  - [ ] **EACH soft failure must have an explicit "Known Soft Failures" table entry in the Executor report AND a documented reason** (known app behavior, known bug, accepted flakiness). Untriaged soft failures are a Dim 9 finding — cap at 4/5 if any untriaged.
+  - [ ] If a helper method returns `""` / empty array and is consumed by `expect.soft(x).toContain(...)`, the assertion structurally cannot fail or pass meaningfully. **CRITICAL — cap Dim 9 at 3/5 and cite the specific method.**
+
 ## 9d. Keyword Code Patterns
 
 For each keyword in the scenario, verify the spec has the correct code:

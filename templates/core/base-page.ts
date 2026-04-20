@@ -121,12 +121,66 @@ export class BasePage {
   // Wait Utilities
   // ---------------------------------------------------------------------------
 
+  /**
+   * Default timeout for waitForReady / isReady (milliseconds).
+   * Resolution order: env override (ACTION_TIMEOUT_MS) → 30000.
+   * NOTE: this is deliberately NOT read from framework-config.json at runtime —
+   * BasePage has no file-system access assumption. Override via env or the
+   * per-call `timeoutMs` parameter.
+   */
+  protected readonly defaultReadyTimeoutMs: number =
+    parseInt(process.env.ACTION_TIMEOUT_MS || '', 10) || 30000;
+
   async waitForElement(elementName: string, state: 'visible' | 'hidden' | 'attached' | 'detached' = 'visible', timeout?: number): Promise<void> {
     await this.page.waitForSelector(this.loc.get(elementName), { state, timeout });
   }
 
   async waitForUrl(urlPattern: string | RegExp, timeout?: number): Promise<void> {
     await this.page.waitForURL(urlPattern, { timeout });
+  }
+
+  /**
+   * Wait for an element to become visible, THROWING if it does not within the timeout.
+   * Use this at the start of a page-action method to guarantee the page has rendered
+   * the landmark element before proceeding.
+   *
+   * Prefer this over `waitForPageLoad('networkidle')` on SPAs — `networkidle` is
+   * fragile on apps with analytics beacons, websockets, or polling.
+   */
+  async waitForReady(elementName: string, timeoutMs?: number): Promise<void> {
+    await this.page.locator(this.loc.get(elementName))
+      .waitFor({ state: 'visible', timeout: timeoutMs ?? this.defaultReadyTimeoutMs });
+  }
+
+  /**
+   * Boolean visibility check with a BOUNDED wait. Use this for page-object
+   * `is{X}Visible()` helpers — NEVER bare `locator.isVisible()` (which is a
+   * synchronous snapshot and returns false the instant the element isn't painted).
+   *
+   * See code-generation-rules.md Section 17 for the full rule.
+   */
+  async isReady(elementName: string, timeoutMs?: number): Promise<boolean> {
+    try {
+      await this.page.locator(this.loc.get(elementName))
+        .waitFor({ state: 'visible', timeout: timeoutMs ?? this.defaultReadyTimeoutMs });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Boolean hidden check with a BOUNDED wait. Returns true once the element
+   * transitions to hidden/detached within the timeout, false otherwise.
+   */
+  async isHidden(elementName: string, timeoutMs?: number): Promise<boolean> {
+    try {
+      await this.page.locator(this.loc.get(elementName))
+        .waitFor({ state: 'hidden', timeout: timeoutMs ?? this.defaultReadyTimeoutMs });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------------------

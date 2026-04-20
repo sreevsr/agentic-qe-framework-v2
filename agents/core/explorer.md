@@ -440,6 +440,82 @@ When you navigate to a new page (URL changes or significant DOM change), record 
 
 **Page naming convention:** Use PascalCase page names that describe the page's purpose (e.g., `LoginPage`, `DashboardPage`, `CheckoutPage`). These become the page object class names in the Builder.
 
+### 4.8a: App-Level Pacing Signal — MANDATORY Observation
+
+**While walking the scenario, track cross-route rendering timing. Emit a single app-level signal in the enriched.md header so the Builder can generate correct waits up front — not discover them cycle-by-cycle.**
+
+**What to track** during exploration:
+- After each route-changing interaction (navigation, SPA link click, view change), observe how long until the landmark element of the new page renders (heading, main section).
+- Note whether the browser URL changes instantly but the content paints later (SPA async), both change together (server-rendered), or neither changes (in-place partial update).
+
+**Classification — emit exactly ONE of these in the enriched.md header `## App Behavior:` line:**
+
+| Signal | Meaning | When to use |
+|---|---|---|
+| `spa-async` | URL changes instantly on route change, but landmark element renders 1–5s later. Seen on two or more route transitions during this exploration. | Most SPAs: React/Vue/Angular/Ember apps, OrangeHRM, Salesforce Lightning, Workday, most "modern" enterprise UIs |
+| `server-rendered` | URL and content change together (both appear after `load` event). Landmark is in DOM at `domcontentloaded`. | Classic server-rendered apps: older JSF, ASP.NET WebForms, plain-HTML server apps |
+| `hybrid-hydration` | Server-rendered HTML shows immediately, then JS hydration replaces/upgrades interactive elements 1–3s later (click handlers bind late). | Next.js/Nuxt SSR apps, Rails with Hotwire/Turbo, some Blazor Server apps |
+| `unknown` | Only one route transition observed or timing was inconsistent. | Short scenarios with ≤1 route change |
+
+**Emit the signal** in the enriched.md's header block (after `## Detail Level` and before `## Common Setup`):
+
+```markdown
+## App Behavior: spa-async
+The application exhibits SPA async rendering — route URL changes are instant, but
+landmark elements render 1–5s later. Observed on the following transitions during
+exploration:
+- Login → /dashboard (dashboard heading rendered ~2s after URL change)
+- Claim nav click → /claim/viewAssignClaim (banner heading rendered ~2s after URL change)
+- View Details → /claim/submitClaim/id/3 (submit-claim heading rendered ~4s after URL change)
+Builder: use expect(loc).toBeVisible({timeout}) for VERIFY steps; use waitForURL+landmark
+wait for post-click navigation; prefer URL/landmark waits over waitForLoadState('networkidle').
+```
+
+**Builder contract — MANDATORY when the signal is `spa-async` or `hybrid-hydration`:**
+
+1. Every VERIFY / VERIFY_SOFT visibility check translates to `expect(loc).toBeVisible({timeout})` or a `waitFor`-wrapped page-object helper (per code-generation-rules.md §17).
+2. Every post-click navigation method in a page object follows the pacing hierarchy (see §4.8b below) — **not** `waitForLoadState('networkidle')` by default.
+3. Every `is{X}Visible()` / `is{X}Hidden()` page-object helper uses `waitFor({state})` wrapped in try/catch — NEVER bare `isVisible()` / `isHidden()`.
+
+**Builder contract when signal is `server-rendered`:** `waitForLoadState('load')` + direct `isVisible()` is acceptable. `networkidle` is still not the default — prefer landmark waits.
+
+**If `unknown`:** Builder defaults to the stricter `spa-async` contract. Better to over-wait than to under-wait.
+
+### 4.8b: Pacing Hierarchy — Prefer URL and Landmark Over Network-Idle
+
+**The Explorer MUST record the post-action wait that worked during the live walk, and the Builder MUST translate it to code using this priority order.** `networkidle` is last resort — on apps with analytics beacons, websockets, or long-polling (most enterprise apps) it never fires and becomes a 30s false timeout.
+
+| Priority | Strategy | When to use | Builder code pattern |
+|---|---|---|---|
+| 1 | `waitForURL(/pattern/)` | Action triggers a route change | `await this.page.waitForURL(/\/dashboard/, { timeout });` |
+| 2 | Landmark-element wait | Action reveals a specific post-state element (heading, panel, row) | `await this.page.locator(this.loc.get('landmarkKey')).waitFor({ state: 'visible', timeout });` — or `await pageObj.waitForReady('landmarkKey')` if BasePage primitive is available |
+| 3 | `waitForResponse(urlPattern)` | Action triggers a specific XHR that the next step depends on | `await this.page.waitForResponse(r => r.url().includes('/api/claims') && r.ok(), { timeout });` |
+| 4 | `waitForLoadState('domcontentloaded')` | Full-page navigations to a new URL (multi-page / server-rendered apps) | `await this.page.waitForLoadState('domcontentloaded');` |
+| 5 | `waitForLoadState('networkidle')` | **LAST RESORT.** Only when none of the above exist AND the app is NOT known to have persistent network activity (analytics/websockets/polling). | `await this.page.waitForLoadState('networkidle', { timeout });` — always paired with an explicit short timeout |
+
+**When the Explorer notes a slow post-action transition in its report** (`Dynamic Content Map` entry), the Explorer MUST pick one of priorities 1–3 and record it alongside the `<!-- DISCOVERED: ... -->` note. Default-to-`networkidle` is an anti-pattern and MUST NOT be recommended when a URL pattern or landmark selector is available.
+
+**Example — correct pacing annotation in enriched.md:**
+
+```markdown
+19. Click Reference Id "202307180000003" to open the claim detail <!-- ORIGINAL -->
+    <!-- ELEMENT: { ... } -->
+    <!-- DISCOVERED: Post-click navigation to /claim/submitClaim/id/{N} takes ~3-5s.
+         Pacing: use waitForURL(/\/submitClaim\/id\//) + landmark wait on "Submit Claim" heading.
+         NOT networkidle — OrangeHRM analytics prevent networkidle from firing within 30s. -->
+```
+
+**Builder then generates:**
+
+```typescript
+async clickViewDetails(rowKey: string): Promise<void> {
+  await this.page.locator(this.loc.get(rowKey)).click();
+  await this.page.waitForURL(/\/submitClaim\/id\//, { timeout: 30000 });
+  await this.page.locator(this.loc.get('submitClaimHeading'))
+    .waitFor({ state: 'visible', timeout: 30000 });
+}
+```
+
 ---
 
 ## 5. Enriched.md — MANDATORY Output
@@ -526,9 +602,29 @@ ORIGINAL/EXPANDED/DISCOVERED tags show provenance.
 User may edit this file. Explorer will NOT modify it on future runs.
 ```
 
+### App Behavior Header — MANDATORY (see §4.8a)
+
+```markdown
+## App Behavior: {spa-async | server-rendered | hybrid-hydration | unknown}
+{One or two sentences summarizing rendering timing observed during exploration,
+including the specific post-action transitions that informed the classification.}
+```
+
+The App Behavior header MUST appear after `## Detail Level` and before `## Common Setup`. Missing it on a web scenario is a Builder ambiguity — Builder defaults to `spa-async` (safer) and the Explorer report notes the omission.
+
 ### Example
 
 ```markdown
+## Detail Level: EXPLORER-VERIFIED
+Steps verified during live exploration on 2026-04-20.
+...
+
+## App Behavior: spa-async
+Route URL changes instantly on navigation; landmark elements render 1–3s later.
+Observed on login → /dashboard (2s) and Claim nav → /claim/viewAssignClaim (2s).
+Builder: use expect(loc).toBeVisible({timeout}) for VERIFY; use waitForURL+landmark
+for post-click navigation; avoid waitForLoadState('networkidle') — analytics prevent it.
+
 ## Steps
 
 ### LoginPage (/login)
@@ -545,7 +641,7 @@ User may edit this file. Explorer will NOT modify it on future runs.
    <!-- ELEMENT: {"page":"DashboardPage","key":"dashboardHeading","primary":"role=heading[name='Dashboard']","fallbacks":["h1:has-text('Dashboard')","testid=dashboard-title"],"type":"text","fingerprint":{"tag":"h1","id":null,"testId":"dashboard-title","text":"Dashboard","cssPath":"#content > h1"}} -->
 6. VERIFY: Data grid is visible with data <!-- ORIGINAL -->
    <!-- ELEMENT: {"page":"DashboardPage","key":"gridRows","primary":"tbody tr","fallbacks":["table tbody tr",".grid-body tr"],"type":"structural","fingerprint":{"tag":"tr","id":null,"testId":null,"text":null,"cssPath":"#data-grid > table > tbody > tr"}} -->
-   <!-- DISCOVERED: Grid uses standard HTML table. Rows load async after page load — use networkidle or waitForSelector on tbody tr. -->
+   <!-- DISCOVERED: Grid uses standard HTML table. Rows load async after page load — Builder use waitFor on gridRows or waitForURL on the page route; do NOT default to networkidle. -->
 ```
 
 ---
