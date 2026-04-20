@@ -20,9 +20,10 @@
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Stage:** Stage 2 — Executor
+**Duration:** {N}m {N}s (agent wall-clock, computed from startTime → endTime in metrics JSON)
 **Outcome:** PASSING / FAILING
 **Test Results:** {N}/{total} tests passing ({N} failed, {N} test.fixme)
-**Test Duration:** ~{N}s (wall clock for final passing run)
+**Test Duration:** ~{N}s (wall clock for final passing run — distinct from agent Duration)
 **Fix Cycles:** {N} of {max} max ({N} pre-flight fixes, {N} runtime fixes)
 **Escalated Issues:** {N} ({N} potential bugs, {N} unfixable)
 **Key Fixes:** {1-line summary of most impactful fix, e.g., "Added navigation wait after form submit — resolved 2 timing failures"}
@@ -177,7 +178,7 @@
 ## Observability
 | Metric | Value |
 |--------|-------|
-| Duration | ~{N} minutes |
+| Duration | {N}m {N}s |
 | Fix cycles run | {N} of {max} |
 | Test executions | {N} |
 | Token usage | N/A — platform does not expose token counts |
@@ -212,3 +213,5 @@
 | Helper Method Issues | "None — no helper issues." |
 | Screenshots Captured | "No screenshots captured." |
 | App-Context Check | Must always be filled (Y/N checkboxes) |
+| Observability | MUST always be populated — include Duration, Fix cycles, Test executions |
+| Eval Metrics | MUST always be populated — include Pre-flight catch rate, First-run pass rate, Fix success rate, Cycle efficiency, Escalation rate |

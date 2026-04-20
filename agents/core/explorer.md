@@ -574,7 +574,7 @@ The Explorer report documents:
 1. **FIRST ACTION** (before any pre-flight reads): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
 2. **LAST ACTION** (after writing enriched.md, explorer report, and all outputs): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
 3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
-4. **Fill the Duration field** in the explorer report: replace `~{N} minutes` with the actual duration.
+4. **Fill the Duration field** in the explorer report: populate `**Duration:** {N}m {N}s` in the MANDATORY header block AND the Observability section's Duration row. Both MUST have the same computed value (e.g., `5m 40s` for durationMs=340000). NEVER leave a `~{N}` placeholder in the saved report.
 
 ### Metrics JSON — MANDATORY Output
 

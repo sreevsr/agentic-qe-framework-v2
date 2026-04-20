@@ -20,6 +20,7 @@
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Stage:** Stage 1 — Explorer
+**Duration:** {N}m {N}s (computed from startTime → endTime in metrics JSON)
 **Outcome:** COMPLETE / PARTIAL (reason: {auth failure / app crash / context exhaustion})
 **Steps:** {N}/{total} explored ({N} verified first-try, {N} retried, {N} blocked)
 **Pages Discovered:** {N} pages → {N} page objects, {N} locator files ({totalElements} elements)
@@ -162,7 +163,7 @@ Missing or blocked items: {list each, or "None"}
 ## Observability
 - **Tokens used:** {N}
 - **Context window:** {N}%
-- **Duration:** ~{N} minutes
+- **Duration:** {N}m {N}s
 - **Subagents spawned:** {N}
 - **Skills activated:** {list — e.g., web/navigate, web/interact, auth/sso-login}
 - **Snapshots taken:** {N} (token cost: ~{N}K tokens)
@@ -205,3 +206,5 @@ Even if empty, these sections MUST appear with an empty-state phrase:
 | Charts and Graphs | "No charts in this scenario." |
 | App-Context Updates | "None — no new patterns discovered." |
 | Issues and Warnings | "None." |
+| Observability | MUST always be populated — include Duration, Skills activated, Snapshots, MCP interactions |
+| Eval Metrics | MUST always be populated — include Exploration accuracy, Retry rate, Blocked rate, App-context hit rate, Self-improvement |

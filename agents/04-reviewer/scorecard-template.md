@@ -8,6 +8,7 @@ Generate the scorecard in this format:
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Stage:** Stage 3 — Reviewer (post-Executor)
+**Duration:** {N}m {N}s (computed from startTime → endTime in metrics JSON)
 **Explorer Status:** {COMPLETE | PARTIAL (Step {N}/{total})}
 **Executor Status:** {PASSING | FAILING} ({N} cycles, {N} fixes applied)
 **Test Execution:** {N}/{N} tests passing ({N} test.fixme)
@@ -68,13 +69,26 @@ Save the review scorecard:
 |--------|-------|
 | Tokens used | {N} |
 | Context window | {N}% |
-| Duration | ~{N} minutes |
+| Duration | {N}m {N}s |
 | Files examined | {N} |
 | Precheck script used | {Yes/No} |
 | Dimensions scored | {N} (N/A: {list}) |
 | Parallel subagents | {N} |
 
-**HARD RULE: The Observability table MUST have actual values for ALL rows. If token count is unavailable from the platform, write "Platform does not expose token count" — do NOT leave the row blank or omit it. Round number estimates (e.g., "~50,000") are acceptable only if preceded by the word "estimate".**
+## Eval Metrics
+
+| Metric | Value |
+|--------|-------|
+| Overall score | {total}/{max} |
+| Verdict | APPROVED / NEEDS FIXES / TESTS FAILING |
+| Critical issues raised | {N} |
+| Recommendations raised | {N} |
+| Dimensions at ceiling (5/5) | {N} |
+| Dimensions below threshold (<3) | {N} |
+| Dimension 9 score | {N}/5 (hard gate — must be >= 4 for APPROVED) |
+| Cross-validation flags | {None | list} |
+
+**HARD RULE: The Observability AND Eval Metrics tables MUST have actual values for ALL rows. If token count is unavailable from the platform, write "Platform does not expose token count" — do NOT leave the row blank or omit it. Round number estimates (e.g., "~50,000") are acceptable only if preceded by the word "estimate".**
 
 ---
 

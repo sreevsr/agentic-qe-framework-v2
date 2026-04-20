@@ -228,6 +228,7 @@ Save scorecard to:
 1. **FIRST ACTION** (before reading precheck report or any files): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
 2. **LAST ACTION** (after writing the scorecard): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
 3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
+4. **Fill the Duration field** in the scorecard: populate `**Duration:** {N}m {N}s` in the MANDATORY header block AND the Reviewer Observability section's Duration row. Both MUST have the same computed value. NEVER leave a `~{N}` placeholder in the saved scorecard.
 
 ### Metrics JSON — MANDATORY Output
 

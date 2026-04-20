@@ -20,6 +20,7 @@
 **Type:** {web | api | hybrid | mobile | mobile-hybrid}
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Stage:** Stage 4 — Healer (post-Reviewer)
+**Duration:** {N}m {N}s (computed from startTime → endTime in metrics JSON)
 **Outcome:** PASSING / FAILING (after fixes)
 **Scorecard Input:** {score}/{max} — verdict: NEEDS FIXES
 **Issues Fixed:** {N}/{total} ({N} critical, {N} recommendations) — {N} remaining
@@ -94,7 +95,7 @@
 ## Observability
 | Metric | Value |
 |--------|-------|
-| Duration | ~{N} minutes |
+| Duration | {N}m {N}s |
 | Files examined | {N} |
 | Files modified | {N} |
 | Fix cycles run | {N} of 2 max |
@@ -132,3 +133,5 @@
 | Test Execution | Must always have at least Cycle 1 results |
 | Files Modified | "No files modified." |
 | Scoring | Must always have Before/After numbers |
+| Observability | MUST always be populated — include Duration, Files examined, Files modified, Fix cycles |
+| Eval Metrics | MUST always be populated — include Issues received, Fix rate, Tests passing after fix, Regression status |

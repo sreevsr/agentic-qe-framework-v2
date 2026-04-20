@@ -20,6 +20,7 @@
 **Type:** {web | api | hybrid | mobile | mobile-hybrid} (inferred or specified)
 **Date:** {Month DD, YYYY, HH:MM AM/PM UTC}
 **Pipeline Stage:** Stage 0 — Enrichment Agent
+**Duration:** {N}m {N}s (computed from startTime → endTime in metrics JSON)
 **Outcome:** ENRICHED / PASSTHROUGH / FAILED
 **Input:** {Natural language | Partial/mixed | Swagger/OpenAPI spec} — from {user message | file path}
 **Output:** scenarios/{type}/{scenario-name}.md ({N} steps generated)
@@ -132,7 +133,7 @@
 |--------|-------|
 | Tokens used | {N} |
 | Context window | {N}% |
-| Duration | ~{N} minutes |
+| Duration | {N}m {N}s |
 | Input tokens (user input + app-context + spec) | ~{N} |
 | Output tokens (scenario .md + report) | ~{N} |
 
@@ -174,3 +175,16 @@
 | Partial/mixed | **YES** — always |
 | Swagger/OpenAPI spec | **YES** — always |
 | Structured .md (passthrough) | **NO** — no enrichment performed |
+
+## Sections That MUST Always Be Present
+
+| Section | Empty-State Phrase |
+|---------|-------------------|
+| Input Received | MUST always include original user input verbatim |
+| Clarification Q&A | "No questions needed — input was sufficiently detailed." |
+| Swagger/OpenAPI Details | "N/A — not a Swagger input." |
+| Assumptions Made | "None — all details provided by user or app-context." |
+| Enrichment Decisions | MUST always list at least Type, Priority, Tags decisions |
+| Confidence Assessment | MUST always have a numeric score |
+| Observability & Eval | MUST always be populated — include Duration, Token Usage, Enrichment Quality Eval |
+| Notes for Explorer | "No special notes." |

@@ -242,7 +242,7 @@ For each issue, in priority order:
 ## Observability
 | Metric | Value |
 |--------|-------|
-| Duration | ~{N} minutes |
+| Duration | {N}m {N}s |
 | Files examined | {N} |
 | Files modified | {N} |
 | Fix cycles run | {N} of 2 max |
@@ -270,7 +270,7 @@ Before saving this report, verify:
 1. **FIRST ACTION** (before reading the scorecard or any files): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` in the terminal and record the output as `startTime`.
 2. **LAST ACTION** (after all fix cycles complete and the healer report is written): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` again and record as `endTime`.
 3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
-4. **Fill the Duration field** in the healer report: replace `~{N} minutes` with the actual duration.
+4. **Fill the Duration field** in the healer report: populate `**Duration:** {N}m {N}s` in the MANDATORY header block AND the Observability section's Duration row. Both MUST have the same computed value. NEVER leave a `~{N}` placeholder in the saved report.
 
 ### Metrics JSON — MANDATORY Output
 
