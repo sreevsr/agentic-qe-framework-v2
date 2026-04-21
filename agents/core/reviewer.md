@@ -46,7 +46,7 @@ This produces `output/reports/precheck-report-{scenario}.json` with mechanical e
 3. Dimensions you MAY skip file reading for (when clean): Dim 4, Dim 7
 4. Dimensions you MUST still read files for: Dim 9, Dim 1, Dim 6
 
-**IF precheck does NOT exist:** Read all files manually.
+**IF precheck does NOT exist:** Run the script (the command on line 31 above) to generate it, then proceed to the "IF precheck exists" branch. Fall back to manual file reading ONLY if the script execution itself fails (e.g., node unavailable, script crashes with an error) — and when you do, cite the specific failure reason in the scorecard's Reviewer Observability section. "File not present yet" is NOT a valid fall-back reason; that's exactly what the Reviewer is expected to fix by running the script.
 
 ### Step 2: Build File Manifest
 
