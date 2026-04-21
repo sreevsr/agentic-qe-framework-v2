@@ -1396,6 +1396,32 @@ async isWidgetVisible(key: string, timeoutMs = 10000): Promise<boolean> {
 
 A shorter default timeout (e.g., 10s) is appropriate for VERIFY_SOFT widget checks where a fast-negative is desirable — a widget that isn't visible after 10s almost certainly isn't going to render.
 
+### 17.5a Waiting for Async-Populated Input Values — Vue/React/Angular
+
+Forms in SPA apps commonly render read-only inputs immediately (element present in DOM) but populate their values via an API call 1–3s later. `inputValue()` called on such an input returns `""` — not because the element is missing, but because its value hasn't arrived yet. This is a distinct case from visibility-wait (§17.1–17.5): the element IS visible, only its value is pending.
+
+**MANDATORY idiom:** use Playwright's retrying value assertion directly — it polls until the predicate passes or the timeout elapses.
+
+```typescript
+// ✅ CORRECT — one line, uses LocatorLoader, auto-retries
+await expect(this.page.locator(this.loc.get('referenceIdField')))
+  .not.toHaveValue('', { timeout: 10000 });
+return await this.page.locator(this.loc.get('referenceIdField')).inputValue();
+
+// ❌ WRONG — raw DOM query inside waitForFunction, bypasses LocatorLoader (§12.3, §11)
+await this.page.waitForFunction(
+  () => {
+    const el = document.querySelector('input.oxd-input[disabled]') as HTMLInputElement | null;
+    return el !== null && el.value !== '';
+  },
+  { timeout: 10000 },
+);
+```
+
+The `.not.toHaveValue('', ...)` form works for any `<input>`, `<textarea>`, or `<select>` — Playwright retries the read every ~100ms until the value becomes non-empty or the timeout fires. No raw `document.querySelector`, no manual polling loop, selector lives in the JSON.
+
+**When to use this idiom:** read methods on page objects where the source field is a disabled/read-only input whose value loads async (OrangeHRM Vue forms, Salesforce Lightning Locker, Angular reactive forms, Workday). If you're writing a `getX` method that calls `.inputValue()` and you have observed (or suspect) async population, prefix with this wait.
+
 ### 17.6 Summary — Builder Decision Tree
 
 ```
