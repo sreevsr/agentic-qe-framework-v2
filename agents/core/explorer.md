@@ -356,7 +356,14 @@ For `role=` selectors, validate the underlying CSS equivalent. For example, `rol
 
 **Why this matters:** when the role-based approximation is "equivalent-looking" but not actually supported by Playwright's locator parser (e.g., `role=heading[level=N]:has-text(...)` combines `[level=N]` attribute filter with `:has-text()` pseudo-class — NOT a valid Playwright locator string), emitting it after validating a DIFFERENT CSS form produces a locator JSON entry that fails at Builder-run or Executor-run time with `InvalidSelectorError`. The Builder will faithfully copy the primary verbatim (per builder.md §3.6 primary-selector fidelity rule) — so whatever Explorer emits is what runs. **Validate the exact string you will emit, or emit the exact string you validated. The two MUST be identical.**
 
-**Concrete trap to avoid (observed April 21, 2026):** Playwright's `role=` selector prefix does NOT support combining `[level=N]` with `:has-text()`. If your target is a heading filtered by level AND text content, emit the CSS form `h1:has-text('...')`, `h2:has-text('...')`, etc. The role-based form is valid ONLY when using `role={role}[name='{accessibleName}']` without pseudo-class chaining.
+**Examples of the rule applied (non-exhaustive — the rule applies to ANY pair of locator forms, not only these cases):**
+
+- Validated `h1:has-text("'s Dashboard")` (CSS) → emit `h1:has-text("'s Dashboard")`. Do NOT emit `role=heading[level=1]:has-text("'s Dashboard")` — it's a different syntactic form, AND this particular `[level=N]` + `:has-text()` combination is not a valid Playwright locator string (Builder-copy would fail at runtime with `InvalidSelectorError`).
+- Validated `[data-testid="submit-btn"]` (CSS attribute) → emit that exact CSS form. Do NOT swap to `testid=submit-btn` (LocatorLoader prefix form) — LocatorLoader resolves the prefix through a different code path than a raw attribute selector; your validation run didn't exercise the prefix resolution path.
+- Validated `button:has-text("Confirm")` (CSS) → emit that exact CSS form. Do NOT emit `role=button[name="Confirm"]` — the two forms are typically equivalent on native `<button>` elements but diverge on `<div role="button">`, and the validation ran against the CSS form, not the accessibility tree.
+- Validated `xpath=//input[@placeholder='Search']` → emit the identical XPath string. Do NOT "simplify" to a CSS form after validation succeeded on the XPath.
+
+**The rule is: validate-then-emit produces byte-identical strings. The examples above show a few observed traps; the rule applies to ANY pair of locator forms the Explorer can construct (CSS ↔ `role=` ↔ `testid=` ↔ `text=` ↔ `xpath=` ↔ `label=` and any future form). When you validate form A and emit form B, you have NOT validated what the Builder and Executor will run — by construction.**
 
 ### 4.4: Determine Element Type
 
