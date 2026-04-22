@@ -89,7 +89,10 @@ For mobile scenarios, ELEMENT annotations use the **platform-keyed** format (not
 **Forbidden:**
 - Guessing the filename from the scenario's name, folder, URL, domain, or app name. The config is authoritative.
 - Reading `appContext.filename` as if it were a flat string. That legacy key is no longer present.
-- Creating a new app-context file because "the scenario's app doesn't have one yet." The user onboards an app by editing `framework-config.json` and placing the file under `scenarios/app-contexts/` — never the Explorer.
+- Creating a new app-context file for a type whose config slot is EMPTY (`""`). Absence of a configured filename means the user has not authorized persistence for that type.
+
+**Permitted (and required by §7.2):**
+- Creating the app-context file at `scenarios/app-contexts/{resolved-filename}` when the config slot is NON-EMPTY, the file does not yet exist on disk, AND new patterns were discovered during this run. The user's non-empty filename in `framework-config.json → appContext.{type}` IS the onboarding signal — the file does NOT need to pre-exist for the Explorer to create it. See §7.2 for the full append-or-create rule table, symmetric with `executor.md §4.9`.
 
 ---
 
@@ -348,6 +351,12 @@ For `role=` selectors, validate the underlying CSS equivalent. For example, `rol
 **Iframe-aware validation:** If the current step's element is inside an iframe (Explorer switched frames via `frameLocator()`), run the validation query inside that same frame — not the top-level document. `querySelectorAll` only searches the current frame context.
 
 **Shadow DOM:** If the app uses web components with shadow roots (e.g., Salesforce Lightning, ServiceNow), `querySelectorAll` will not find elements inside shadow DOM. In that case, skip CSS validation and rely on the MCP snapshot ref interaction result as the validation — if the MCP click/fill succeeded on the ref, the element exists. Record a `<!-- DISCOVERED: Shadow DOM — selector validation skipped, verified by MCP interaction -->` note.
+
+**Emit-what-you-validated — HARD RULE.** The `primary` string written to the ELEMENT annotation MUST be byte-for-byte identical to the selector you ran through this gate. Do NOT substitute a different syntactic form between validation and emission (CSS ↔ `role=` ↔ `testid=` ↔ `text=`). If you validated `h1:has-text("'s Dashboard")`, emit `h1:has-text("'s Dashboard")` — not `role=heading[level=1]:has-text("'s Dashboard")` or any other "equivalent-looking" variant. Approximations are fine WHILE validating (the table above permits a CSS equivalent for a `role=` selector), but the emitted primary must be the exact string that Playwright will run at test time.
+
+**Why this matters:** when the role-based approximation is "equivalent-looking" but not actually supported by Playwright's locator parser (e.g., `role=heading[level=N]:has-text(...)` combines `[level=N]` attribute filter with `:has-text()` pseudo-class — NOT a valid Playwright locator string), emitting it after validating a DIFFERENT CSS form produces a locator JSON entry that fails at Builder-run or Executor-run time with `InvalidSelectorError`. The Builder will faithfully copy the primary verbatim (per builder.md §3.6 primary-selector fidelity rule) — so whatever Explorer emits is what runs. **Validate the exact string you will emit, or emit the exact string you validated. The two MUST be identical.**
+
+**Concrete trap to avoid (observed April 21, 2026):** Playwright's `role=` selector prefix does NOT support combining `[level=N]` with `:has-text()`. If your target is a heading filtered by level AND text content, emit the CSS form `h1:has-text('...')`, `h2:has-text('...')`, etc. The role-based form is valid ONLY when using `role={role}[name='{accessibleName}']` without pseudo-class chaining.
 
 ### 4.4: Determine Element Type
 
@@ -711,7 +720,7 @@ The Explorer report documents:
 
 ## 7. App-Context Updates
 
-If the Explorer discovers new patterns during flow verification (e.g., a modal appears after clicking a button, a page redirects unexpectedly), update the app-context file:
+If the Explorer discovers new patterns during flow verification (e.g., a modal appears after clicking a button, a page redirects unexpectedly, a custom component library has non-standard DOM), write them to the app-context file:
 
 ```markdown
 ## Learned Pattern: Add-to-Cart Modal Dialog
@@ -720,6 +729,39 @@ If the Explorer discovers new patterns during flow verification (e.g., a modal a
 - **Actual:** Modal appears with "Continue Shopping" and "View Cart" options
 - **Discovered:** {date}
 ```
+
+### 7.1: Resolve the app-context filename (identical to Executor §4.9)
+
+Resolve by scenario type from `framework-config.json → appContext` (see §2.1 for the full resolution table). If the resolved slot is empty, skip the write and log `NO_APP_CONTEXT_CONFIGURED_FOR_TYPE_{type}`. The user will onboard by setting the filename in config if they want patterns persisted for that type.
+
+### 7.2: Create-on-missing — MANDATORY when new patterns were discovered
+
+**If the resolved slot is NON-EMPTY, perform a filesystem check on `scenarios/app-contexts/{resolved-filename}` (use the `Bash` tool — e.g., `test -f path && echo YES || echo NO`). Do NOT infer existence from the config value alone — "configured" ≠ "exists".**
+
+| Slot configured? | File exists on disk? | New patterns discovered this run? | Action |
+|---|---|---|---|
+| Empty (`""`) | — | — | Skip. Log `NO_APP_CONTEXT_CONFIGURED_FOR_TYPE_{type}`. |
+| Non-empty | YES | YES | **APPEND** the new patterns (DO NOT overwrite existing content). |
+| Non-empty | YES | NO | No-op. Report `0 new patterns written, N existing patterns applied`. |
+| Non-empty | NO | YES | **CREATE** the file at `scenarios/app-contexts/{resolved-filename}` and write the discovered patterns. **The user's configuration of a filename IS the authorization to create it** — do not treat "file doesn't exist" as a blocker when new patterns are available to persist. |
+| Non-empty | NO | NO | No-op. Report `NO_APP_CONTEXT_FILE_YET — run more scenarios on this app to accumulate patterns`. |
+
+**Rationale:** the Explorer and the Executor share the same app-context write rules. When you configured a filename in `framework-config.json → appContext.{type}`, you signalled intent to persist patterns for that app. If Explorer discovers patterns but the file is missing, and Explorer does NOT create it, the patterns get lost whenever a run has no Executor pacing fixes (the only other writer). This rule closes that gap. See `executor.md §4.9` for the Executor's symmetric logic — both agents follow the same append-or-create branch table.
+
+### 7.3: What to write
+
+Every pattern entry should describe HOW the app behaves, not WHAT specific data appears (see §5.1 — DISCOVERED notes, same separation). Pattern categories worth persisting:
+
+- Post-login redirect behavior (role-based routing, non-deterministic landing)
+- Cookie/consent/overlay dismissal selectors and timing
+- Custom component libraries (Frontier, Kendo, MUI, PCF, etc.) with non-standard DOM
+- SPA pacing idioms (which waits work, which don't — especially `networkidle` anti-patterns)
+- Logout/session-cleanup URL patterns
+- Localization or locale-dependent patterns
+
+### 7.4: Report the action taken
+
+In the Explorer report's `## App-Context Updates` section, state exactly which action the rule table above triggered, filename involved, and count of patterns written or skipped. Do NOT paraphrase "user responsibility" — the rule above is authoritative.
 
 ---
 

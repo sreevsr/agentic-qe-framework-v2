@@ -373,11 +373,13 @@ Step failed → Element not found → Correct page confirmed
    - `mobile` → `appContext.mobile.{android\|ios}` based on the `PLATFORM` env var
    - `mobile-hybrid` → `appContext.mobile.{android\|ios}` (optionally also `appContext.api`)
    Do NOT guess the filename from the URL, domain, folder, or app name. If the resolved slot is empty, skip the app-context write (and log `NO_APP_CONTEXT_CONFIGURED_FOR_TYPE_{type}` — the user should add a filename in `framework-config.json` if they want this type's patterns preserved).
-2. Check if `scenarios/app-contexts/{resolved-filename}` exists.
-3. If it exists → **ADD** the new patterns you discovered (DO NOT overwrite existing content)
+2. **Check if `scenarios/app-contexts/{resolved-filename}` exists on disk — via a real filesystem check (`Bash` tool: `test -f path && echo YES || echo NO`), NOT by inferring existence from the config value. "Filename configured in framework-config.json" does NOT imply "file exists on disk". The App-Context Check section of your report MUST reflect the filesystem truth, not the config reference. Reporting `file exists: Yes` when the file is absent is a false claim that masks real gaps — do not conflate these.**
+3. If it exists → **APPEND** the new patterns you discovered (DO NOT overwrite existing content)
 4. If it doesn't exist → **CREATE** one with the patterns you discovered (the filename is already reserved in the config, so creating the file on first write is expected)
 
 This ensures pacing fixes discovered by the Executor are available to the Explorer/Builder on future runs. Without this, the same pacing issues are re-discovered every time.
+
+**Symmetry with Explorer:** `explorer.md §7.2` defines an identical append-or-create rule table. Both agents follow the same logic so patterns get persisted whether Explorer found them during exploration or Executor found them during a fix cycle.
 
 ### 4.10: Executor Metrics Hardening — MANDATORY
 
