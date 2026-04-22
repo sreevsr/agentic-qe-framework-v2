@@ -3,12 +3,13 @@
   "$comment": "Template MCP server config. Copy this file to .vscode/mcp.json and edit paths/env vars for your local environment. The .vscode/mcp.json file is gitignored so your local paths never leak to source control.",
   "servers": {
     "playwright": {
-      "$comment": "Playwright MCP — required by the Explorer for web/hybrid scenarios",
+      "$comment": "Playwright MCP — required by the Explorer for web/hybrid scenarios. The --viewport-size below sets the Explorer browser to 1920×1080. Keep this value aligned with output/playwright.config.ts → projects[].use.viewport so Explorer and Executor see the app at the same size. Change or remove if your test suite runs at a different viewport.",
       "command": "npx",
       "args": [
         "@playwright/mcp@latest",
         "--isolated",
-        "--browser", "chromium"
+        "--browser", "chromium",
+        "--viewport-size", "1920,1080"
       ]
     },
     "appium-mcp": {

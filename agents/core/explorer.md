@@ -149,22 +149,13 @@ Read `output/.env` to get actual URLs and credentials for browser navigation. **
 - Do NOT update the enriched.md annotation for this step
 - If a FAST-walk interaction fails → escalate to DEEP (the step may have broken due to upstream changes)
 
-### Step 3.5: Browser Viewport Configuration — Before First Step
+### Step 3.5: Browser Viewport — Controlled by Playwright MCP Launch Config
 
-**BEFORE walking any steps**, the Explorer MUST check for a viewport configuration and resize the browser if one is set. Some applications render differently at different resolutions — elements may be hidden behind responsive breakpoints, hamburger menus, or collapsible panels. Matching the target viewport ensures the Explorer sees the app exactly as it will render during test execution.
+The Explorer browser viewport is set by Playwright MCP at launch, via the `--viewport-size` argument in `.vscode/mcp.json → servers.playwright.args` (see `.vscode/mcp.example.json` for the template). The Explorer agent does NOT read viewport config from `.env` or `framework-config.json` at runtime — viewport is a launch-time concern owned entirely by the MCP server, not an LLM-executed step.
 
-**Resolution:**
+**Alignment reminder:** the value in `.vscode/mcp.json → --viewport-size` MUST match `output/playwright.config.ts → projects[].use.viewport`. If Explorer captures at one size and Executor runs at another, elements hidden behind responsive breakpoints may produce false "element not found" failures at test time. This is a config-drift risk, not something the Explorer can detect at runtime.
 
-1. **`EXPLORER_VIEWPORT` in `output/.env`** — format: `EXPLORER_VIEWPORT=1920,1080` (width,height). If set to a non-empty value, use it.
-2. **Unset or blank (`EXPLORER_VIEWPORT=`) → skip resize.** The browser opens at whatever size Playwright MCP defaults to. Emit the warning in the "Log the decision" block below so the developer knows to align this with `playwright.config.ts` if the Executor uses an explicit viewport.
-
-**Recommended practice:** keep `EXPLORER_VIEWPORT` aligned with `output/playwright.config.ts → projects[].use.viewport`. If Explorer captures at one size and Executor runs at another, elements hidden behind responsive breakpoints may produce false "element not found" failures in the Executor.
-
-**How to apply:** If a viewport is resolved from step 1, call the Playwright MCP `browser_resize` tool (or equivalent viewport resize action) with the resolved width and height as the very first action — before navigating to any URL or walking any step. This happens once per exploration session, not per step.
-
-**Log the decision:** Record in the Explorer report which viewport was applied and where it came from:
-- `Viewport: 1920×1080 (from EXPLORER_VIEWPORT in .env)`
-- `Viewport: browser default (EXPLORER_VIEWPORT not set — recommend matching playwright.config.ts viewport)`
+**Log in the Explorer report's `## Key Decisions Made` table:** record the viewport you observed (e.g., via the first MCP snapshot's dimensions or an explicit `browser_resize` round-trip), formatted as `Viewport: 1920×1080 (from .vscode/mcp.json)`. This is documentation, not a gate.
 
 ---
 
