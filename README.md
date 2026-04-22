@@ -246,6 +246,8 @@ When you edit a scenario after the first pipeline run, the framework detects cha
 
 The incremental pipeline preserves Executor-healed selectors (`"_healed": true` in locator JSONs) and `// PACING` waits so you don't lose runtime fixes when regenerating.
 
+> **Step-by-step commands for running an incremental update** — including expected script outputs, decision points, intermediate state files, and troubleshooting — are in the [Incremental Workflow](#incremental-workflow) section further down.
+
 ---
 
 ## Prerequisites
@@ -744,7 +746,7 @@ npx playwright test --reporter=html
 
 ## Incremental Workflow
 
-After the first pipeline run, you can edit your scenario and re-run. The framework detects what changed and does only the necessary work. For step-by-step commands, see **Step 2 → Incremental run** above.
+After the first pipeline run, you can edit your scenario and re-run. The framework detects what changed and does only the necessary work — Executor-healed selectors (`"_healed": true` entries in locator JSONs) and `// PACING` waits are preserved so you don't lose runtime fixes when regenerating.
 
 ### What Triggers Each Mode
 
@@ -757,6 +759,156 @@ After the first pipeline run, you can edit your scenario and re-run. The framewo
 | Changed an interaction (e.g., different button, different dropdown value) | `EXPLORER_REQUIRED` | Yes (fast-walks unchanged, deep-verifies changed) | Yes |
 | Added a new step | `EXPLORER_REQUIRED` | Yes (fast-walks to reach state, deep-verifies new step) | Yes |
 
+### Option A — Claude Code CLI (Orchestrator, automatic)
+
+One command. The Orchestrator detects the pipeline mode, runs the Stage 1-pre scripts (scenario-diff + builder-incremental), routes to Explorer/Builder as needed, and runs the Stage 1-post cleanup automatically:
+
+```
+@QE Orchestrator scenario=my-scenario type=web [folder=my-folder]
+```
+
+Nothing else to do. Skip to the **Multi-Scenario File Support** note below.
+
+### Option B — GitHub Copilot (manual walkthrough)
+
+Copilot agents run in separate chat sessions and don't chain scripts. You invoke each step yourself. Follow the steps in order — skip a step only when the "Skip when" column says you can.
+
+#### Step 1 — Detect what changed (always safe, always first)
+
+```bash
+node scripts/scenario-diff.js --scenario=scenarios/web/my-scenario.md
+```
+
+**Required input:** path to the scenario `.md` file (not the enriched.md — the script auto-detects that).
+
+**Expected output:**
+
+```
+[scenario-diff] Comparing against enriched.md: scenarios/web/my-scenario.enriched.md
+
+Pipeline Mode: EXPLORER_REQUIRED
+Summary: EXPLORER_REQUIRED: 19 unchanged, 4 modified, 1 added | Affected: steps
+Output: output/reports/classified-changeset.json
+```
+
+The `Pipeline Mode` line is your decision point. What to do next:
+
+| Mode | Next step |
+|---|---|
+| `NO_CHANGES` | **STOP** — no regeneration needed. Run Executor only (Step 6) or just `npx playwright test ...` to confirm the app still passes. |
+| `BUILDER_ONLY` | Skip Step 3 (Explorer). Proceed through Step 2 → Step 4 (Builder) → Step 5 (Cleanup) → Step 6 (Test). |
+| `EXPLORER_REQUIRED` | Full manual sequence: Step 2 through Step 6. |
+| `FIRST_RUN` | Not an incremental run — follow the first-run walkthrough (**Step 2 → First run** above) instead. |
+
+#### Step 2 — Annotate enriched.md (required for `BUILDER_ONLY` and `EXPLORER_REQUIRED`)
+
+```bash
+node scripts/builder-incremental.js --scenario=my-scenario --type=web [--folder=my-folder]
+```
+
+**Required input:**
+- `--scenario` = scenario name **without** extension (e.g., `checkout-flow`, not `checkout-flow.md`)
+- `--type` = `web` | `api` | `hybrid` | `mobile` | `mobile-hybrid`
+- `--folder` = optional subfolder if your scenario lives in `scenarios/web/{folder}/...`
+
+**Skip when:** pipelineMode is `NO_CHANGES`.
+
+**Expected output:**
+
+```
+Annotated: scenarios/web/my-scenario.enriched.md
+
+Mode: INCREMENTAL (EXPLORER_REQUIRED)
+Changes: EXPLORER_REQUIRED: 19 unchanged, 4 modified, 1 added | Affected: steps
+Instructions: output/reports/builder-instructions.json
+```
+
+This does two things:
+- Annotates enriched.md **in-place** with `<!-- CHANGE: UNCHANGED|MODIFIED|ADDED|DELETED -->` and `<!-- WALK: FAST|DEEP|SKIP -->` markers next to every step (Step 5 cleanup removes these).
+- Writes `output/reports/builder-instructions.json` — the file the Builder reads in Step 4.
+
+#### Step 3 — Run Explorer (ONLY when pipelineMode is `EXPLORER_REQUIRED`)
+
+**Skip when:** pipelineMode is `BUILDER_ONLY` or `NO_CHANGES`.
+
+In a **fresh** Copilot chat session (not chained from a previous agent), invoke:
+
+```
+@QE Explorer scenario=my-scenario type=web [folder=my-folder] INCREMENTAL mode — read output/reports/classified-changeset.json for per-step walk modes
+```
+
+Explorer behavior in incremental mode:
+- Reads the per-step walk mode from `classified-changeset.json`
+- `FAST` steps: executes the interaction to maintain browser state, no snapshot, no annotation update
+- `DEEP` steps: full verification loop (snapshot, capture, bug detection) — updates the ELEMENT annotation in enriched.md
+- `SKIP` steps: step was deleted — Explorer does nothing for it
+
+Result: you get updated ELEMENT annotations only for the steps that actually changed. Everything else is byte-identical to before.
+
+#### Step 4 — Run Builder
+
+**Skip when:** pipelineMode is `NO_CHANGES`.
+
+In a **fresh** Copilot chat session:
+
+```
+@QE Builder scenario=my-scenario type=web [folder=my-folder] INCREMENTAL mode — builder-instructions.json exists at output/reports/builder-instructions.json
+```
+
+Builder behavior in incremental mode:
+- Reads `builder-instructions.json` + the annotated enriched.md
+- For each step:
+  - `UNCHANGED` → does NOT touch the existing `test.step()` block (preserves any `// PACING:` waits and healed selector keys)
+  - `MODIFIED` → updates that `test.step()` label and body only
+  - `ADDED` → inserts a new `test.step()` at the correct position
+  - `DELETED` → comments out the old `test.step()` with `// REMOVED: step was deleted from scenario`
+
+#### Step 5 — Cleanup annotations (MANDATORY — run after Builder finishes)
+
+```bash
+node scripts/cleanup-annotations.js --file=scenarios/web/my-scenario.enriched.md
+```
+
+**Required input:** path to the `.enriched.md` file.
+
+**Skip when:** pipelineMode was `NO_CHANGES` (nothing to clean — no annotations were written).
+
+**Expected output:**
+
+```
+Cleaned: scenarios/web/my-scenario.enriched.md
+  - Removed CHANGE/WALK annotations
+  - Removed deleted steps
+  - Renumbered steps per section
+  - Deleted: classified-changeset.json
+  - Deleted: builder-instructions.json
+```
+
+This restores enriched.md to a clean state and deletes the two intermediate JSON files. **If you skip this step, the next incremental cycle's scenario-diff will see stale markers and misclassify changes.**
+
+#### Step 6 — Test the updated spec
+
+```bash
+cd output && npx playwright test tests/web/my-scenario.spec.ts --project=chrome
+```
+
+If tests pass, you're done — optionally proceed to Reviewer + Healer. If tests fail, run the Executor (Step 2 → First run → row 3) to iterate on timing/selector fixes.
+
+#### Step 7 — Reviewer → Healer (optional, same as first run)
+
+Reviewer and Healer don't have incremental modes — they always audit/fix the whole spec. Run them the same way as the first-run walkthrough.
+
+### Intermediate state files — what they are
+
+Two JSON files exist only during an incremental cycle:
+
+| File | Produced by | Consumed by | Deleted by |
+|---|---|---|---|
+| `output/reports/classified-changeset.json` | `scenario-diff.js` (Step 1) | `builder-incremental.js` (Step 2) + Explorer (Step 3) | `cleanup-annotations.js` (Step 5) |
+| `output/reports/builder-instructions.json` | `builder-incremental.js` (Step 2) | Builder (Step 4) | `cleanup-annotations.js` (Step 5) |
+
+If you see them stuck around from an abandoned previous cycle, run the cleanup script (Step 5) with any enriched.md file path — it deletes them unconditionally.
+
 ### Multi-Scenario File Support
 
 Incremental detection is **section-aware**. In a file with Common Setup + 3 Scenarios + Common Teardown:
@@ -764,6 +916,16 @@ Incremental detection is **section-aware**. In a file with Common Setup + 3 Scen
 - Editing Scenario A does **not** affect Scenarios B or C (no positional cascade)
 - Editing Common Setup deep-verifies only the changed setup steps (not all scenarios)
 - The Executor always runs the full spec (catches cross-scenario regressions)
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `scenario-diff.js` classifies everything as `FIRST_RUN` | No enriched.md found next to the scenario | Run the Explorer first (first-run flow) to produce enriched.md. The diff compares scenario.md against enriched.md, not the spec. |
+| `scenario-diff.js` reports unexpected changes on a file you didn't edit | enriched.md has stale `<!-- CHANGE: -->` / `<!-- WALK: -->` markers from an abandoned previous cycle | `node scripts/cleanup-annotations.js --file=scenarios/.../your-scenario.enriched.md` then re-run scenario-diff. |
+| `builder-incremental.js: classified-changeset.json not found` | Step 1 was skipped | Run scenario-diff.js first (Step 1). |
+| Builder chat reports "INCREMENTAL mode but builder-instructions.json missing" | Step 2 was skipped, or Step 5 cleanup ran before Builder finished | Re-run scenario-diff + builder-incremental. Do NOT run cleanup until after Builder has finished writing code. |
+| Executor reports `test.fixme UNFIXABLE` on a step Builder marked `UNCHANGED` | Builder preserved healed selectors for the step but the app changed underneath them (app-side drift not reflected in scenario edit) | Open the locator JSON entry, delete the `"_healed": true` flag, re-run scenario-diff (it will re-classify that step as needing explore), then re-run the full incremental flow. |
 
 ---
 
