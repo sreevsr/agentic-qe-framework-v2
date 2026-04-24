@@ -31,8 +31,10 @@ export default defineConfig({
     actionTimeout: parseInt(process.env.DEFAULT_TIMEOUT || '30000', 10),
     navigationTimeout: parseInt(process.env.NAVIGATION_TIMEOUT || '60000', 10),
 
-    // Browser permissions — grant common permissions to prevent dialogs blocking tests
-    permissions: ['geolocation', 'notifications'],
+    // Browser permissions — grant common permissions to prevent dialogs blocking tests.
+    // 'local-network-access' suppresses Chrome's "Allow local network access?" prompt on
+    // apps that fetch from private-network ranges (enterprise apps behind VPNs commonly do).
+    permissions: ['local-network-access', 'geolocation', 'notifications'],
 
     // Accept file downloads without dialog
     acceptDownloads: true,
@@ -52,6 +54,11 @@ export default defineConfig({
           args: [
             // Suppress Chrome's Private Network Access permission prompt
             '--disable-features=PrivateNetworkAccessPermissionPrompt',
+            // Uncomment if the app still hits PNA preflight blocks after the permission
+            // prompt is suppressed (rare — affects apps whose backend sits on a private
+            // network range and uses CORS with preflight). More aggressive than the
+            // prompt suppression above; disables the preflight mechanism itself.
+            // '--disable-features=PrivateNetworkAccessSendPreflights',
             // Uncomment if CORS blocks test API calls from the browser:
             // '--disable-web-security',
           ],
