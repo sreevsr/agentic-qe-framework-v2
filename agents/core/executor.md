@@ -237,11 +237,27 @@ When the Diagnostic Gate identifies **Interaction Pacing** (element present, act
 
 **MUST** add `// PACING: [reason]` comment to EVERY `waitForTimeout` — this protects it from Reviewer removal. **MUST** update app-context with the discovered pacing pattern.
 
-### 4.5a: Selector Healing for Element Capture Gaps — MANDATORY When Element Not Found
+### 4.5a: MCP Live-Probe — MANDATORY for Element Gaps AND Structural-Ambiguity Convergence Failures
 
-**When the Diagnostic Gate (4.4 Step A) determines the element is NOT in the DOM AND the browser is on the correct page, the Executor attempts to discover the missing element.**
+**This section is the framework's Level 3 recovery path. It is reachable under TWO distinct triggers — the Executor MUST invoke it when either fires.**
+
+**Trigger A — Element not found (original scope).** The Diagnostic Gate (§4.4 Step A) determines the element is NOT in the DOM AND the browser is on the correct page. The Executor discovers the missing element via MCP snapshot, generates a locator entry, and appends to the locator JSON.
+
+**Trigger B — Structural-ambiguity convergence failure (MANDATORY extension).** The element IS in the DOM but the same root-cause has persisted for 2 consecutive cycles (per §4.7) on a question about DOM structure the code-only path cannot answer. Symptoms include:
+- Count assertion returning wrong value across multiple hand-rolled fixes (scope unclear — is the counted region correct? is there shadow DOM?)
+- Overlay/z-index blocking whose topology is not visible in `error-context.md` text (screenshot suggests overlay; DOM snapshot alone doesn't reveal stacking context)
+- "element outside of the viewport" after `scrollIntoViewIfNeeded` (is there a custom scroll container?)
+- Any failure where the Executor has tried tactical fixes and the next reasonable attempt requires observing the live rendered structure rather than more guessing
+
+Under Trigger B, the Executor MUST take a Playwright MCP `browser_snapshot` of the failure state BEFORE writing the cycle-3 fix. The snapshot output (ARIA tree with roles, labels, regions, hierarchy) is used to RE-SELECT a strategy from the Menu-Driven Reset (§4.7) informed by ground truth, NOT to write a new hand-rolled locator.
+
+**The distinction between Trigger A and Trigger B:**
+- Trigger A output: a new locator entry appended to the JSON.
+- Trigger B output: a new informed strategy choice from the §4.7 menu, applied by rewriting the failing method from scratch. The locator JSON is typically NOT modified under Trigger B — the primary locator was correct; the strategy using it was wrong.
 
 **Why this is needed:** The Explorer captures element data for ~90% of interactive elements during exploration. The remaining ~10% may have failed capture (`ELEMENT_CAPTURE_FAILED`), or the element may have changed since exploration. The Executor discovers these one at a time — one snapshot, one element, one locator entry. Context pressure is minimal.
+
+**Additionally:** when tactical code fixes fail to converge on a structural question (Trigger B), the Executor has historically burned 4-5 cycles improvising DOM walks against a misunderstood DOM shape. A single MCP snapshot reveals the actual structure and redirects the fix. The NHA Step-35 saga (5 cycles of DOM-walking for a count assertion) is the reference failure this extension prevents.
 
 **Healing Flow:**
 
@@ -339,15 +355,145 @@ Step failed → Element not found → Correct page confirmed
 6. **MUST NOT modify `*.helpers.ts` files** — team-owned
 7. **MUST NOT modify `output/test-data/shared/`** — immutable
 8. **MUST document every fix** in the executor report: what file, what changed, why
+9. **MUST NOT change the element target of a scenario step — Semantic Guard.** Before writing any fix that touches a page-object method or spec test.step block, re-read the enriched.md step text for the failing step AND the Explorer's ELEMENT annotation for that step. The fix MAY change pacing, waits, scoping, or selector strategy. The fix MUST NOT change WHICH element the step targets (e.g., scenario says "Select one leaf product" — the fix must not retarget to the category header, the "Select All" checkbox, or any other element). If a fix requires retargeting, that is a scenario-fidelity violation — `test.fixme('UNFIXABLE: fix requires retargeting element, which would violate scenario semantics')` instead.
+
+   **Checklist the Executor MUST run mentally for each fix:**
+   - Read the scenario step text (from enriched.md).
+   - Read the Explorer ELEMENT annotation's `key` + `primary` for that step.
+   - Identify what the fix changes: (a) pacing/wait only, (b) selector strategy on the same target, (c) target element itself.
+   - (a) and (b) are allowed. (c) is blocked — escalate instead.
+
+   **Document the guard check in the cycle entry:**
+   ```markdown
+   - **Semantic Guard:** Step 10 targets the first leaf product checkbox (Explorer key: `anyProductCheckbox`). Fix changes pacing only (adds scrollIntoViewIfNeeded). Target unchanged. ✓
+   ```
 
 ### 4.7: Same-Root-Cause Detection — MANDATORY
 
-**After each cycle, compare the current failure against previous cycles:**
+**After each cycle, compare the current failure against the previous cycle using the OPERATIONAL DEFINITION below. "Same error type" is NOT the definition — it is too loose and produces a loophole (symptom-value changes like `count=636 → count=0 → count=-1` would reset the counter despite being the same underlying misunderstanding).**
 
-- If Cycle N's failure has the **same test step + same error type** as Cycle N-1 → the fix didn't work
-- If the same root cause persists for **2 consecutive cycles** → DO NOT attempt a 3rd identical fix. Either:
-  a. Try a fundamentally different approach (not just a variation of the same fix)
-  b. Escalate immediately with `test.fixme('UNFIXABLE: [root cause] persisted across 2 cycles — [what was tried]')`
+**Operational definition — Two consecutive cycle failures have the SAME ROOT CAUSE if and only if BOTH of the following are true:**
+
+1. **Same failing step number** (e.g., both cycles fail at Step 35), AND
+2. **Same §4.4 failure category** — one of:
+   - **Interaction Pacing** — action times out on present element
+   - **DOM Navigation-Wrong-Read** — value read returns wrong result on present element (includes count queries returning unexpected numbers)
+   - **Assertion-Value-Mismatch** — assertion fails with correct element and correct read, wrong expected value
+   - **Element-Not-Found** — element is NOT in DOM
+   - **Overlay-Blocked** — present element, click intercepted by overlay
+   - **Scroll-Viewport** — present element, "outside of viewport" error
+
+**Symptom-value changes within the same category do NOT reset the counter.** Examples that are SAME root cause (not a reset):
+- Step 35: count returned 636 (Cycle 2) → count returned 0 (Cycle 3). Both are DOM Navigation-Wrong-Read. Counter keeps advancing.
+- Step 10: click timeout 30s (Cycle 1) → click timeout 60s after waitForSelector added (Cycle 2). Both are Interaction Pacing. Counter keeps advancing.
+
+**Category CHANGES are genuine progress signals — counter resets to zero.** Examples that ARE a different root cause (reset):
+- Step 10 Cycle 2: Interaction Pacing (click timed out). Cycle 3: DOM Navigation-Wrong-Read (click succeeded, wrong text captured). Category changed — Cycle 2's fix worked; a different issue emerged.
+- Step 35 Cycle 3: DOM Navigation-Wrong-Read (wrong count). Cycle 4: Element-Not-Found (container disappeared after a fix). Category changed.
+
+**Escape valve — claiming root-cause change WITHIN the same category:** if the Executor has evidence that the root cause genuinely changed despite category being the same, it MUST document in the cycle entry with ALL of the following, or the counter does NOT reset:
+
+```markdown
+- **Root-cause-change claim:** same category (DOM Navigation-Wrong-Read), different root cause.
+  - Before fix, error text: "<exact error from Cycle N-1>"
+  - After fix, error text: "<exact error from Cycle N, showing the prior issue is resolved>"
+  - Before fix, DOM snapshot signature: "<key observable from error-context.md>"
+  - After fix, DOM snapshot signature: "<changed observable>"
+  - New diagnosis: "<what the new issue is and why it is distinct>"
+```
+
+Without this evidence block, the same-root-cause counter keeps advancing regardless of symptom-value change.
+
+**Trigger:** if the same root cause (per operational definition) persists for **2 consecutive cycles** → DO NOT attempt a 3rd identical fix. Apply the **Menu-Driven Reset** below.
+
+#### Menu-Driven Reset — MANDATORY after 2 same-root-cause cycles on the same step
+
+**Why this exists:** "try a fundamentally different approach" without constraint produces tactical variations of the last attempt. A concrete menu of orthogonal strategies forces the Executor to pick a genuinely different approach.
+
+**Procedure for Cycle N+1 (where Cycles N and N-1 had the same root cause on the same step):**
+
+1. **Identify the failure category** from the table below.
+2. **List the strategies tried** in Cycles N-1 and N (cite them by bullet letter).
+3. **Pick a strategy NOT yet tried** from the category's menu. If all menu strategies have been tried, escalate with `test.fixme('UNFIXABLE: menu exhausted for [category] — tried [a,b,c,d]')`.
+4. **Delete the current implementation of the failing method / block** before writing the new one. Do NOT tweak in place — that anchors the LLM on the last attempt. Replace, don't patch.
+5. **State the chosen strategy explicitly in the cycle report:**
+   ```markdown
+   - **Menu-Driven Reset applied** (Category: Count/Assertion ambiguity). Tried: (a) DOM walk with visibility filter, (b) getComputedStyle ancestor walk. Choosing: (c) role+region scoping with `toHaveCount`. Implementation rewritten from scratch.
+   ```
+
+**Strategy menus — the Executor MUST pick an untried strategy from the menu for its category. Improvisation outside the menu is PROHIBITED. If every strategy in the applicable category has been tried, escalate with `test.fixme('UNFIXABLE: menu exhausted for [category] — tried [a,b,c,d,e]')`. Novel failure shapes that do not match any category are covered by the default-escalation clause below, not by inventing new strategies.**
+
+**Every category menu ends with option (e) — MCP Live-Probe — which is reachable via executor.md §4.5a Trigger B.** Option (e) is NOT an optional extra; it is a first-class untried strategy that the Executor MUST pick before escalating. Option (e)'s output is an INFORMED re-selection from options (a)-(d) of the same category based on observed ground truth — not a separate hand-rolled fix.
+
+**Category: Count / "exactly N" assertion ambiguity** — symptoms: wrong count returned, count=0 or count=way-too-many on a search-filtered list.
+
+| # | Strategy |
+|---|---|
+| a | Role-based locator with `.filter({ hasNotText })` + `toHaveCount(N)` (see keyword-reference.md VERIFY count modifiers) |
+| b | ARIA-region scoping: `getByRole('region', { name: 'X' })` + role-based child locator + `toHaveCount` |
+| c | Assert each named item individually with `getByRole({ name: fromTestData })` + `toBeVisible()` — do NOT count |
+| d | CSS scoping via Explorer-captured region anchor + `toHaveCount` on a narrowed selector |
+| e | **MCP Live-Probe (§4.5a Trigger B).** Take a Playwright MCP `browser_snapshot` of the live failure state. Read the ARIA tree for the target region — observe: does the region use shadow DOM? does `display:contents` hide children from `offsetParent`? are there multiple same-named regions? Use observed structure to re-pick (a)-(d) with ground truth. |
+
+**Category: Element interaction timing / pacing** — symptoms: click/fill times out on present element, stale state after navigation.
+
+| # | Strategy |
+|---|---|
+| a | Add `waitForSelector({ state: 'visible' })` before action |
+| b | Replace `fill()` with `pressSequentially(value, { delay })` for reactive inputs |
+| c | Add `waitForLoadState('load')` after suspected navigation-triggering actions (see explorer.md §4.8a navigation-event classification) |
+| d | Add explicit landmark wait on the post-action element with `// PACING:` comment |
+| e | **MCP Live-Probe (§4.5a Trigger B).** Take a Playwright MCP `browser_snapshot` of the pre-action state — observe: is the target in an offscreen scroll container? is a spinner covering the region? is the action target's parent disabled? Use observed state to re-pick (a)-(d). |
+
+**Category: Overlay / z-index / pointer-events blocking** — symptoms: element present but click intercepted; screenshot shows a banner/dialog above the target.
+
+| # | Strategy |
+|---|---|
+| a | Dismiss the overlay via its own dismiss control (button click, close icon) and wait for `state: 'hidden'` before the blocked action |
+| b | Scope overlay dismissal via role-qualified selector (see explorer.md §4.3a semantic-specificity tiebreaker), not bare attribute |
+| c | Set `pointer-events: none` on the overlay via `page.evaluate()` if no dismiss control exists — last resort, document why |
+| d | Check whether the overlay is re-appearing per-interaction; if so, install the dismiss guard inside the page-object method, not the spec |
+| e | **MCP Live-Probe (§4.5a Trigger B).** Take a Playwright MCP `browser_snapshot` of the failure state — observe: what is the overlay's actual role/label? is it a sibling or ancestor of the target? multiple overlays stacked? Use observed topology to re-pick (a)-(d) with the correct overlay selector. |
+
+**Category: Scroll / viewport** — symptoms: element "outside of the viewport" even after `scrollIntoViewIfNeeded`.
+
+| # | Strategy |
+|---|---|
+| a | `scrollIntoViewIfNeeded()` on the element itself (default Playwright behavior — may not pierce scrollable container) |
+| b | Scroll the containing scrollable ancestor: `container.evaluate(el => el.scrollTop = el.scrollHeight)` or target scroll on the ancestor |
+| c | Use `locator.waitFor({ state: 'visible' })` — `visible` requires in-viewport; if it times out, the scroll container is the issue |
+| d | Reduce viewport scope or use `page.mouse.wheel()` inside the scroll container |
+| e | **MCP Live-Probe (§4.5a Trigger B).** Take a Playwright MCP `browser_snapshot` of the failure state — observe: which ancestor has `overflow: auto/scroll`? is the target genuinely rendered or virtualized-out? Use observed scroll topology to re-pick (a)-(d). |
+
+**Default when no category matches:** escalate with `test.fixme('UNFIXABLE: [symptom] does not match any Menu-Driven Reset category — human review needed')`. DO NOT invent a new category or a new strategy. Novel failure shapes are escalation signals, not improvisation opportunities.
+
+**Semantic Guard still applies** (see §4.6 rule #9): a Menu-Driven Reset rewrite MUST NOT silently change the element target. Pacing / scoping / locator-strategy changes on the SAME target are always allowed.
+
+**Informed retargeting under Option (e) — CONDITIONAL EXCEPTION.** Option (e)'s MCP probe may reveal that the Explorer's captured target is wrong for the scenario's intent (e.g., Explorer captured a category-header checkbox when the scenario intent was a leaf-item checkbox). The Executor MAY retarget to the correct element PROVIDED ALL THREE of the following conditions are true:
+
+**Condition 1 — Scenario step text is UNAMBIGUOUS about intent.** The step text, read in isolation by a reasonable reader, has one clear interpretation. Examples:
+- UNAMBIGUOUS: "Select one leaf product from the Product category" — the word "leaf" and "from the Product category" make the intent specific.
+- AMBIGUOUS: "Select a product" — could be any product-related control; scenario intent is unclear. STOP and escalate.
+- AMBIGUOUS: "Click the appropriate item" — "appropriate" requires judgment. STOP and escalate.
+
+**Condition 2 — MCP snapshot shows EXACTLY ONE element matching the scenario intent.** Not "best match" — exactly one, such that any reasonable reader would agree. If the snapshot shows multiple candidates, the choice is a judgment call and the Executor MUST escalate.
+
+**Condition 3 — Evidence chain is documented in the cycle entry.** The Executor MUST record ALL of the following in the cycle report; missing any field blocks the retarget:
+
+```markdown
+- **Informed retarget under Option (e):**
+  - Scenario step text (quoted verbatim): "<text>"
+  - Explorer's captured target (key + primary selector from enriched.md ELEMENT annotation): `<key>` → `<selector>`
+  - MCP snapshot observation (the specific ARIA tree fragment showing the scenario's intended element): <observation>
+  - New target (key + primary selector): `<newKey>` → `<newSelector>`
+  - Why the Explorer's target was wrong: <one sentence tying scenario text to MCP observation>
+```
+
+**If ANY of the three conditions fails** — scenario ambiguous, multiple MCP candidates, or incomplete evidence — the Executor MUST escalate with `test.fixme('UNFIXABLE: Option (e) MCP probe suggests Explorer retarget needed, but [condition N] not met — human review required')`.
+
+**Why this rule is conditional, not permissive:** LLMs are reliable on deterministic transformations (scenario intent is clear + one matching element = deterministic) and unreliable on judgment calls (ambiguous intent or multiple candidates = guessing). The three conditions route each case to its strength.
+
+**When the retarget is blocked by this rule,** the escalation message MUST flag the Explorer capture as needing re-exploration so the next pipeline run fixes the root cause at the Explorer stage, not in Executor code.
 
 **The `UNFIXABLE:` marker** signals to humans that automated healing has been exhausted for this specific issue. It's different from `POTENTIAL BUG:` (app defect) and `SCENARIO BLOCKED:` (step can't execute as written).
 

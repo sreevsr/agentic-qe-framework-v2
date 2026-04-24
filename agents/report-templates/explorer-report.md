@@ -58,7 +58,11 @@
 ## Page Map
 <!-- For EACH page discovered, list ALL interactive elements — not just the ones used -->
 
-### Page: {PageName} (URL: {url})
+### Page: {PageName} (URL: {url | <variable>})
+<!-- If multiple paths were observed for this page (role-specific routes, multi-tenant routes),
+     emit URL as `<variable>` and add an OBSERVED_PATHS line below listing the paths.
+     Builder MUST NOT hardcode a specific path when URL is <variable>. See explorer.md §4.8. -->
+<!-- OBSERVED_PATHS: /admin/, /manager/, /user/ (only when URL is <variable>) -->
 | Element | Role | TestID | ID | Name | Text | Type | Selector Used |
 |---------|------|--------|----|------|------|------|---------------|
 | Login button | button | submit-btn | login-submit | — | Sign In | button | testid=submit-btn |

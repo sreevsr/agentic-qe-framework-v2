@@ -335,9 +335,34 @@ For `role=` selectors, validate the underlying CSS equivalent. For example, `rol
 
 | Count | Action |
 |-------|--------|
-| **1** | Unique. Record as primary. |
+| **1** | Unique. Record as primary — but first run the **semantic-specificity tiebreaker** and the **cross-key collision check** below. |
 | **0** | Doesn't match. Try next priority selector. If all fail → `<!-- ELEMENT_CAPTURE_FAILED -->`. |
 | **2+** | Ambiguous. **Narrow it** — add `:has-text('...')`, add class qualifier (e.g., `a.nav-text[href='...']`), or scope with parent container. Re-validate after narrowing. |
+
+**Semantic-specificity tiebreaker — MANDATORY when the primary is a bare attribute selector that matched count=1.**
+
+A bare attribute selector (`[aria-label='X']`, `[data-foo='Y']`) resolves to the FIRST matching element in document order. When the app renders a generic container around a role-specific child that shares the same attribute (e.g., `<div aria-label='Consent Dialog'>` wrapping `<dialog aria-label='Consent Dialog'>`), the bare attribute selector matches the outer container — not the semantically-meaningful child. Count=1 is satisfied, but the element is wrong: the container may be always-visible or have different display state than the dialog, causing `isVisible()` / `isHidden()` to return the wrong answer and silently break dismissal guards.
+
+**The rule:** when the validated primary is a bare attribute selector (no tag, no role prefix), also validate the tag-qualified form (e.g., `dialog[aria-label='X']`, `button[aria-label='X']`) derived from the fingerprint's `tag` field. If the tag-qualified form ALSO resolves to count=1 AND resolves to a DIFFERENT element that is a descendant of the bare-selector match, emit the tag-qualified form as primary and keep the bare form as the first fallback.
+
+```javascript
+// Tiebreaker check
+const bareMatch = document.querySelectorAll("[aria-label='Consent Dialog']")[0];
+const qualifiedMatch = document.querySelectorAll("dialog[aria-label='Consent Dialog']")[0];
+if (qualifiedMatch && bareMatch !== qualifiedMatch && bareMatch.contains(qualifiedMatch)) {
+  // Emit `dialog[aria-label='Consent Dialog']` as primary
+}
+```
+
+**When the tiebreaker does NOT apply:** fingerprint's `tag` is `div`/`span`/`section` (no semantic role); both forms resolve to the same element; tag-qualified form resolves to count=0 or 2+. In those cases, keep the bare attribute selector as primary.
+
+**Cross-key collision check — MANDATORY before closing Section 4.3a for an element.**
+
+Before appending a new `<!-- ELEMENT: -->` annotation to enriched.md, check the in-memory record of primary selectors already emitted for the SAME page in this run. If the new key's primary selector string is byte-for-byte identical to an already-emitted primary on the same page, the Explorer has captured two semantically distinct concepts (e.g., `anyProductCheckbox` and `anyCourseCheckbox`) that resolve to the same DOM node. **Narrow at least one of them** — scope by the nearest ARIA region, container heading text, or section-specific ancestor. Re-validate after narrowing.
+
+**Exception:** two keys may legitimately share a primary when one is explicitly marked `"alias_of": "<otherKey>"` in the element annotation. Aliasing is rare and MUST be documented with a `<!-- DISCOVERED: {newKey} is an alias for {existingKey} because [reason] -->` note.
+
+**Skip both checks for:** type `structural` (list containers), type `list`, or any annotation that carries `"multiple": true` — these are expected to match multiple elements or be reused as container anchors.
 
 **Iframe-aware validation:** If the current step's element is inside an iframe (Explorer switched frames via `frameLocator()`), run the validation query inside that same frame — not the top-level document. `querySelectorAll` only searches the current frame context.
 
@@ -447,6 +472,41 @@ When you navigate to a new page (URL changes or significant DOM change), record 
 
 **Page naming convention:** Use PascalCase page names that describe the page's purpose (e.g., `LoginPage`, `DashboardPage`, `CheckoutPage`). These become the page object class names in the Builder.
 
+**Variable-path rule — MANDATORY.** The Explorer MUST emit the URL as `<variable>` in the page section header if ANY of the three triggers below fires. If none fires, emit the single observed path.
+
+**Trigger 1 — Multiple paths observed.** The Explorer reached the SAME PascalCase page name (e.g., `DashboardPage`) under two or more distinct URL paths during THIS exploration run (e.g., `/admin/dashboard` and `/manager/dashboard` both land on `DashboardPage`).
+
+**Trigger 2 — Scenario test data signals multi-tenant/multi-role access.** The scenario's test data table contains two or more users/roles/tenants AND the scenario steps do not separate them into distinct page sections — i.e., the same page is expected to serve all of them. This trigger fires even if the Explorer only walked one user during exploration (the others imply path variance).
+
+**Trigger 3 — Scenario step text contains an explicit URL-negation directive.** The scenario's step text for any assertion on the page contains a literal instruction against URL-based assertions. The Explorer MUST grep the scenario step text for ALL of these phrase fragments (case-insensitive):
+- `do not assert by URL`
+- `do NOT assert by URL`
+- `not by URL`
+- `assert by visible page content`
+- `assert by content, not URL`
+- `do not rely on URL`
+
+If any phrase matches for a step targeting this page, Trigger 3 fires — emit `<variable>` AND quote the matched phrase verbatim in the `OBSERVED_PATHS` comment so the Builder sees the source directive.
+
+**Format:**
+
+```markdown
+### DashboardPage (<variable>)
+<!-- OBSERVED_PATHS: /admin/dashboard, /manager/dashboard, /user/dashboard — varies by role. -->
+<!-- SCENARIO_DIRECTIVE: "do NOT assert by URL — assert by visible page content" (Trigger 3, quoted from scenario step 3). -->
+3. VERIFY: Dashboard page is loaded and visible <!-- ORIGINAL -->
+   <!-- ELEMENT: {"page":"DashboardPage","key":"dashboardHeading", ... } -->
+```
+
+Include only the comment lines that apply to the fired triggers. If Triggers 1 and 3 both fire, emit both comments.
+
+**Builder contract when page URL is `<variable>` — HARD RULE:**
+- Post-login/post-transition navigation waits MUST use content-based or change-relative patterns: `page.waitForURL((url) => url.href !== prevUrl, { waitUntil: 'commit' })` OR a landmark wait on a post-action element. Hardcoding a specific path (e.g., `waitForURL('**/admin/**')`) is a fidelity violation.
+- Page-load and state assertions MUST target visible DOM content (heading text, section visibility). `expect(page).toHaveURL(...)` on this page is a fidelity violation.
+- The Builder self-audit MUST grep the spec and page-object files for `toHaveURL(` and `waitForURL(/\w+/` (literal path fragment) scoped to steps targeting this page — any match is a violation to fix or escalate.
+
+**Reviewer check:** when enriched.md header reads `<variable>`, the Reviewer MUST grep the spec and page objects for `toHaveURL` and literal-string `waitForURL` calls on the affected page. Any such call is a Dim 9 fidelity violation regardless of whether the test passes at runtime.
+
 ### 4.8a: App-Level Pacing Signal — MANDATORY Observation
 
 **While walking the scenario, track cross-route rendering timing. Emit a single app-level signal in the enriched.md header so the Builder can generate correct waits up front — not discover them cycle-by-cycle.**
@@ -454,6 +514,68 @@ When you navigate to a new page (URL changes or significant DOM change), record 
 **What to track** during exploration:
 - After each route-changing interaction (navigation, SPA link click, view change), observe how long until the landmark element of the new page renders (heading, main section).
 - Note whether the browser URL changes instantly but the content paints later (SPA async), both change together (server-rendered), or neither changes (in-place partial update).
+- **Observe navigation events, not just URL shape.** URL path equality does NOT imply "no navigation" — an action that fires a real page navigation (cookies cleared from DOM, `load` event re-fires, `domcontentloaded` re-fires) may land back on a URL that LOOKS the same as before (e.g., role-switcher that navigates through `/switch_context` → `/dashboard` but the starting page was also `/dashboard`). Misclassifying a real navigation as in-place SPA update is a documented failure mode that costs multiple Executor cycles to recover from.
+
+**Navigation-event probe — MANDATORY for any action that changes user context** (role/tenant/organization switch, logout+login, context-active-entity change). Use the **marker-survival** pattern — event listeners do not survive a real navigation, so they cannot be used as a positive signal for navigation. A window-scoped marker CAN be checked post-action for survival, which is the reliable signal.
+
+```javascript
+// Step 1 — BEFORE the triggering action, plant a marker on the window and capture navigation-entry count:
+await browser_evaluate({
+  expression: `
+    window.__nav_marker = 'EXPLORER_${Date.now()}_${Math.random()}';
+    window.__nav_entry_count_before = performance.getEntriesByType('navigation').length;
+    window.__nav_url_before = window.location.href;
+    window.__nav_marker
+  `
+});
+// Store the returned marker string locally as `plantedMarker`.
+
+// Step 2 — Trigger the action (MCP click, selectOption, etc.). Allow up to ~3s for any resulting navigation to settle.
+
+// Step 3 — AFTER the action, read back the marker and the navigation-entry count:
+const result = await browser_evaluate({
+  expression: `
+    ({
+      marker: (typeof window.__nav_marker === 'string') ? window.__nav_marker : null,
+      entryCountAfter: performance.getEntriesByType('navigation').length,
+      entryCountBefore: window.__nav_entry_count_before ?? null,
+      urlBefore: window.__nav_url_before ?? null,
+      urlAfter: window.location.href
+    })
+  `
+});
+```
+
+**Classification rule based on the returned object:**
+
+| `result.marker` | `entryCountAfter` vs `entryCountBefore` | `urlAfter` vs `urlBefore` | Classification |
+|---|---|---|---|
+| `null` (marker gone) | N/A (before-value lost with window) | Any | **Real navigation (document replaced)** — Builder MUST emit `await page.waitForLoadState('load', { timeout })` AFTER the triggering action, BEFORE the landmark wait |
+| Equal to `plantedMarker` | `after > before` | Any | **Real navigation with same window context** (rare — typically only first document load) — Builder treats as real navigation |
+| Equal to `plantedMarker` | Equal | Different path | **SPA route change (same document, URL updated)** — Builder emits `waitForURL(newPathPattern)` + landmark wait |
+| Equal to `plantedMarker` | Equal | Identical | **In-place SPA update (no navigation)** — Builder emits landmark wait only |
+
+**Record findings in the Dynamic Content Map:**
+
+```markdown
+| Org switch (step 47) | Real navigation (marker gone, document replaced) | page.waitForLoadState('load') + landmark wait on filterButton |
+```
+
+**Builder contract when the Dynamic Content Map entry says "Real navigation (marker gone, document replaced)":**
+- After the triggering action, emit `await page.waitForLoadState('load', { timeout })` BEFORE the landmark wait.
+- Do NOT rely on landmark wait alone — the previous page's DOM can still be visible during the navigation, causing the landmark wait to return immediately against stale DOM.
+
+**Record findings in the Dynamic Content Map:**
+
+```markdown
+| Org switch (step 47) | Real navigation (load event fired) | page.waitForLoadState('load') + landmark wait on filterButton |
+```
+
+**Builder contract when the Dynamic Content Map entry says "Real navigation (load event fired)":**
+- After the triggering action, emit `await page.waitForLoadState('load', { timeout })` BEFORE the landmark wait.
+- Do NOT rely on landmark wait alone — the previous page's DOM can still be visible during the navigation, causing the landmark wait to return immediately against stale DOM.
+
+**When to run the probe:** context-switch actions (org/tenant/role), explicit "change active X" UI controls, and any action where the Explorer sees the filter/content visibly reset or reload even without an obvious URL change. Skip the probe for ordinary button clicks inside a page that only update partial DOM.
 
 **Classification — emit exactly ONE of these in the enriched.md header `## App Behavior:` line:**
 

@@ -27,6 +27,58 @@ expect(await inventoryPage.getCartBadgeCount()).toBe(2);
 await expect(page).toHaveURL(/\/dashboard/);
 ```
 
+### VERIFY count/comparison modifiers — Builder MUST use the canonical Playwright idiom
+
+**Why this table exists:** when a VERIFY step asserts a **count** or **comparison** against a list (e.g., "Exactly 3 rows"), Builder must emit the Playwright-native assertion. Hand-rolled DOM-walking or `evaluate()`-based counting is a documented failure class — it invites multi-cycle Executor fix loops on shadow-DOM / display:contents / ARIA-region edge cases that the built-in retry-capable locator assertions handle correctly.
+
+| Scenario phrase | Canonical Playwright idiom |
+|---|---|
+| `VERIFY: Exactly N <items> displayed` / `VERIFY: Exactly N <items> shown` | `await expect(scope.getByRole('{role}').filter({ hasNotText: '<exclusion>' })).toHaveCount(N);` |
+| `VERIFY: Exactly the following items are displayed` (list given) | `toHaveCount(N)` AND one `toBeVisible()` per named item from test-data |
+| `VERIFY: At least N <items>` / `VERIFY: No fewer than N` | `expect(await scope.getByRole('{role}').count()).toBeGreaterThanOrEqual(N);` |
+| `VERIFY: No more than N` | `expect(await scope.getByRole('{role}').count()).toBeLessThanOrEqual(N);` |
+| `VERIFY: No <items> displayed` | `await expect(scope.getByRole('{role}')).toHaveCount(0);` |
+| `VERIFY: <element> contains text "X"` | `await expect(loc).toContainText('X');` |
+| `VERIFY: <element> text exactly matches "X"` | `await expect(loc).toHaveText('X');` |
+| `VERIFY: <element> is visible` | `await expect(loc).toBeVisible();` |
+| `VERIFY: <element> is hidden` / `is not displayed` | `await expect(loc).toBeHidden();` |
+
+**Canonical example — "VERIFY: Exactly 2 rows are displayed under the Items section" (scope = Items region, exclude header row):**
+
+```typescript
+// Canonical idiom — auto-retries until the assertion holds or times out
+await expect(
+  page.getByRole('region', { name: 'Items' })
+      .getByRole('row')
+      .filter({ hasNotText: 'Header' })
+).toHaveCount(2);
+```
+
+**Anti-pattern — do NOT emit this shape:**
+
+```typescript
+// ANTI-PATTERN: hand-rolled DOM walk, no auto-retry, fragile under shadow DOM / display:contents
+const cbs = await page.locator('section input[type="checkbox"]').all();
+let count = 0;
+for (const cb of cbs) {
+  const name = await cb.evaluate(el => /* ... */);
+  if (name && !name.includes('Header')) count++;
+}
+expect(count).toBe(2);
+```
+
+**Builder rule:** when the scenario step matches any phrase above, emit the canonical idiom from the right column. DO NOT substitute a hand-rolled `evaluate()`/`.all()` loop.
+
+**When a scenario phrase is not an exact match to any row:** map it to the closest row whose assertion semantics match (e.g., "There must be 3 items" → "Exactly N <items> displayed"; "No items should appear" → "No <items> displayed"). Do NOT invent a new idiom — if the phrase semantically asserts count/visibility/comparison, it maps to a row above. If the phrase is NOT a count/comparison assertion, the VERIFY-modifiers table does not apply; use the base VERIFY pattern.
+
+**When the canonical idiom fails at runtime** (rare — e.g., truly closed shadow DOM), the Executor escalates via Fix-Cycle Menu-Driven Reset (executor.md §4.7) — NOT by reverting to a hand-rolled DOM walk.
+
+**Executor rule:** when a VERIFY-count step fails, the Executor MUST first check whether the spec emitted the canonical idiom. If not, the first fix is to REWRITE the assertion using the canonical idiom from the table (counts as the strategy reset for that step).
+
+**Reviewer rule:** flag any VERIFY-count step whose implementation is a hand-rolled `.all()` + manual accumulator when the scenario phrase matches a row in the table. Dim 5 (Code Quality).
+
+**Scope discipline:** when the scenario mentions a section/region (`under the Items section`, `in the sidebar`), scope the locator with `getByRole('region', { name: '...' })` or the Explorer-captured region anchor before the role-based child locator. Do NOT count across the whole panel when the scenario names a region.
+
 **Executor rule:** If VERIFY fails but the selector IS correct (element found, wrong content), flag as POTENTIAL BUG — do NOT change the expected value.
 
 **Reviewer check:** VERIFY steps must produce `expect()` assertions inline, not just at the end.
