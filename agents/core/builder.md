@@ -183,7 +183,7 @@ If the rule does NOT fire (either side fails its predicate), the standard merge 
 
 **Recovery if the preserved primary is genuinely broken:** the Executor's heal loop (executor.md §4.5a Trigger A on element-not-found, Trigger B on same-root-cause-for-2-cycles) discovers a working selector at runtime and writes `_healed: true`. From that point on, neither this rule nor the standard merge will overwrite it.
 
-**Why:** prevents a later scenario's deep-positional capture (e.g., `#dashboard > section > div > ftr-body > div:nth-of-type(1) > ftr-button`, observed Apr 2026) from silently replacing a stable semantic primary (`.filter-bar ftr-button`) for the same element. The brittle positional path still travels into `fallbacks` so it remains reachable. The 5+-level `>`-chain pattern is the textbook brittle-selector anti-pattern: every level must match exactly, and the `nth-*` index assumes a sibling order that may not hold across views.
+**Why:** prevents a later scenario's deep-positional capture (e.g., a 5-level `>`-chain ending in `:nth-of-type(N)`) from silently replacing a stable semantic primary (e.g., a class-based selector with a meaningful class name) for the same element. The brittle positional path still travels into `fallbacks` so it remains reachable. The 5+-level `>`-chain pattern is the textbook brittle-selector anti-pattern: every level must match exactly, and the `nth-*` index assumes a sibling order that may not hold across views.
 
 **If a step has no ELEMENT annotation and no BLOCKED flag**, it may be a navigation step, SCREENSHOT, CALCULATE, or REPORT step that doesn't interact with an element — this is normal.
 

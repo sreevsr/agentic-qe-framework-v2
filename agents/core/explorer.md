@@ -372,7 +372,7 @@ Before deciding the `key` field for a new ELEMENT annotation, check if `output/l
 
 **On no match (or existing entries lack a `fingerprint` field):** assign a new key name as usual. Older locator JSONs that predate fingerprint persistence will gradually acquire fingerprints written by the Builder, enabling reuse on subsequent runs. This is a one-way phase-in — no retroactive deduplication.
 
-**Why:** prevents semantically-identical elements from being captured under different key names across scenarios (observed Apr 2026: `loginEmailInput` and `emailInput` both targeting the same email field on `login-page.locators.json`, written by separate scenarios). Eliminates duplicate locator entries on shared pages without altering selector freshness.
+**Why:** prevents semantically-identical elements from being captured under different key names across scenarios (e.g., `loginEmailInput` and `emailInput` both targeting the same email field on `login-page.locators.json`, written by separate scenarios). Eliminates duplicate locator entries on shared pages without altering selector freshness.
 
 **Skip all three checks (validation gate, cross-key collision, cross-run reuse) for:** type `structural` (list containers), type `list`, or any annotation that carries `"multiple": true` — these are expected to match multiple elements or be reused as container anchors.
 

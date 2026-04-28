@@ -257,7 +257,7 @@ Under Trigger B, the Executor MUST take a Playwright MCP `browser_snapshot` of t
 
 **Why this is needed:** The Explorer captures element data for ~90% of interactive elements during exploration. The remaining ~10% may have failed capture (`ELEMENT_CAPTURE_FAILED`), or the element may have changed since exploration. The Executor discovers these one at a time — one snapshot, one element, one locator entry. Context pressure is minimal.
 
-**Additionally:** when tactical code fixes fail to converge on a structural question (Trigger B), the Executor has historically burned 4-5 cycles improvising DOM walks against a misunderstood DOM shape. A single MCP snapshot reveals the actual structure and redirects the fix. The NHA Step-35 saga (5 cycles of DOM-walking for a count assertion) is the reference failure this extension prevents.
+**Additionally:** when tactical code fixes fail to converge on a structural question (Trigger B), the Executor has historically burned 4-5 cycles improvising DOM walks against a misunderstood DOM shape. A single MCP snapshot reveals the actual structure and redirects the fix — the reference failure pattern this extension prevents is "5+ cycles of DOM-walking for a count assertion against an iframe-nested or shadow-DOM-wrapped grid that the Executor never queried directly."
 
 **Healing Flow:**
 
@@ -343,6 +343,41 @@ Step failed → Element not found → Correct page confirmed
 | Architecture issue | Page object or locator file missing entirely | **STOP.** Builder output incomplete. Escalate |
 | Helper file issue | Method in `*.helpers.ts` fails | **STOP.** `test.fixme('HELPER ISSUE: ...')`. NEVER modify helpers |
 
+### 4.5b: STOP on User-Side Root Cause — MANDATORY
+
+**When the Executor's diagnosis identifies the root cause as outside the agent's authority, the Executor MUST stop modifying code, write a "Fix required by you" report, and exit. No code changes that mask, work around, or wrap the user-side issue are permitted.**
+
+**Operational triggers — STOP if ANY ONE fires:**
+
+1. **Env var resolves to empty or matches a placeholder pattern.** Check the resolved value of any env var the test reads (`TEST_USERNAME`, `TEST_PASSWORD`, `BASE_URL`, etc.) against these regex patterns:
+   - `/^your-/i` (e.g., `your-test-username`)
+   - `/<.+>/` (e.g., `<replace-me>`)
+   - `/changeme/i`
+   - `/example\.com/`
+   - `/replace-me/i`
+   - Empty string
+2. **HTTP 401/403 in the error AND a credential-related signal** — pair the auth code with EITHER an env-var placeholder match from #1 OR error message containing `Invalid credentials` / `Unauthorized` / `Login failed`. Bare 401/403 alone does NOT trigger; standalone auth errors may indicate session expiry, role-locked test account, or permission gap — all Executor-fixable.
+3. **Test-data value is the literal placeholder from a template** (e.g., a JSON value of `"<insert real value>"`, `"changeme"`, `"your-app-url"`).
+4. **Test-data file referenced by the spec does not exist on disk** (`fs.existsSync(...) === false` for an `output/test-data/{type}/*.json` path the spec imports).
+
+**Required action when STOP fires:**
+
+1. STOP all code modification immediately. Do NOT enter a fix cycle for this failure.
+2. Write a "Fix required by you" section in the executor report listing:
+   - The trigger that fired (which of #1–#4) and the matched value/error
+   - The exact env var name(s), test-data file path(s), or credential field(s) the user needs to set
+   - The file path the user should edit (`output/.env`, `output/test-data/{type}/{file}.json`, etc.)
+3. Annotate the affected spec(s) with `test.skip('USER FIX REQUIRED: {trigger} — see executor report')` so subsequent runs do not re-attempt the same failure.
+4. Exit with the user-side issue clearly surfaced. The Executor's job is done; control returns to the user.
+
+**Explicitly NOT blocked — these stay editable per §4.11:**
+
+- `output/playwright.config.ts` (missing browser config, project setup, timeout values)
+- `framework-config.json` (`maxCycles`, type-specific timeouts, MCP settings)
+- Any framework-level config gap that is the Executor's authority to fix per §4.11
+
+**Why:** when the Executor compensates for a user-side issue with code changes, the fix does not address the actual root cause AND can introduce cross-scenario regressions in shared code (page-object methods consumed by multiple scenarios). The user-side issue persists; downstream scenarios break. STOP-on-user-side prevents this entire class of compensatory code changes — the user fixes their input, the Executor stays in its lane.
+
 ### 4.6: Fix Rules — MANDATORY
 
 **MUST follow these rules for EVERY fix:**
@@ -367,6 +402,44 @@ Step failed → Element not found → Correct page confirmed
    ```markdown
    - **Semantic Guard:** Step 10 targets the first leaf product checkbox (Explorer key: `anyProductCheckbox`). Fix changes pacing only (adds scrollIntoViewIfNeeded). Target unchanged. ✓
    ```
+
+10. **MUST limit the fix to what is necessary and sufficient for the failing step — Necessary-and-Sufficient Scope.** Every code change the Executor makes MUST be necessary to make the failing step pass given that the user resolves any environment-side issues. **Operational test:** *would this code change still be needed if the user-side root cause were fixed?* If no → out of scope, revert.
+
+    **Explicitly allowed (these ARE the Executor's mandate, not "improvements"):**
+    - Adding `// PACING:` waits / extending per-step timeouts on slow components (enterprise apps that load twice, heavy SPAs)
+    - Healing a missing locator (§4.5a)
+    - Changing pacing/scoping/locator strategy on the same logical interaction (per #9 above)
+    - Re-pacing an action with `waitFor` to make it deterministic
+    - Adding `popupGuard()` / `dismissOverlay()` calls when overlays intercept clicks
+    - Editing `output/playwright.config.ts` / `framework-config.json` for missing or incorrect framework-level config (per §4.11)
+    - Fixing TypeScript type errors, missing awaits, missing imports, and other compile-blocking issues (existing §4.1 behavior)
+
+    **Blocked (out-of-scope improvements):**
+    - New error-handling logic, diagnostic throws, or custom error messages not required for the failing step
+    - Refactors / "while-I'm-here" cleanups
+    - New branches / `Promise.race` constructs that change the method's behavioral contract
+    - Diagnostic enrichment for failure modes the scenario doesn't test
+    - Adding "improvement" code that would still be needed if the actual fix (e.g., setting a missing env var) were applied user-side
+
+    **Why:** the fix scope must match what the failing step actually needs, not what the Executor speculates would be helpful. Out-of-scope "improvements" — diagnostic throws, error wrappers, behavioral guards added to shared methods — frequently regress other scenarios that consume the same code, even when the failing scenario itself appears fixed. Necessary-and-sufficient is the smallest fix that makes the step pass; anything beyond that is Reviewer scope, not Executor scope.
+
+11. **MUST NOT add new `throw` statements to a page-object method during a fix — Throw-Free Page-Object Fixes.** Page-object methods have implicit contracts that other scenarios depend on. Adding new diagnostic throws or watchdog exceptions changes the method's behavior for all consumers, not just the failing scenario.
+
+    **The rule:** No new `throw` statement may be added to a page-object method during a fix.
+
+    **Exempt (these ARE allowed):**
+    - **Removing a swallowed catch and surfacing the error.** If the same diff removes a `.catch(() => {})` or `.catch(() => null)` that previously suppressed an error, surfacing that error (which now propagates as the original throw) is allowed. The fix is "stop suppressing", not "add a new throw."
+    - **`waitFor` / `expect` calls that throw with Playwright-native messages.** `await locator.waitFor({ state: 'visible', timeout })` may throw on timeout, but with Playwright's native error — not a custom diagnostic message. The method's existing implicit contract already failed on element-absent; explicit `waitFor` just makes the failure earlier and clearer.
+
+    **Operational check — grep the diff for the failing method's body:**
+    - Newly-added `throw new Error(...)` → blocked
+    - Newly-added `throw <expr>` (any throw statement) → blocked
+    - Newly-added `Promise.race([..., watchdog])` where the watchdog branch throws → blocked
+    - Newly-added `if (cond) throw ...` → blocked
+
+    **If a behavioral guard genuinely needs to throw, it MUST be a NEW method with a new name** — leaving the existing method's contract untouched for other scenarios that consume it. The new method goes in the same page-object class with a distinct name (e.g., `clickLoginWithAuthErrorDetection()`), and only the scenario that needs the guard calls it. Existing scenarios continue calling the unchanged `clickLogin()`.
+
+    **Why:** page-object methods have implicit contracts that other scenarios depend on. New throws added to a shared method become cross-scenario regressions whenever the watchdog condition coincidentally fires on a different scenario's flow — a `[role=alert]` watchdog meant to detect login-failure also fires on benign notification toasts or session warnings; an `if (!visible) throw` guard meant to handle one missing element fires on every scenario where that element is intentionally absent. The original method's contract was "do the action"; adding "do the action and also throw on X" breaks every consumer that didn't expect X.
 
 ### 4.7: Same-Root-Cause Detection — MANDATORY
 
