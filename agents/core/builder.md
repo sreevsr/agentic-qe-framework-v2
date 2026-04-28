@@ -140,13 +140,14 @@ Check `output/.language` file. If missing, default to TypeScript. Read `template
 3. **Map each ELEMENT to a locator entry:**
 
 ```json
-// From: <!-- ELEMENT: {"page":"LoginPage","key":"signupButton","primary":"role=button[name='Signup']","fallbacks":["testid=signup-btn","button[type='submit']"],"type":"button","fingerprint":{...}} -->
+// From: <!-- ELEMENT: {"page":"LoginPage","key":"signupButton","primary":"role=button[name='Signup']","fallbacks":["testid=signup-btn","button[type='submit']"],"type":"button","fingerprint":{"tag":"button","id":null,"testId":"signup-btn","text":"Signup","cssPath":"#form > button"}} -->
 // To: output/locators/login-page.locators.json
 {
   "signupButton": {
     "primary": "role=button[name='Signup']",
     "fallbacks": ["testid=signup-btn", "button[type='submit']"],
-    "type": "button"
+    "type": "button",
+    "fingerprint": {"tag":"button","id":null,"testId":"signup-btn","text":"Signup","cssPath":"#form > button"}
   }
 }
 ```
@@ -158,10 +159,31 @@ Check `output/.language` file. If missing, default to TypeScript. Read `template
 - Explorer's `primary` → locator JSON `primary` (byte-for-byte identical)
 - Explorer's `fallbacks` (array, in order) → locator JSON `fallbacks` (same order)
 - Explorer's `type` → locator JSON `type`
+- Explorer's `fingerprint` → locator JSON `fingerprint` (verbatim, all five fields preserved including `null` values). Required for the Explorer's cross-run key reuse check (explorer.md §4.3a).
 
 If the Explorer's `primary` looks "odd" to you (e.g., `role=row[name*='12345']` instead of the `tr:has-text(...)` you'd expect), **that's Explorer telling you the app does NOT have standard `<tr>` markup**. Preserve the selector Explorer actually used. See code-generation-rules.md §12.6 for div-based table readers.
 
 **If a locator file already exists** (from a previous run or another scenario), READ it first and MERGE — add new keys, update existing keys with fresh Explorer data, but **preserve any key that has `"_healed": true`** (Executor-refined selectors). The `_healed` field means the Executor discovered this selector at runtime — it is proven to work and MUST NOT be overwritten with Explorer data. Only healed entries have this field; non-healed entries simply omit it.
+
+**Quality-floor on `primary` during merge — MANDATORY when an existing entry's primary is semantic and the new capture's primary is structural-positional.**
+
+When merging a new ELEMENT capture against an existing locator entry on the same page+key (and the existing entry does NOT have `_healed: true` — that takes precedence):
+
+1. **Existing primary is semantic** if it contains any of: `role=` prefix, `label=` prefix, `testid=` prefix, `text=` prefix, an ARIA attribute selector (`[aria-label=`, `[aria-*=`), a `data-testid` attribute selector, OR a class selector (`.classname`) where the class name is alphabetic-with-hyphens (no digits, no auto-generated hash patterns like `_abc123`). AND
+2. **New primary is structural-positional** if ALL of these hold: contains `:nth-of-type(` OR `:nth-child(`, AND has **≥4** `>` direct-child combinators in the chain, AND contains NONE of the semantic anchors listed in (1).
+
+If both (1) and (2) hold:
+
+- **Keep the existing `primary` unchanged.**
+- **Insert the new capture's primary as the first entry of `fallbacks`** (deduplicate against existing fallbacks — if already present, leave fallback order unchanged).
+- Update the rest of `fallbacks`, `type`, and `fingerprint` from the new capture as usual.
+- Record in the builder report: `primary preserved for {key} on {page-file} — new capture was structural-positional (depth-{N} >-chain with nth-{type|child}), existing semantic primary kept.`
+
+If the rule does NOT fire (either side fails its predicate), the standard merge applies — the new capture's `primary` replaces the existing one.
+
+**Recovery if the preserved primary is genuinely broken:** the Executor's heal loop (executor.md §4.5a Trigger A on element-not-found, Trigger B on same-root-cause-for-2-cycles) discovers a working selector at runtime and writes `_healed: true`. From that point on, neither this rule nor the standard merge will overwrite it.
+
+**Why:** prevents a later scenario's deep-positional capture (e.g., `#dashboard > section > div > ftr-body > div:nth-of-type(1) > ftr-button`, observed Apr 2026) from silently replacing a stable semantic primary (`.filter-bar ftr-button`) for the same element. The brittle positional path still travels into `fallbacks` so it remains reachable. The 5+-level `>`-chain pattern is the textbook brittle-selector anti-pattern: every level must match exactly, and the `nth-*` index assumes a sibling order that may not hold across views.
 
 **If a step has no ELEMENT annotation and no BLOCKED flag**, it may be a navigation step, SCREENSHOT, CALCULATE, or REPORT step that doesn't interact with an element — this is normal.
 

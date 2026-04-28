@@ -362,7 +362,19 @@ Before appending a new `<!-- ELEMENT: -->` annotation to enriched.md, check the 
 
 **Exception:** two keys may legitimately share a primary when one is explicitly marked `"alias_of": "<otherKey>"` in the element annotation. Aliasing is rare and MUST be documented with a `<!-- DISCOVERED: {newKey} is an alias for {existingKey} because [reason] -->` note.
 
-**Skip both checks for:** type `structural` (list containers), type `list`, or any annotation that carries `"multiple": true` — these are expected to match multiple elements or be reused as container anchors.
+**Cross-run key reuse — MANDATORY before assigning a new key name.**
+
+Before deciding the `key` field for a new ELEMENT annotation, check if `output/locators/{page-name}.locators.json` exists (apply the PascalCase → kebab-case mapping from builder.md §3.6 to derive the file name). If yes, read it and compare the new capture's `fingerprint` against each existing entry's persisted `fingerprint` field.
+
+**Operational match:** all five fingerprint fields (`tag`, `id`, `testId`, `text`, `cssPath`) byte-for-byte identical, treating absent fields as `null === null`. Any single field differing — including whitespace inside `text` or a single index difference inside `cssPath` — means no match. No partial / fuzzy matching.
+
+**On match:** **reuse the existing entry's key name verbatim** in the new ELEMENT annotation's `key` field. Do NOT invent a new name. The new capture's `primary`, `fallbacks`, `type`, and `fingerprint` still travel through the annotation; the Builder applies its merge rules (builder.md §3.6) to those fields.
+
+**On no match (or existing entries lack a `fingerprint` field):** assign a new key name as usual. Older locator JSONs that predate fingerprint persistence will gradually acquire fingerprints written by the Builder, enabling reuse on subsequent runs. This is a one-way phase-in — no retroactive deduplication.
+
+**Why:** prevents semantically-identical elements from being captured under different key names across scenarios (observed Apr 2026: `loginEmailInput` and `emailInput` both targeting the same email field on `login-page.locators.json`, written by separate scenarios). Eliminates duplicate locator entries on shared pages without altering selector freshness.
+
+**Skip all three checks (validation gate, cross-key collision, cross-run reuse) for:** type `structural` (list containers), type `list`, or any annotation that carries `"multiple": true` — these are expected to match multiple elements or be reused as container anchors.
 
 **Iframe-aware validation:** If the current step's element is inside an iframe (Explorer switched frames via `frameLocator()`), run the validation query inside that same frame — not the top-level document. `querySelectorAll` only searches the current frame context.
 

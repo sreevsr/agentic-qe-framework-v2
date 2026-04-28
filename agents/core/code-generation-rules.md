@@ -56,7 +56,7 @@ Every element you interact with MUST have an entry in a locator JSON file.
 
 **File location:** `output/locators/{page-name}.locators.json`
 
-**Format — EVERY entry MUST have primary + at least 2 fallbacks + type:**
+**Format — EVERY entry MUST have primary + at least 2 fallbacks + type + fingerprint:**
 
 ```json
 {
@@ -66,7 +66,14 @@ Every element you interact with MUST have an entry in a locator JSON file.
       "[data-testid='submit-btn']",
       "#submit-button"
     ],
-    "type": "button"
+    "type": "button",
+    "fingerprint": {
+      "tag": "button",
+      "id": null,
+      "testId": "submit-btn",
+      "text": "Submit",
+      "cssPath": "form > button"
+    }
   },
   "usernameInput": {
     "primary": "label=Username",
@@ -74,7 +81,14 @@ Every element you interact with MUST have an entry in a locator JSON file.
       "[data-testid='username']",
       "input[name='username']"
     ],
-    "type": "input"
+    "type": "input",
+    "fingerprint": {
+      "tag": "input",
+      "id": "username",
+      "testId": "username",
+      "text": null,
+      "cssPath": "form > input:nth-of-type(1)"
+    }
   }
 }
 ```
@@ -83,10 +97,13 @@ Every element you interact with MUST have an entry in a locator JSON file.
 - Primary selector = extracted from the Explorer's `<!-- ELEMENT: {...} -->` annotation (`primary` field). The Explorer captured this from the MCP snapshot or DOM probe during live exploration. Use semantic prefixes (`role=`, `label=`, `testid=`, `text=`) — the LocatorLoader resolves them automatically
 - **MUST** include at least 2 fallback selectors (from the ELEMENT annotation's `fallbacks` array)
 - **MUST** include `type` field (`input` | `button` | `link` | `select` | `checkbox` | `radio` | `text` | `image` | `structural`) — helps Reviewer verify correct interaction patterns
+- **MUST** include `fingerprint` field (all five sub-fields: `tag`, `id`, `testId`, `text`, `cssPath` — preserve `null` for absent fields). Used by the Explorer's cross-run key reuse check (explorer.md §4.3a) to deduplicate semantically-identical elements across scenarios
 - Use descriptive camelCase element names (from the ELEMENT annotation's `key` field)
 - One locator file per page object
 - **NEVER** put selectors directly in page objects or spec files
 - Selector priority (set by the Explorer during capture): data-testid > stable ID > href > native role+text > text > CSS. The Builder uses exactly what the Explorer captured — do NOT override.
+
+**Backward compatibility:** existing locator JSONs that predate the `fingerprint` requirement remain valid — the LocatorLoader ignores the field and the Explorer's cross-run reuse check skips entries without a fingerprint. The Builder MUST write `fingerprint` on all new and updated entries; older entries get fingerprints written on their next merge.
 
 ---
 
