@@ -46,12 +46,14 @@ process.argv.slice(2).forEach(arg => {
   if (match) args[match[1]] = match[2];
 });
 
-const scenario = args.scenario;
+const rawScenario = args.scenario;
 const type = args.type || 'web';
-const folder = args.folder || null;
+let folder = args.folder || null;
 
-if (!scenario) {
-  console.error('Usage: node scripts/builder-incremental.js --scenario=<name> --type=<web|api|hybrid> [--folder=<folder>]');
+if (!rawScenario) {
+  console.error('Usage: node scripts/builder-incremental.js --scenario=<name|path> --type=<web|api|hybrid> [--folder=<folder>]');
+  console.error('  --scenario can be either a basename (e.g., checkout-flow) or a full path to the .md file');
+  console.error('              (e.g., scenarios/web/my-folder/checkout-flow.md)');
   process.exit(1);
 }
 
@@ -60,6 +62,47 @@ if (!scenario) {
 // ---------------------------------------------------------------------------
 const projectRoot = path.resolve(__dirname, '..');
 const outputDir = path.join(projectRoot, 'output');
+
+// Path-tolerance: --scenario accepts either a basename (e.g., "checkout-flow") OR
+// a full path to the .md file (e.g., "scenarios/web/my-folder/checkout-flow.md").
+// Detection: input is treated as a path if it contains a slash, ends in .md,
+// or starts with "." (relative path marker).
+function looksLikePath(s) {
+  return s.includes('/') || s.includes('\\') || s.endsWith('.md') || s.startsWith('.');
+}
+
+let scenario;
+if (looksLikePath(rawScenario)) {
+  const scenarioAbs = path.isAbsolute(rawScenario)
+    ? rawScenario
+    : path.resolve(process.cwd(), rawScenario);
+
+  if (!fs.existsSync(scenarioAbs)) {
+    console.error(`Scenario file not found: ${scenarioAbs}`);
+    console.error('Hint: --scenario accepts either a full path to the .md file, or a basename with --type and --folder=<folder>.');
+    process.exit(1);
+  }
+
+  // Strip .enriched.md or .md to get the base name
+  const baseName = path.basename(scenarioAbs);
+  scenario = baseName.endsWith('.enriched.md')
+    ? baseName.slice(0, -'.enriched.md'.length)
+    : (baseName.endsWith('.md') ? baseName.slice(0, -'.md'.length) : baseName);
+
+  // Infer --folder from the path if not explicitly provided.
+  // Expected layout: scenarios/{type}/[{folder}/]{name}.md
+  if (!folder) {
+    const scenariosTypeDir = path.join(projectRoot, 'scenarios', type);
+    const relFromTypeDir = path.relative(scenariosTypeDir, scenarioAbs);
+    if (!relFromTypeDir.startsWith('..') && !path.isAbsolute(relFromTypeDir)) {
+      const inferredDir = path.dirname(relFromTypeDir);
+      folder = inferredDir !== '.' ? inferredDir : null;
+    }
+  }
+} else {
+  scenario = rawScenario;
+}
+
 const folderPrefix = folder ? path.join(folder) : '';
 
 const paths = {
@@ -171,6 +214,9 @@ if (changeset.pipelineMode === 'FIRST_RUN') {
 const enrichedPath = fileExists(paths.enrichedFile) ? paths.enrichedFile : paths.scenarioFile;
 if (!fileExists(enrichedPath)) {
   console.error(`Enriched file not found: ${enrichedPath}`);
+  console.error('  Resolved from: scenario=' + scenario + (folder ? `, folder=${folder}` : '') + `, type=${type}`);
+  console.error('  If your scenario lives in a subfolder, pass --folder=<subfolder>');
+  console.error('  Or pass the full path: --scenario=scenarios/' + type + '/<subfolder>/<name>.md');
   process.exit(1);
 }
 

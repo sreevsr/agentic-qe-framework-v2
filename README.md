@@ -807,9 +807,9 @@ node scripts/builder-incremental.js --scenario=my-scenario --type=web [--folder=
 ```
 
 **Required input:**
-- `--scenario` = scenario name **without** extension (e.g., `checkout-flow`, not `checkout-flow.md`)
+- `--scenario` = either the scenario **basename without extension** (e.g., `checkout-flow`) OR a full path to the `.md` file (e.g., `scenarios/web/my-folder/checkout-flow.md`). When a full path is provided, `--folder` is inferred automatically from the path.
 - `--type` = `web` | `api` | `hybrid` | `mobile` | `mobile-hybrid`
-- `--folder` = optional subfolder if your scenario lives in `scenarios/web/{folder}/...`
+- `--folder` = optional subfolder if your scenario lives in `scenarios/web/{folder}/...` and you're using basename form. Ignored when `--scenario` is a full path that resolves under `scenarios/{type}/{folder}/`.
 
 **Skip when:** pipelineMode is `NO_CHANGES`.
 
