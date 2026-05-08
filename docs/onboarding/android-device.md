@@ -285,7 +285,109 @@ These issues are specific to physical devices and don't occur on emulators.
 
 ---
 
-## 10. Maintenance — Keeping Real Devices Healthy for Testing
+## 10. Troubleshooting — Appium MCP + Connectivity
+
+These issues apply equally to physical devices and emulators — they are about how the Explorer agent reaches Appium, not about device hardware. Read this section if your coworker (or you) sees the Explorer hang for several minutes when invoked, then proceed without live verification.
+
+### Two distinct components — easy to confuse
+
+| Component | What it is | Where it runs |
+|---|---|---|
+| **Appium server** | The automation runtime that drives the device. Listens on `localhost:4723`. Started by you with `appium`. | Long-running process; you start it once per session in a separate terminal (step 6 above). |
+| **Appium MCP server** | A thin Node wrapper (`appium-mcp` npm package) that exposes Appium operations as MCP tools to AI agents. Spawned by VS Code when an agent first needs Appium tools. | Lazy startup — VS Code does NOT start it when the editor opens; it spawns when the Explorer (or Mobile Executor) is invoked and Copilot determines it needs `mcp__appium-mcp__*` tools. |
+
+Both must be alive for the Explorer to do live mobile exploration. Symptom-to-cause mapping below.
+
+### Symptom 1 — Explorer hangs ~3 minutes when first invoked, then proceeds without Appium tools
+
+**What you see:**
+- You invoke `@QE Explorer` for a mobile scenario in Copilot Agent Mode.
+- The agent appears stuck for 1-3 minutes (no output, no tool calls).
+- Eventually the agent "wakes up" but the Explorer report says "Appium MCP tools were NOT exposed to the agent at runtime" — and the report is marked PARTIAL with knowledge-derived element annotations instead of live-verified ones.
+
+**Root cause:** The default `.vscode/mcp.example.json` template uses `npx -y appium-mcp@latest`. On every fresh agent invocation, `npx`:
+1. Hits the npm registry to resolve `@latest`,
+2. Downloads / updates the package and its dependencies into npm's cache,
+3. Spawns the MCP server.
+
+On Windows + a corporate proxy, this is routinely 90-180 seconds. VS Code's MCP startup window is shorter, so the agent starts iterating before tools are registered → tools never show up → Explorer falls back to knowledge-derived mode.
+
+**Fix — pin the version (recommended):** edit `.vscode/mcp.json` (your local copy, not the template), replace `appium-mcp@latest` with a specific version such as `appium-mcp@1.72.12`. The example template now ships pinned by default; if your `.vscode/mcp.json` was created before this fix, copy the latest example:
+
+```bash
+# 1. Check current published version
+npm view appium-mcp version
+# 2. Edit .vscode/mcp.json — change "appium-mcp@latest" to "appium-mcp@<that-version>"
+# 3. Reload VS Code window (Ctrl+Shift+P → Developer: Reload Window)
+# 4. Re-invoke the Explorer
+```
+
+After pinning, the second invocation onward should start the MCP server in ~5 seconds (cache hit, no registry round-trip).
+
+> **Note — the same pattern exists for Playwright MCP** (`@playwright/mcp@latest`). The web Explorer hits this less visibly because the Playwright MCP server starts faster, but if you observe similar 1-3 minute Explorer hangs on web scenarios, apply the same fix to the `playwright` server entry in `.vscode/mcp.json`.
+
+### Symptom 2 — Explorer starts, then "tools become unavailable" mid-session
+
+**What you see:**
+- The Explorer agent runs for a few minutes; some Appium tool calls succeed.
+- Then the agent reports tools are no longer available, or every tool call fails with a connection error.
+
+**Root cause (most likely):** The Appium MCP server (the wrapper) is alive, but the **Appium server itself** (`localhost:4723`) is down or unreachable. When the wrapper tries to forward a tool call, the underlying connection fails. Some MCP servers exit on persistent backend errors → tools disappear from VS Code's tool list.
+
+**Diagnose:**
+```bash
+# Is Appium running?
+curl http://localhost:4723/status
+# Expected: JSON with "ready": true
+# If you get connection refused → Appium is down. Restart it (step 6 above).
+
+# Is the device still attached?
+adb devices
+# Expected: your device serial with status "device".
+# If "unauthorized" → unlock device, accept the USB debugging prompt.
+# If empty → check USB cable / port.
+```
+
+**Fix — keep Appium alive in a dedicated terminal:**
+- Run `appium` in a terminal you keep open for the entire test session — do NOT background it inside an editor that might be closed.
+- On Windows, consider running Appium as a Windows service, or use a tool like `pm2` to keep it alive across reboots.
+
+### Symptom 3 — `tool_search` finds no `mcp__appium-mcp__*` tools at all
+
+**What you see:**
+- The Explorer logs "tool_search returned no Appium tools" or similar.
+- The agent never even tries to call Appium tools — it goes straight to knowledge-derived annotations.
+
+**Diagnose with the appium-mcp self-test:** the package exposes a built-in diagnostic tool called `appium_skills`. Invoke it from Copilot:
+- "Use the `appium_skills` tool to check my local Appium setup."
+- If the tool itself is unavailable → the MCP server isn't running. See Symptom 1.
+- If it runs and reports specific issues → follow its remediation steps (typically: install `appium`, install the `uiautomator2` driver, set `ANDROID_HOME`).
+
+**If the MCP server logs show `EADDRINUSE` on port 4723:**
+- Something other than Appium is holding the port (maybe a stale Appium from a previous session).
+- `lsof -i :4723` (Linux/macOS) or `netstat -ano | findstr :4723` (Windows) to find the process. Kill and restart Appium.
+
+### Cross-check before invoking the Explorer for mobile
+
+Run these three commands and confirm all three pass before invoking the Explorer agent:
+
+```bash
+# 1. Appium server reachable
+curl http://localhost:4723/status        # → "ready": true
+
+# 2. Device connected
+adb devices                               # → your serial, status "device"
+
+# 3. Android SDK env vars set
+echo $ANDROID_HOME                        # → path to your SDK
+which adb                                 # → resolves under $ANDROID_HOME/platform-tools
+```
+
+If any of these fail, the Explorer will hit one of the symptoms above no matter how the MCP server is configured.
+
+---
+
+## 11. Maintenance — Keeping Real Devices Healthy for Testing
 
 Real-device testing adds some upkeep that emulators don't need:
 
