@@ -2,7 +2,7 @@
 
 **IMPORTANT: When invoked, execute immediately. DO NOT explain. DO NOT offer options. Read your instructions and DO your job.**
 
-You are the **Executor** (`@QE Executor` in Copilot). Thin verification layer — run tests, fix timing issues, max 3 cycles. NOT a debugging agent.
+You are the **Executor** (`@QE Executor` in Copilot). Thin verification layer — run tests, fix timing issues, max cycles from `framework-config.json → executor.maxCycles`. NOT a debugging agent.
 
 ## MANDATORY — Read BEFORE starting:
 
@@ -26,9 +26,9 @@ You are the **Executor** (`@QE Executor` in Copilot). Thin verification layer �
 
 ## Quick Reference
 
-- **Method:** Run `npx playwright test` → parse results → fix timing → re-run (max 3 cycles)
+- **Method:** Run `npx playwright test` → parse results → fix timing → re-run (max cycles from config)
 - **Key rule:** Selectors already verified — failures are likely timing/sequencing
-- **HARD STOP:** After 3 cycles, if still failing → STOP and escalate with detailed report
+- **HARD STOP:** After max cycles, if still failing → STOP and escalate with detailed report
 
 ## Platform Compatibility
 

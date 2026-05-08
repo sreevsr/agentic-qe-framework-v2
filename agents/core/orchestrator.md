@@ -280,9 +280,15 @@ This removes `<!-- CHANGE: -->` and `<!-- WALK: -->` annotations, removes delete
 
 ### STAGE 2: Executor
 
-Delegate to **QE Executor** with:
+**Routing — based on scenario type:**
+- `web` / `api` / `hybrid` → delegate to **QE Executor**, instructions: `agents/core/executor.md`
+- `mobile` / `mobile-hybrid` → delegate to **QE Mobile Executor**, instructions: `agents/core/executor-mobile.md`
+
+The Mobile Executor invokes `scripts/mobile-runner.js` and reads `output/test-results/cycle{N}-done.json` markers; do NOT confuse it with the web Executor's direct `npx playwright test` flow.
+
+Delegate with:
 ```
-Read agents/core/executor.md for your instructions.
+Read your core instructions per the Routing rule above (executor.md for web/api/hybrid, executor-mobile.md for mobile/mobile-hybrid).
 Read agents/report-templates/executor-report.md for the MANDATORY report format — follow the executive summary header EXACTLY.
 
 SCENARIO_NAME = {scenario}
@@ -304,8 +310,14 @@ Save metrics to: output/reports/metrics/executor-metrics-{scenario}.json
 3. **MUST** apply this EXACT decision logic — NO deviations:
 
    - **IF all tests pass (0 failed)** → Record `TESTS_STATUS=PASSING`. Proceed to Stage 3.
-   - **IF tests failing AND fix cycles NOT exhausted** (e.g., 1/3 used, executor stopped early) → **MUST NOT proceed to Stage 3.** Re-delegate to Executor to continue fix cycles. ONLY proceed after Executor exhausts all 3 cycles OR all tests pass.
-   - **IF tests failing AND fix cycles exhausted** (3/3, still failing) → Record `TESTS_STATUS=FAILING`. Proceed to Stage 3 with TESTS_STATUS=FAILING.
+   - **IF tests failing AND fix cycles NOT exhausted** (e.g., 1/N used where N = `framework-config.json → executor.maxCycles`, executor stopped early) → **MUST NOT proceed to Stage 3.** Re-delegate to Executor to continue fix cycles. ONLY proceed after Executor exhausts all `maxCycles` cycles OR all tests pass.
+   - **IF tests failing AND fix cycles exhausted** (N/N where N = `executor.maxCycles`, still failing) → Record `TESTS_STATUS=FAILING`. Proceed to Stage 3 with TESTS_STATUS=FAILING.
+
+**Cycle-budget metric — type-aware:**
+- `web` / `api` / `hybrid`: read `testExecutionCount` from `output/reports/metrics/executor-metrics-{scenario}.json`. This is the count of `npx playwright test` invocations.
+- `mobile` / `mobile-hybrid`: read `testExecutionCount` from the same metrics file. This counts only `TEST_PASS` and `TEST_FAILURE` markers from `scripts/mobile-runner.js`. The mobile metrics also carry `infraRetries` and `runnerCrashRetries` — these track infra hiccups separately and **do NOT count toward the budget**. The mobile runner reuses the same cycle number on INFRA / RUNNER_CRASH retries, so they never inflate `testExecutionCount`.
+
+In both cases, the budget gate is the same: `testExecutionCount < executor.maxCycles` ⇒ executor stopped early; `testExecutionCount == executor.maxCycles` with tests still failing ⇒ exhausted.
 
 **HARD STOP: MUST NOT skip to Stage 3 while the Executor has remaining fix cycles and tests are still failing. This was the #1 bug in v1 — the pipeline reported APPROVED with 0 tests passing. NEVER AGAIN.**
 

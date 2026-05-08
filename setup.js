@@ -47,6 +47,7 @@ const FLAGS = {
   allBrowsers: process.argv.includes('--all-browsers'),
   validateOnly: process.argv.includes('--validate-only'),
   skipInstall: process.argv.includes('--skip-install'),
+  skipHooks: process.argv.includes('--skip-hooks'),
   language,
 };
 
@@ -187,6 +188,52 @@ function runCommand(cmd, cwd, label) {
 }
 
 // ---------------------------------------------------------------------------
+// Install pre-commit hook for rule-sync-check drift detection.
+// - Skipped on --skip-hooks
+// - Skipped silently if not a git repo (zip download, etc.)
+// - Idempotent: re-running setup just re-confirms core.hooksPath
+// ---------------------------------------------------------------------------
+function installGitHooks() {
+  if (FLAGS.skipHooks) {
+    console.log(`${SYMBOLS.info} --skip-hooks: pre-commit hook install skipped`);
+    return;
+  }
+
+  // Detect git repo (silent on failure)
+  try {
+    execSync('git rev-parse --git-dir', { cwd: ROOT, stdio: 'pipe' });
+  } catch {
+    console.log(`${SYMBOLS.info} Not a git repo — skipping pre-commit hook install`);
+    return;
+  }
+
+  const hookPath = path.join(ROOT, '.githooks', 'pre-commit');
+  if (!fs.existsSync(hookPath)) {
+    console.log(`${SYMBOLS.warn} .githooks/pre-commit missing — skipping hook install`);
+    return;
+  }
+
+  // Configure git to use .githooks (idempotent — running twice is a no-op)
+  try {
+    execSync('git config core.hooksPath .githooks', { cwd: ROOT, stdio: 'pipe' });
+  } catch (err) {
+    console.log(`${SYMBOLS.warn} Could not set core.hooksPath: ${err.message}`);
+    return;
+  }
+
+  // Ensure executable bit on Linux/macOS (Windows ignores file modes)
+  if (!isWin) {
+    try {
+      fs.chmodSync(hookPath, 0o755);
+    } catch {
+      // best effort — not fatal
+    }
+  }
+
+  console.log(`${SYMBOLS.ok} Pre-commit hook installed (.githooks/pre-commit → npm run rule-sync-check)`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -197,6 +244,7 @@ async function main() {
   console.log(`${SYMBOLS.info} Language: ${language}`);
   if (FLAGS.validateOnly) console.log(`${SYMBOLS.info} Mode:     Validate only (no install)`);
   if (FLAGS.skipInstall) console.log(`${SYMBOLS.info} Mode:     Skip install (dirs + files only)`);
+  if (FLAGS.skipHooks) console.log(`${SYMBOLS.info} Mode:     Skip git hook install`);
   if (FLAGS.allBrowsers) console.log(`${SYMBOLS.info} Browsers: All (Chrome, Firefox, WebKit)`);
   console.log('');
 
@@ -213,6 +261,9 @@ async function main() {
     runValidation();
     return;
   }
+
+  // Step 1.5: Install git pre-commit hook (rule-sync-check drift detection)
+  installGitHooks();
 
   // Step 2: Create output directory structure
   console.log(`\n${SYMBOLS.arrow} Creating output/ directory structure...`);

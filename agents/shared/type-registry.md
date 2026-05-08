@@ -156,13 +156,14 @@
 
 | Decision | web | api | hybrid | mobile | mobile-hybrid |
 |----------|-----|-----|--------|--------|---------------|
-| Test command | `npx playwright test` | `npx playwright test` | `npx playwright test` | `npx wdio run wdio.conf.ts --spec tests/mobile/...` | `npx wdio run wdio.conf.ts --spec tests/mobile/...` |
+| Test command | `npx playwright test` | `npx playwright test` | `npx playwright test` | `node scripts/mobile-runner.js --scenario={name} --platform={android\|ios} --cycle={N} [--folder={sub}]` | `node scripts/mobile-runner.js --scenario={name} --platform={android\|ios} --cycle={N} [--folder={sub}]` |
+| Source of cycle results | `output/test-results/last-run.json` (Playwright JSON reporter) | `output/test-results/last-run.json` | `output/test-results/last-run.json` | `output/test-results/cycle{N}-done.json` marker (atomic write by `scripts/mobile-runner.js`) | `output/test-results/cycle{N}-done.json` marker |
 | Source file for diagnosis | Explorer report + error-context.md | Explorer report + parsed results | Explorer report + error-context.md | Explorer report + page source XML | Explorer report + page source XML |
 | Selector issues | Escalate — Explorer/Builder already verified selectors | N/A | Escalate (UI steps) | Heal via Appium MCP — `appium_get_page_source` + `generate_locators` | Heal (native steps) |
 | API errors | N/A (unless mixed) | Diagnose per-host, check auth, check payload | Diagnose per-host (API steps) | N/A | Diagnose per-host (API steps) |
 | Hybrid state mismatch | N/A | N/A | Flag when UI state contradicts API response | N/A | Flag when native state contradicts API response |
 | CRUD persistence guardrail | N/A | Flag as POTENTIAL BUG (unless `API Behavior: mock`) | Flag as POTENTIAL BUG (unless `API Behavior: mock`) | N/A | Flag as POTENTIAL BUG (unless `API Behavior: mock`) |
-| Max cycles | 3 | 3 | 3 | 3 | 3 |
+| Max cycles | `framework-config.json → executor.maxCycles` | `executor.maxCycles` | `executor.maxCycles` | `executor.maxCycles` | `executor.maxCycles` |
 | Helper file pre-check gate | Yes — NEVER edit `*.helpers.ts` | N/A | Yes — NEVER edit `*.helpers.ts` | Yes — NEVER edit `*.helpers.ts` | Yes — NEVER edit `*.helpers.ts` |
 | Overlay/popup fix | Add cookie consent handling | N/A | Add cookie consent handling | Add pattern to `PopupGuard` or add `await guard.dismiss()` before interaction | Add PopupGuard pattern |
 | Keyboard fix | N/A | N/A | N/A | Add `await browser.hideKeyboard()` after input | Add keyboard dismissal |
@@ -194,7 +195,7 @@ These features work identically regardless of type:
 - **Step markers** → web/api/hybrid: `await test.step('Step N — desc', async () => {...})`. **Mobile**: `// Step N — desc` comment (no `test.step()` in WDIO/Mocha)
 - **Test data** → `output/test-data/{type}/{scenario}.json`
 - **Shared test data** → `output/test-data/shared/` (immutable)
-- **Executor max cycles** → 3 (all types)
+- **Executor max cycles** → `framework-config.json → executor.maxCycles` (all types)
 - **Reviewer** → 9 quality dimensions, score 1-5 each
 - **Pipeline summary** → Standardized report format
 
