@@ -480,7 +480,9 @@ async function ensureAppium(cfg, cycle) {
   const logFd = fs.openSync(logPath, 'a');
 
   const start = Date.now();
-  const child = spawn('appium', [], {
+  // Windows installs npm-based CLI tools as .cmd shims; bare command name fails with ENOENT
+  const appiumCmd = process.platform === 'win32' ? 'appium.cmd' : 'appium';
+  const child = spawn(appiumCmd, [], {
     stdio: ['ignore', logFd, logFd],
     detached: true,
     env: { ...process.env },
@@ -519,7 +521,9 @@ function runWdio({ specRel, platform, cycle, cfg, target }) {
 
     console.log(`[mobile-runner] Spawning: ${wdioCmd}`);
     const start = Date.now();
-    const child = spawn('npx', wdioArgs, {
+    // Windows installs npm-based CLI tools as .cmd shims; bare command name fails with ENOENT
+    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+    const child = spawn(npxCmd, wdioArgs, {
       cwd: OUTPUT_DIR,
       env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
