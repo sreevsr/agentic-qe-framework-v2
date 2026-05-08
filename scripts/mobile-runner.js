@@ -480,12 +480,14 @@ async function ensureAppium(cfg, cycle) {
   const logFd = fs.openSync(logPath, 'a');
 
   const start = Date.now();
-  // Windows installs npm-based CLI tools as .cmd shims; bare command name fails with ENOENT
-  const appiumCmd = process.platform === 'win32' ? 'appium.cmd' : 'appium';
-  const child = spawn(appiumCmd, [], {
+  // Use shell:true so the OS resolves the appium binary location (handles .cmd shims
+  // on Windows + the Node 25 strict .cmd spawn behavior). Safe for appium since its
+  // invocation has no metachar args (no |, &, ;, etc.).
+  const child = spawn('appium', [], {
     stdio: ['ignore', logFd, logFd],
     detached: true,
     env: { ...process.env },
+    shell: true,
   });
   child.unref();
 
@@ -508,8 +510,29 @@ function runWdio({ specRel, platform, cycle, cfg, target }) {
     const tail = new TailTracker(cfg.runner.tailLines);
 
     const grep = `@${platform}-only|@cross-platform`;
-    const wdioArgs = ['wdio', 'run', 'wdio.conf.ts', '--spec', specRel, '--mochaOpts.grep', grep];
-    const wdioCmd = `PLATFORM=${platform} npx ${wdioArgs.join(' ')}`;
+    // Spawn Node directly with the wdio.js bin script — bypasses npx entirely.
+    // Why: spawning `npx` (or `npx.cmd`) on Windows + Node 25 throws EINVAL without
+    // `shell:true`, and `shell:true` breaks because the `|` in the grep pattern is
+    // interpreted as a pipe metachar by cmd.exe. Direct node invocation has neither
+    // problem and is identical across Linux/macOS/Windows.
+    const wdioScript = path.join(OUTPUT_DIR, 'node_modules', '@wdio', 'cli', 'bin', 'wdio.js');
+    if (!fs.existsSync(wdioScript)) {
+      try { fs.closeSync(rawFd); } catch { /* already closed */ }
+      const reason = `wdio.js not found at ${path.relative(PROJECT_ROOT, wdioScript)}. Run \`npm install\` in output/ first.`;
+      try { fs.writeFileSync(tailPath, `[mobile-runner] ${reason}\n`); } catch { /* best effort */ }
+      return resolve({
+        exitCode: null,
+        signal: null,
+        timedOut: false,
+        spawnError: reason,
+        wdioMs: 0,
+        wdioCommand: `node ${wdioScript} run wdio.conf.ts --spec ${specRel} --mochaOpts.grep "${grep}"`,
+        rawPath: path.relative(OUTPUT_DIR, rawPath),
+        tailPath: path.relative(OUTPUT_DIR, tailPath),
+      });
+    }
+    const wdioArgs = [wdioScript, 'run', 'wdio.conf.ts', '--spec', specRel, '--mochaOpts.grep', grep];
+    const wdioCmd = `PLATFORM=${platform} node ${wdioArgs.join(' ')}`;
 
     const childEnv = {
       ...process.env,
@@ -521,13 +544,12 @@ function runWdio({ specRel, platform, cycle, cfg, target }) {
 
     console.log(`[mobile-runner] Spawning: ${wdioCmd}`);
     const start = Date.now();
-    // Windows installs npm-based CLI tools as .cmd shims; bare command name fails with ENOENT
-    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const child = spawn(npxCmd, wdioArgs, {
+    const child = spawn(process.execPath, wdioArgs, {
       cwd: OUTPUT_DIR,
       env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
+      shell: false,
     });
 
     let buf = '';
