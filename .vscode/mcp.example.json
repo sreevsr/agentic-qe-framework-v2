@@ -13,7 +13,7 @@
       ]
     },
     "appium-mcp": {
-      "$comment": "Appium MCP — required by the Explorer for mobile/mobile-hybrid scenarios. Requires: Appium server running on localhost:4723, ANDROID_HOME env var set, device connected via ADB. NOTE: the version is PINNED (not @latest) — using @latest causes npx to hit the npm registry on every Explorer agent invocation, adding 1-3 minutes of cold-start time. Update the version manually when a newer release is verified by your team. Run `npm view appium-mcp version` to see the current latest.",
+      "$comment": "Appium MCP — required by the Explorer for mobile/mobile-hybrid scenarios. Requires: Appium server running on localhost:4723, ANDROID_HOME env var set, Git on PATH (npm needs it for transitive deps), device connected via ADB. NOTE: the version is PINNED (not @latest) — using @latest causes npx to hit the npm registry on every Explorer agent invocation, adding 1-3 minutes of cold-start time. Update the version manually when a newer release is verified by your team. Run `npm view appium-mcp version` to see the current latest. TROUBLESHOOTING: if you hit cold-start hangs, TLS cert errors, EBUSY/EPERM during install, or 'spawn git ENOENT', see docs/onboarding/android-device.md §10 — and consider switching to the global-install alternative documented in §5.1 (more reliable on Windows + corporate networks).",
       "command": "npx",
       "args": ["-y", "appium-mcp@1.72.12"],
       "env": {

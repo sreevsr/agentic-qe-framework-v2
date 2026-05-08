@@ -34,6 +34,7 @@ This guide walks through setting up the Agentic QE Framework v2 to run mobile te
 | **Android SDK platform-tools installed** (just `adb`, you don't need the full SDK or emulator) | `adb` is how your machine talks to the device | Already covered if you ran the emulator guide. Otherwise: install just platform-tools via `sdkmanager "platform-tools"` or `brew install android-platform-tools` (macOS) or `sudo apt install android-tools-adb` (Linux) |
 | **Java JDK 17** | Appium UiAutomator2 requires it | `java --version` → `17.x` |
 | **Node.js 18+** | Framework requires it | `node --version` |
+| **Git** | Required by `npm install` of the Appium MCP server (some transitive dependencies are fetched via git URLs; npm shells out to `git` during install). Without Git on PATH, you'll see `npm error spawn git ENOENT` when the MCP server tries to start. | `git --version` → `2.x.x`. Windows users: install [Git for Windows](https://git-scm.com/download/win), accept the default option to add it to PATH. |
 | **OEM USB driver** (Windows only) | Windows needs a device-specific driver to recognize the device. macOS and Linux usually don't. | Search "<device model> USB driver" — Google Pixel uses Google USB Driver (bundled with Android Studio); Samsung uses Samsung USB Driver; etc. |
 | **Appium 2.x + UiAutomator2 driver** | The automation engine | `appium --version` and `appium driver list --installed` |
 
@@ -210,6 +211,43 @@ Identical to the emulator guide — see [android-emulator.md § 6](android-emula
 
 After editing `.vscode/mcp.json`, **reload the VS Code window** (`Ctrl+Shift+P` → **Developer: Reload Window**).
 
+### 5.1 Alternative install path — global install (recommended for Windows / corporate networks)
+
+The default `.vscode/mcp.example.json` runs Appium MCP via `npx -y appium-mcp@<version>`, which fetches and caches the package on each fresh VS Code session. That works fine on Linux / macOS with normal network access, but on Windows + corporate networks the npx flow has multiple failure modes (TLS interception, file-lock races during cleanup, missing `git` for transitive deps). If your coworker hits any of the symptoms in §10 below, switch to the **global install** path documented here. It's slower to set up once but more reliable thereafter — the binary is cached in `%APPDATA%\npm\` (Windows) or your npm prefix (Linux/macOS), and VS Code spawns it directly without per-session install.
+
+**One-time setup:**
+
+```bash
+npm install -g appium-mcp@1.72.12
+```
+
+Notes:
+- **Always pin the version.** Use `appium-mcp@<version>`, never bare `appium-mcp`. Run `npm view appium-mcp version` to see the latest, then coordinate with your team before bumping.
+- **Windows:** no admin needed; npm installs to `%APPDATA%\npm\` by default.
+- **Linux / macOS:** if you see `EACCES` errors, set a user-scoped global prefix first: `npm config set prefix ~/.npm-global` and add `~/.npm-global/bin` to your shell PATH. **Never use `sudo npm install -g`** — it works but creates root-owned files that bite later. A Node version manager like [`nvm`](https://github.com/nvm-sh/nvm) handles this automatically.
+- **Verify the install:** `appium-mcp --version` (or just `Get-Command appium-mcp` on PowerShell). Should print a version, not "command not found."
+
+**Update `.vscode/mcp.json` to invoke the global binary instead of npx:**
+
+Replace your `appium-mcp` server entry with:
+
+```json
+"appium-mcp": {
+  "command": "appium-mcp",
+  "args": [],
+  "env": {
+    "ANDROID_HOME": "${env:ANDROID_HOME}",
+    "APPIUM_URL": "http://localhost:4723"
+  }
+}
+```
+
+Three changes from the npx default: `"command": "appium-mcp"` (was `"npx"`), `"args": []` (was `["-y", "appium-mcp@<version>"]`), and on Windows you may want to also append your npm global directory to the inner `PATH` (e.g. `C:\\Users\\<you>\\AppData\\Roaming\\npm`) so VS Code's spawned process can locate the binary even if its inherited PATH is incomplete.
+
+**Reload VS Code window after the edit.**
+
+**To upgrade later:** `npm install -g appium-mcp@<new-version>` and reload VS Code. No `.vscode/mcp.json` change needed unless you want to record the version somewhere.
+
 ---
 
 ## 6. Start Appium
@@ -384,6 +422,97 @@ which adb                                 # → resolves under $ANDROID_HOME/pla
 ```
 
 If any of these fail, the Explorer will hit one of the symptoms above no matter how the MCP server is configured.
+
+### Symptom 4 — `npm error spawn git ENOENT` in MCP output
+
+**What you see:** the MCP output panel shows the appium-mcp server failing to start, with an error like:
+```
+npm error code ENOENT
+npm error syscall spawn git
+npm error path git
+npm error errno -4058
+```
+
+**Root cause:** Git is not installed (or not on PATH). Some `appium-mcp` transitive dependencies are declared with git URLs; npm shells out to `git` during install.
+
+**Fix:**
+1. Install [Git for Windows](https://git-scm.com/download/win) (default options — installer adds it to PATH automatically; if not, see below).
+2. Open a brand-new PowerShell window (existing windows have stale PATH) and verify: `git --version` should print `2.x.x`.
+3. **If `git --version` works in standalone PowerShell but not in VS Code** → close VS Code completely (Task Manager: confirm no `Code.exe` process), then relaunch from a shell that has git on PATH (`code .` from PowerShell). VS Code inherits PATH at launch time.
+4. **If the Git installer added git to "Git Bash only" mode** (no PATH update) → manually add `C:\Program Files\Git\bin` to User PATH:
+   ```powershell
+   [System.Environment]::SetEnvironmentVariable('Path', ([System.Environment]::GetEnvironmentVariable('Path','User') + ';C:\Program Files\Git\bin'), 'User')
+   ```
+   Close + reopen PowerShell, retest.
+
+### Symptom 5 — `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` (corporate TLS interception)
+
+**What you see:** the MCP output panel or the npm install output shows:
+```
+npm error code UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+npm error request to https://codeload.github.com/.../tar.gz/<sha> failed,
+       reason: unable to get local issuer certificate
+```
+
+**Root cause:** A corporate firewall, antivirus, or security agent is performing TLS interception. The corporate-controlled root CA is in Windows trust store but Node.js doesn't read the Windows store by default — it uses its own bundled Mozilla CA bundle.
+
+**Three fix paths, ordered by effort:**
+
+**Path A — Tell Node to trust Windows trust store (cleanest, no IT involvement, requires Node ≥ 22.10):**
+```powershell
+[System.Environment]::SetEnvironmentVariable('NODE_OPTIONS', '--use-system-ca', 'User')
+```
+Close VS Code completely, reopen, retry. The `--use-system-ca` flag tells Node to also trust the Windows certificate store, which already has the corporate root CA your browser uses. **No security tradeoff.**
+
+**Path B — Disable strict-ssl temporarily (fastest unblock; security tradeoff):**
+```powershell
+npm config set strict-ssl false
+npm install -g appium-mcp@1.72.12   # or your retry command
+npm config set strict-ssl true       # restore IMMEDIATELY after install succeeds
+```
+Use only as a **diagnostic / one-shot unblock**. Don't leave `strict-ssl=false` in your config — it disables TLS verification globally.
+
+**Path C — Configure npm + Node to trust the corporate CA explicitly (proper, permanent):**
+1. Get the corporate root CA in PEM format from your IT / Security team. Many companies publish it on an internal wiki under names like "Internal SSL Cert" or "MITM CA."
+2. Save it as `C:\Users\<you>\corp-ca.pem`.
+3. Configure:
+   ```powershell
+   npm config set cafile "C:\Users\<you>\corp-ca.pem"
+   [System.Environment]::SetEnvironmentVariable('NODE_EXTRA_CA_CERTS', 'C:\Users\<you>\corp-ca.pem', 'User')
+   ```
+4. Close VS Code completely, reopen, retry.
+
+**Recommended order:** try Path A first (one command, no tradeoff). If your Node version doesn't support `--use-system-ca`, fall back to Path B for the immediate unblock and Path C for the permanent fix.
+
+### Symptom 6 — `EBUSY` / `EPERM` errors during `npm install` cleanup on Windows
+
+**What you see:** `npx -y appium-mcp@<version>` exits with code 1 after a flurry of warnings like:
+```
+npm warn cleanup Failed to remove some directories
+npm warn cleanup [Error: EBUSY: resource busy or locked, rmdir '...\_npx\<hash>\node_modules\<some-package>']
+npm warn cleanup [Error: EPERM: operation not permitted, rmdir '...']
+```
+
+**Root cause:** Another process (Windows Defender real-time scanning, a leftover Node process from a previous failed npx, or VS Code's file watcher) is holding files open in the npx temp cache while npm tries to roll back a partial install. npx cleanup fails → exit 1.
+
+**Fix — kill leftover Node processes, clean the broken cache, then switch to global install:**
+```powershell
+# 1. Close VS Code completely (Task Manager: no Code.exe)
+# 2. Kill leftover npm/node processes from previous attempts
+taskkill /F /IM node.exe 2>$null
+taskkill /F /IM npm.exe 2>$null
+Start-Sleep -Seconds 5     # let antivirus release file locks
+
+# 3. Delete the broken npx temp cache
+Remove-Item -Path "$env:LOCALAPPDATA\npm-cache\_npx" -Recurse -Force -ErrorAction Continue
+
+# 4. Switch from npx to global install (different cache, less prone to lock races)
+npm install -g appium-mcp@1.72.12
+
+# 5. Update .vscode/mcp.json to use the global binary directly — see § 5.1 above
+```
+
+The npx flow has been the source of every Windows-specific issue in this troubleshooting section. **Once on the global-install path (§5.1), Symptoms 4-6 mostly cease to apply** — the package is installed once and VS Code spawns the cached binary directly.
 
 ---
 

@@ -256,6 +256,30 @@ async function main() {
   }
   console.log(`${SYMBOLS.ok} Node.js version check passed`);
 
+  // Git check — required by `npm install` of Appium MCP server (transitive deps use git URLs)
+  // Non-fatal: warn loudly so the user sees it before the agent fails mysteriously, but
+  // don't block setup since git is only required for mobile MCP, not for web automation.
+  try {
+    execSync('git --version', { stdio: 'pipe' });
+    console.log(`${SYMBOLS.ok} Git found on PATH`);
+  } catch {
+    console.log('');
+    console.log(`${SYMBOLS.warn} Git not found on PATH.`);
+    console.log(`     Required by 'npm install' of the Appium MCP server (some transitive`);
+    console.log(`     dependencies are fetched via git+ssh; npm shells out to 'git' during install).`);
+    console.log(`     Mobile/mobile-hybrid scenarios will fail at MCP startup with`);
+    console.log(`     'npm error spawn git ENOENT' until git is installed.`);
+    if (isWin) {
+      console.log(`     Install Git for Windows: https://git-scm.com/download/win`);
+    } else if (process.platform === 'darwin') {
+      console.log(`     Install via: brew install git  (or 'xcode-select --install')`);
+    } else {
+      console.log(`     Install via your package manager (e.g. 'sudo apt install git').`);
+    }
+    console.log(`     Web/api/hybrid scenarios are unaffected — proceeding with setup.`);
+    console.log('');
+  }
+
   // If validate-only, skip to validation
   if (FLAGS.validateOnly) {
     runValidation();
