@@ -69,7 +69,8 @@
     "runner": {
       "maxRunDurationMs": 1200000,
       "cleanupOnCycle1": true,
-      "tailLines": 200
+      "tailLines": 200,
+      "videoOnSuccess": false
     },
     "target": {
       "headless": false,
@@ -85,7 +86,7 @@
       "startupTimeoutMs": 30000,
       "cleanupOnExit": false
     },
-    "$comment": "Mobile-specific settings. defaultPlatform used when scenario says Platform: both. Mobile timeouts are higher because device interactions are slower than browser. The flat keys (appiumHost/appiumPort/defaultPlatform/testTimeoutMs/actionTimeoutMs/commandTimeoutMs) are LEGACY — kept for backward compatibility. The mobile.runner / mobile.target / mobile.appium sub-blocks are the source of truth for scripts/mobile-runner.js. mobile.runner.maxRunDurationMs caps how long the runner waits for wdio before treating it as INFRA_FAILURE (default 20 min). mobile.runner.cleanupOnCycle1: if true, runner wipes output/test-results/* on cycle 1. mobile.target.headless: emulator/simulator runs without a window in CI. mobile.target.cleanupOnExit: runner shuts down emulator/simulator only if it auto-started one. mobile.target.resetOnInfraFailure: on INFRA retry, hard-reset the target instead of just retrying the wdio session. mobile.appium.url: full URL the runner probes for /status; auto-derived from legacy appiumHost/appiumPort if absent. mobile.appium.autoStart: runner spawns Appium if /status is unreachable. mobile.appium.cleanupOnExit: stop Appium only if the runner auto-started it (default false — keep it warm for the next run)."
+    "$comment": "Mobile-specific settings. defaultPlatform used when scenario says Platform: both. Mobile timeouts are higher because device interactions are slower than browser. The flat keys (appiumHost/appiumPort/defaultPlatform/testTimeoutMs/actionTimeoutMs/commandTimeoutMs) are LEGACY — kept for backward compatibility. The mobile.runner / mobile.target / mobile.appium sub-blocks are the source of truth for scripts/mobile-runner.js. mobile.runner.maxRunDurationMs caps how long the runner waits for wdio before treating it as INFRA_FAILURE (default 20 min). mobile.runner.cleanupOnCycle1: if true, runner wipes output/test-results/* on cycle 1. mobile.runner.videoOnSuccess: controls retention of screen recordings for PASSING tests only. Failure videos are ALWAYS saved (output/test-results/videos/FAILED-*.mp4) AND attached to the Allure report regardless of this flag — failure debugging needs the video. If true, passing tests also get their video saved (output/test-results/videos/PASSED-*.mp4) and attached to Allure (equivalent of Playwright's `video: 'on'`). If false (default), passing-test recordings are stopped and discarded — saves disk space, matches Playwright's `video: 'retain-on-failure'`. The framework always records during each test; this flag only controls success-case retention. Read by output/wdio.conf.ts; consult that file's afterTest hook for the actual save logic. mobile.target.headless: emulator/simulator runs without a window in CI. mobile.target.cleanupOnExit: runner shuts down emulator/simulator only if it auto-started one. mobile.target.resetOnInfraFailure: on INFRA retry, hard-reset the target instead of just retrying the wdio session. mobile.appium.url: full URL the runner probes for /status; auto-derived from legacy appiumHost/appiumPort if absent. mobile.appium.autoStart: runner spawns Appium if /status is unreachable. mobile.appium.cleanupOnExit: stop Appium only if the runner auto-started it (default false — keep it warm for the next run)."
   },
 
   "observability": {
