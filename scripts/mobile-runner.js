@@ -538,6 +538,7 @@ function runWdio({ specRel, platform, cycle, cfg, target }) {
       ...process.env,
       PLATFORM: platform,
       CYCLE_NUMBER: String(cycle),
+      VIDEO_ON_SUCCESS: cfg.runner.videoOnSuccess ? 'true' : 'false',
     };
     if (target?.id && platform === 'android') childEnv.ANDROID_DEVICE = target.id;
     if (target?.id && platform === 'ios') childEnv.IOS_SIM_UDID = target.id;

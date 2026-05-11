@@ -1,3 +1,4 @@
+import allureReporter from '@wdio/allure-reporter';
 import { MobileLocatorLoader } from './mobile-locator-loader';
 
 /** Default timeout for all mobile element interactions (ms). */
@@ -301,18 +302,47 @@ export class BaseScreen {
   // EVIDENCE
   // ════════════════════════════════════════════════════════════════════
 
-  /** Take a screenshot and save it to test-results/screenshots/{name}.png */
+  /**
+   * Take a screenshot, save it to test-results/screenshots/{name}.png, AND
+   * attach it to the Allure report so it renders inline in the customer-facing
+   * HTML report. Both effects are wrapped in independent try/catch — a disk
+   * failure (full disk, permissions) doesn't prevent the Allure attachment,
+   * and vice versa.
+   *
+   * Returns the disk path. Empty string if the disk write failed (Allure
+   * attach may still have succeeded — check the report).
+   */
   async takeScreenshot(name: string): Promise<string> {
-    const base64 = await this.driver.takeScreenshot();
+    let base64: string;
+    try {
+      base64 = await this.driver.takeScreenshot();
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not capture screenshot "${name}": ${(e as Error).message}`);
+      return '';
+    }
+
+    const buf = Buffer.from(base64, 'base64');
     const filePath = `test-results/screenshots/${name}.png`;
 
-    const fs = await import('fs');
-    const pathMod = await import('path');
-    const dir = pathMod.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    let diskOk = false;
+    try {
+      const fs = await import('fs');
+      const pathMod = await import('path');
+      const dir = pathMod.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, buf);
+      diskOk = true;
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not save screenshot to disk: ${(e as Error).message}`);
+    }
 
-    return filePath;
+    try {
+      allureReporter.addAttachment(`Screenshot: ${name}`, buf, 'image/png');
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not attach screenshot to Allure: ${(e as Error).message}`);
+    }
+
+    return diskOk ? filePath : '';
   }
 
   /**

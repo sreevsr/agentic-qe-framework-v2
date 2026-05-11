@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import allureReporter from '@wdio/allure-reporter';
 import { getCapabilities } from './core/capabilities';
 
 // Load environment variables
@@ -134,66 +135,121 @@ export const config = {
   },
 
   /**
-   * Start screen recording before each test. Recording is kept only if the
-   * test fails (see afterTest); successful test recordings are discarded.
+   * Start screen recording before each test. Recording is always started;
+   * retention policy is applied in afterTest (see VIDEO_ON_SUCCESS).
+   * Platform params differ: Android (UiAutomator2) takes videoSize + bitRate;
+   * iOS (XCUITest) takes videoType + videoQuality + videoFps. Branch by PLATFORM
+   * env var so recording actually works on iOS instead of silently no-op'ing.
    */
   async beforeTest(_test: any) {
     try {
-      await (browser as any).startRecordingScreen({
-        timeLimit: 300,
-        videoSize: '720x1280',
-        bitRate: 2000000,
-      });
+      const platform = (process.env.PLATFORM || 'android').toLowerCase();
+      const params = platform === 'ios'
+        ? { videoType: 'mpeg4', timeLimit: 300, videoQuality: 'medium', videoFps: 24 }
+        : { videoSize: '720x1280', timeLimit: 300, bitRate: 2000000 };
+      await (browser as any).startRecordingScreen(params);
     } catch { /* recording not supported on this device/driver */ }
   },
 
   /**
-   * On test failure capture: screenshot + page source + screen recording.
-   * Successful test recordings are stopped and discarded so the disk does
-   * not fill up.
+   * Capture failure artifacts (video + screenshot + page source) — save to disk
+   * AND attach to Allure so they render inline in the customer-facing HTML report.
+   *
+   * Video retention:
+   *   - Failures: always saved + attached
+   *   - Passes:   saved + attached only if VIDEO_ON_SUCCESS=true
+   *     (set by mobile-runner.js from framework-config.json → mobile.runner.videoOnSuccess)
+   *
+   * Screenshot + page source: failure-only (passing tests don't capture these).
+   *
+   * Each save/attach is wrapped in its own try/catch — failures in one path
+   * (e.g. disk full) don't break the other (e.g. Allure attach).
    */
   async afterTest(test: any, _context: any, { error }: { error: any }) {
     const safeName = (test.title || 'unknown').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     const timestamp = Date.now();
+    const fs = await import('fs');
+    const pathMod = await import('path');
 
+    // Always stop recording. Decide what to do with the buffer below.
     let base64Video: string | undefined;
     try {
       base64Video = await (browser as any).stopRecordingScreen();
     } catch { /* not running */ }
 
+    // Video retention policy
+    const videoOnSuccess = process.env.VIDEO_ON_SUCCESS === 'true';
+    const shouldKeepVideo = !!error || videoOnSuccess;
+
+    if (base64Video && shouldKeepVideo) {
+      const prefix = error ? 'FAILED' : 'PASSED';
+      const file = `test-results/videos/${prefix}-${safeName}-${timestamp}.mp4`;
+      const buf = Buffer.from(base64Video, 'base64');
+
+      try {
+        fs.mkdirSync(pathMod.dirname(file), { recursive: true });
+        fs.writeFileSync(file, buf);
+        (error ? console.error : console.log)(`[afterTest] ${prefix} video: ${file}`);
+      } catch (e) {
+        console.error(`[afterTest] Could not save video: ${(e as Error).message}`);
+      }
+
+      try {
+        allureReporter.addAttachment(`Screen Recording (${prefix})`, buf, 'video/mp4');
+      } catch (e) {
+        console.error(`[afterTest] Could not attach video to Allure: ${(e as Error).message}`);
+      }
+    }
+
+    // Failure-only artifacts: screenshot + page source — save AND attach to Allure
     if (!error) return;
 
     console.error(`FAILED: ${test.title}`);
-    const fs = await import('fs');
-    const pathMod = await import('path');
 
+    // Screenshot — capture once, save to disk + attach to Allure
+    let screenshotBase64: string | undefined;
     try {
-      const file = `test-results/screenshots/FAILED-${safeName}-${timestamp}.png`;
-      fs.mkdirSync(pathMod.dirname(file), { recursive: true });
-      await (browser as any).saveScreenshot(file);
-      console.error(`[afterTest] Failure screenshot: ${file}`);
+      screenshotBase64 = await (browser as any).takeScreenshot();
     } catch (e) {
-      console.error(`[afterTest] Could not save screenshot: ${(e as Error).message}`);
+      console.error(`[afterTest] Could not capture screenshot: ${(e as Error).message}`);
     }
-
-    try {
-      const file = `test-results/page-sources/FAILED-${safeName}-${timestamp}.xml`;
-      fs.mkdirSync(pathMod.dirname(file), { recursive: true });
-      const source = await browser.getPageSource();
-      fs.writeFileSync(file, source);
-      console.error(`[afterTest] Failure page source: ${file}`);
-    } catch (e) {
-      console.error(`[afterTest] Could not save page source: ${(e as Error).message}`);
-    }
-
-    if (base64Video) {
+    if (screenshotBase64) {
+      const buf = Buffer.from(screenshotBase64, 'base64');
       try {
-        const file = `test-results/videos/FAILED-${safeName}-${timestamp}.mp4`;
+        const file = `test-results/screenshots/FAILED-${safeName}-${timestamp}.png`;
         fs.mkdirSync(pathMod.dirname(file), { recursive: true });
-        fs.writeFileSync(file, Buffer.from(base64Video, 'base64'));
-        console.error(`[afterTest] Failure video: ${file}`);
+        fs.writeFileSync(file, buf);
+        console.error(`[afterTest] Failure screenshot: ${file}`);
       } catch (e) {
-        console.error(`[afterTest] Could not save video: ${(e as Error).message}`);
+        console.error(`[afterTest] Could not save screenshot: ${(e as Error).message}`);
+      }
+      try {
+        allureReporter.addAttachment('Failure Screenshot', buf, 'image/png');
+      } catch (e) {
+        console.error(`[afterTest] Could not attach screenshot to Allure: ${(e as Error).message}`);
+      }
+    }
+
+    // Page source — capture once, save to disk + attach to Allure
+    let pageSource: string | undefined;
+    try {
+      pageSource = await browser.getPageSource();
+    } catch (e) {
+      console.error(`[afterTest] Could not get page source: ${(e as Error).message}`);
+    }
+    if (pageSource) {
+      try {
+        const file = `test-results/page-sources/FAILED-${safeName}-${timestamp}.xml`;
+        fs.mkdirSync(pathMod.dirname(file), { recursive: true });
+        fs.writeFileSync(file, pageSource);
+        console.error(`[afterTest] Failure page source: ${file}`);
+      } catch (e) {
+        console.error(`[afterTest] Could not save page source: ${(e as Error).message}`);
+      }
+      try {
+        allureReporter.addAttachment('Failure Page Source (XML)', pageSource, 'application/xml');
+      } catch (e) {
+        console.error(`[afterTest] Could not attach page source to Allure: ${(e as Error).message}`);
       }
     }
   },
