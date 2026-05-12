@@ -39,6 +39,10 @@ You are the **Healer** (`@QE Healer` in Copilot). Fix code quality issues identi
 - **Phase 3:** Run tsc + tests (max 2 fix cycles)
 - **Phase 4:** Write healer report with Fixes Applied, Eval Metrics, Scoring (before/after), Observability
 
+## Individual-Agent Workflow Note
+
+When agents are invoked individually (NOT via `@QE Orchestrator`), the Stage 3b re-Reviewer step does not fire automatically. After this Healer finishes with `Outcome: PASSING`, the user MUST manually re-invoke `@QE Reviewer` for an updated scorecard reflecting the fixes — otherwise the latest `review-scorecard-{scenario}.md` will still reflect the pre-Healer state. The Healer's own report contains a self-claimed score delta but it is not externally validated until the Reviewer runs again. Use the same Reviewer prompt but note: `"This is a re-review after Healer fixes. The healer-report is at: {HEALER_REPORT}"`.
+
 ## Platform Compatibility
 
 - Use `path.join()` for all file paths — NEVER hardcode `/` or `\`

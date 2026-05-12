@@ -791,7 +791,9 @@ for post-click navigation; avoid waitForLoadState('networkidle') — analytics p
 
 **MUST read the full report template from `agents/report-templates/explorer-report.md` and follow it EXACTLY.**
 
-Save to: `output/reports/explorer-report-{scenario}.md`
+Save to: `output/reports/[{folder}/]explorer-report-{scenario}.md`
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter (e.g., `folder=connect-mobile` → `output/reports/connect-mobile/explorer-report-{scenario}.md`). Omit it only when `folder` is unset. Other consumers (Reviewer, precheck script, Builder) all expect this folder-prefixed path per the canonical `agents/shared/path-resolution.md`. Writing to a non-folder path when folder is set causes downstream tools to report `explorerReportFound: false`.
 
 The Explorer report documents:
 - Steps verified vs blocked
@@ -813,6 +815,18 @@ The Explorer report documents:
 3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
 4. **Fill the Duration field** in the explorer report: populate `**Duration:** {N}m {N}s` in the MANDATORY header block AND the Observability section's Duration row. Both MUST have the same computed value (e.g., `5m 40s` for durationMs=340000). NEVER leave a `~{N}` placeholder in the saved report.
 
+### Per-Step Timing — MANDATORY (added to support latency diagnostics)
+
+In addition to the overall `durationMs`, the Explorer MUST record per-step timing so future optimization work can identify slow steps without re-running.
+
+1. **BEFORE each step's first action**: record the current epoch milliseconds (`Date.now()` equivalent) as `stepStartMs`.
+2. **AFTER the step is complete** (annotation written, screenshot captured if any, ready to move to next step): record `stepEndMs` and compute `stepDurationMs = stepEndMs - stepStartMs`.
+3. **Accumulate** these into an array, one entry per scenario step (including Common Setup steps and Common Teardown steps if present).
+4. **Categorize** each step by its keyword type — one of: `verify` | `action` | `capture` | `screenshot` | `wait` | `setup` | `teardown` | `other`. This enables breakdowns by step kind (especially useful for SCREENSHOT steps, which are typically the slowest due to image capture/serialization).
+5. **Write to the metrics JSON** under `stepDurations` per the schema below. Do NOT include this in the explorer report markdown (keep the markdown human-readable; the JSON is for tooling).
+
+If the Explorer cannot reliably record per-step times (e.g., the agent runtime does not expose a clock), it MUST write `stepDurations: []` and add a note in `observabilityNote` explaining why. Never fabricate values.
+
 ### Metrics JSON — MANDATORY Output
 
 **MUST** write a metrics file to `output/reports/metrics/explorer-metrics-{scenario}.json` on EVERY run.
@@ -833,6 +847,12 @@ The Explorer report documents:
   "pagesVisited": 0,
   "helpersWalked": 0,
   "appContextUpdated": false,
+  "stepDurations": [
+    { "stepIndex": 1, "type": "setup", "durationMs": 0 },
+    { "stepIndex": 2, "type": "verify", "durationMs": 0 },
+    { "stepIndex": 3, "type": "action", "durationMs": 0 }
+  ],
+  "observabilityNote": "",
   "contextWindowPercent": "Platform does not expose context window usage",
   "tokenEstimate": "Platform does not expose token count",
   "metricsVersion": "2.1.0"
@@ -847,6 +867,8 @@ The Explorer report documents:
 - `elementsDiscovered`: count of ELEMENT annotations produced
 - `pagesVisited`: count of distinct page sections in enriched.md
 - `helpersWalked`: count of USE_HELPER steps where @steps were walked
+- `stepDurations`: array of `{stepIndex, type, durationMs}` — one entry per scenario step in positional order (Common Setup + Steps + Common Teardown, continuous numbering). `type` is one of `setup|verify|action|capture|screenshot|wait|teardown|other`. Empty array `[]` is acceptable only when per-step timing cannot be captured by the runtime; in that case set `observabilityNote` to explain why.
+- `observabilityNote`: free-form string for caveats (e.g., "runtime did not expose Date.now() during step processing"); empty string when no caveats
 
 ---
 

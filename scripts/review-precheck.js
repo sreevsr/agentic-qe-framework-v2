@@ -72,9 +72,15 @@ const paths = {
   scenarioMd: scenarioFolderForResolve
     ? resolve('scenarios', sceneTypeDir, scenarioFolderForResolve, `${scenario}.md`)
     : resolve('scenarios', sceneTypeDir, `${scenario}.md`),
-  explorerReport: folder
-    ? path.join(OUTPUT, 'reports', folder, `explorer-report-${scenario}.md`)
-    : path.join(OUTPUT, 'reports', `explorer-report-${scenario}.md`),
+  // Prefer folder-prefixed (canonical per agents/shared/path-resolution.md).
+  // Fall back to root if folder-path doesn't exist on disk — defensive against
+  // legacy artifacts or an Explorer that wrote to the non-canonical location.
+  explorerReport: (() => {
+    const withFolder = folder ? path.join(OUTPUT, 'reports', folder, `explorer-report-${scenario}.md`) : null;
+    const withoutFolder = path.join(OUTPUT, 'reports', `explorer-report-${scenario}.md`);
+    if (withFolder && fs.existsSync(withFolder)) return withFolder;
+    return withoutFolder;
+  })(),
   specFile: folder
     ? path.join(OUTPUT, 'tests', sceneTypeDir, folder, `${scenario}.spec.ts`)
     : path.join(OUTPUT, 'tests', sceneTypeDir, `${scenario}.spec.ts`),
