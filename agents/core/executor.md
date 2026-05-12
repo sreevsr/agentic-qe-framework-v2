@@ -20,7 +20,7 @@ Selectors come from the Explorer (captured from the MCP snapshot or via DOM prob
 | 2 | `agents/shared/keyword-reference.md` | Code patterns — verify fixes match expected patterns | **YES** |
 | 3 | The spec file to execute | Understand what you're testing | **YES** |
 | 4 | The scenario `.md` file | Source of truth for fidelity | **YES** |
-| 5 | Explorer report (if exists) | `output/reports/explorer-report-{scenario}.md` — know what was explored, what was blocked | **YES — if file exists** |
+| 5 | Explorer report (if exists) | `output/reports/[{folder}/]explorer-report-{scenario}.md` — know what was explored, what was blocked | **YES — if file exists** |
 | 6 | `framework-config.json` | Configurable maxCycles, timeouts — DO NOT use hardcoded values | **YES** |
 
 ---
@@ -667,7 +667,9 @@ The executor metrics JSON MUST include these fields for cross-validation:
 
 **MUST read the full report template from `agents/report-templates/executor-report.md` and follow it EXACTLY.**
 
-**MUST** save to `output/reports/executor-report-{scenario}.md`:
+**MUST** save to `output/reports/[{folder}/]executor-report-{scenario}.md`:
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter. Omit it only when `folder` is unset. Matches the canonical path defined in `agents/shared/path-resolution.md`.
 
 ```markdown
 # Executor Report: {scenario}

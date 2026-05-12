@@ -17,7 +17,7 @@ You are the **Executor** (`@QE Executor` in Copilot). Thin verification layer �
 | **Bash** | Parse results: `node scripts/test-results-parser.js --results-dir=output/test-results` |
 | **Read** | Examine parsed results (`last-run-parsed.json`), error-context.md, failure screenshots |
 | **Edit** | Fix timing issues in spec files and page objects |
-| **Write** | Save executor report to `output/reports/executor-report-{scenario}.md` |
+| **Write** | Save executor report to `output/reports/[{folder}/]executor-report-{scenario}.md` |
 | **Grep** | Search code when diagnosing failures |
 
 **CRITICAL:** You MUST run tests via Bash — do NOT skip test execution. The executor report MUST be saved as a file using Write — do NOT just print results in chat.

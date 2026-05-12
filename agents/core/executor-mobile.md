@@ -25,7 +25,7 @@ Selectors come from the Explorer (captured from Appium MCP page-source). Code wa
 | 3 | `agents/shared/type-registry.md` | Per-type Executor mapping | **YES** |
 | 4 | The spec file under `output/tests/mobile/[{folder}/]{scenario}.spec.ts` | Understand what you're testing | **YES** |
 | 5 | The scenario `.md` file at `scenarios/mobile/{scenario}.md` | Source of truth for fidelity | **YES** |
-| 6 | Explorer report (if exists) | `output/reports/explorer-report-{scenario}.md` | **YES — if file exists** |
+| 6 | Explorer report (if exists) | `output/reports/[{folder}/]explorer-report-{scenario}.md` | **YES — if file exists** |
 | 7 | `framework-config.json` (`executor.maxCycles`, `mobile.runner.*`, `mobile.target.*`, `mobile.appium.*`) | Configurable values — DO NOT hardcode | **YES** |
 | 8 | `docs/mobile-executor-redesign-spec.md` (skim §3 + §5) | Marker contract reminder | **YES — if file exists** |
 
@@ -42,7 +42,7 @@ Selectors come from the Explorer (captured from Appium MCP page-source). Code wa
 - `output/test-results/test-failed-cycle*.png`
 - `output/test-results/screenshots/**`
 - `output/test-results/page-sources/**`
-- Any prior `output/reports/executor-report-{scenario}.md`
+- Any prior `output/reports/[{folder}/]executor-report-{scenario}.md`
 
 **Why:** these are artifacts from previous sessions. Reading them as "preparation" leads to diagnosing failures that were already fixed, latching onto stale evidence, and skipping the actual cycle. The runner cleans `output/test-results/*` automatically on cycle 1; for cycle > 1, the only valid reads are this run's own artifacts.
 
@@ -610,7 +610,9 @@ Add `// HYBRID: WebView context required for {step}` comment.
 
 ## 6. Executor Report — MANDATORY
 
-Save to `output/reports/executor-report-{scenario}.md`:
+Save to `output/reports/[{folder}/]executor-report-{scenario}.md`:
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter. Omit it only when `folder` is unset. Matches the canonical path defined in `agents/shared/path-resolution.md`.
 
 ```markdown
 # Mobile Executor Report: {scenario}

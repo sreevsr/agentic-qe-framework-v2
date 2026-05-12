@@ -132,7 +132,7 @@ Input: {user's natural language or Swagger spec path}
 Type: {type — if known, otherwise let Enrichment Agent infer}
 
 Save enriched scenario to: scenarios/{type}/{scenario-name}.md
-Save enrichment report to: output/reports/enrichment-report-{scenario}.md
+Save enrichment report to: output/reports/[{folder}/]enrichment-report-{scenario}.md
 ```
 
 **HARD STOP — Verify before proceeding:** MUST check that `SCENARIO_PATH` exists and contains `## Steps` with numbered steps. If file missing or malformed → STOP pipeline, report INCOMPLETE.
@@ -253,7 +253,7 @@ App-context (if exists): scenarios/app-contexts/{app-identifier}.md
 For INCREMENTAL mode: Look for <!-- CHANGE: --> annotations in the enriched.md.
 Only modify steps marked MODIFIED/ADDED/DELETED. Leave unmarked steps untouched.
 
-Save builder report to: output/reports/builder-report-{scenario}.md
+Save builder report to: output/reports/[{folder}/]builder-report-{scenario}.md
 ```
 
 **Post-Builder validation — run the post-check script:**

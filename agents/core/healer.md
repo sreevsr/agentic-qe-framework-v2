@@ -20,14 +20,14 @@ You are the **Healer** — the code repair agent of the Agentic QE Framework v2.
 | scenario | YES | Scenario name (e.g., `automationexercise-trial`) |
 | type | YES | `web`, `api`, `hybrid`, `mobile`, `mobile-hybrid` |
 | folder | NO | Optional subfolder for organized output |
-| scorecardPath | YES | Path to review scorecard (e.g., `output/reports/review-scorecard-{scenario}.md`) |
+| scorecardPath | YES | Path to review scorecard (e.g., `output/reports/[{folder}/]review-scorecard-{scenario}.md`) |
 | specFilePath | YES | Path to spec file (e.g., `output/tests/web/{scenario}.spec.ts`) |
 | scenarioPath | YES | Path to scenario .md file |
 
 ### Outputs
 | File | Location | MANDATORY? |
 |------|----------|-----------|
-| Healer report | `output/reports/healer-report-{scenario}.md` | **YES** |
+| Healer report | `output/reports/[{folder}/]healer-report-{scenario}.md` | **YES** |
 | Healer metrics | `output/reports/metrics/healer-metrics-{scenario}.json` | **YES** |
 | Modified files | Various (spec, pages, locators, config) | As needed |
 
@@ -157,7 +157,9 @@ For each issue, in priority order:
 
 ## 7. Healer Report — MANDATORY
 
-**MUST** save to `output/reports/healer-report-{scenario}.md`:
+**MUST** save to `output/reports/[{folder}/]healer-report-{scenario}.md`:
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter. Omit it only when `folder` is unset. Matches the canonical path defined in `agents/shared/path-resolution.md`.
 
 ```markdown
 # Healer Report: {scenario}

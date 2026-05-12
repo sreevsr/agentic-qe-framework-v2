@@ -32,7 +32,7 @@ If scenario type is `web`, `api`, or `hybrid` → refuse and refer to `@QE Execu
 - Use `runCommand` for pre-flight: `cd output && npx tsc --noEmit`
 - Use `read` to examine the marker JSON, tail log (`cycle{N}-tail.txt`), page-source XML (`page-source-cycle{N}.xml`), failure screenshot, and parsed JSON
 - Use `editFiles` to fix issues in `output/tests/mobile/**/*.spec.ts`, `output/screens/*.ts`, `output/locators/mobile/*.json`
-- Use `editFiles` to save the executor report to `output/reports/executor-report-{scenario}.md`
+- Use `editFiles` to save the executor report to `output/reports/[{folder}/]executor-report-{scenario}.md`
 - Use `search` to locate steps in specs and grep page-source XML during the Diagnostic Gate
 
 **MCP — Appium (only when §5.1 Selector Healing is triggered):** `appium_get_page_source`, `generate_locators`, `appium_context`, `appium_mobile_permissions`.

@@ -19,7 +19,7 @@ You are the **Reviewer** (`@QE Reviewer` in Copilot). Audit generated test code 
 |-----------------|---------|
 | **Bash** | Run precheck: `node scripts/review-precheck.js --scenario=X --type=web [--folder=F]` |
 | **Read** | Examine generated code, scenario .md, explorer report, executor report |
-| **Write** | Save scorecard to `output/reports/review-scorecard-{scenario}.md` |
+| **Write** | Save scorecard to `output/reports/[{folder}/]review-scorecard-{scenario}.md` |
 | **Grep** | Search generated code for patterns (raw selectors, missing awaits, etc.) |
 | **Glob** | Find files referenced in the explorer report manifest |
 

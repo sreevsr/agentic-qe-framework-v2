@@ -24,7 +24,7 @@ Audits generated test code for a single scenario against 9 enterprise QE quality
 
 - Use `runCommand` to run precheck: `node scripts/review-precheck.js --scenario=X --type=web [--folder=F]`
 - Use `read` to examine generated code, scenario .md, explorer report, executor report
-- Use `editFiles` to save the review scorecard to `output/reports/review-scorecard-{scenario}.md`
+- Use `editFiles` to save the review scorecard to `output/reports/[{folder}/]review-scorecard-{scenario}.md`
 - Use `search` to find files referenced in the explorer report manifest
 
 **CRITICAL:** Run `review-precheck.js` FIRST — it saves significant tokens. The scorecard MUST be saved as a file using `editFiles` — do NOT just print it in chat.

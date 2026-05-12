@@ -419,7 +419,9 @@ After generating the mobile spec, the Builder MUST verify that every Common Setu
 
 ## 6. Builder Report — MANDATORY
 
-Save to: `output/reports/builder-report-{scenario}.md`
+Save to: `output/reports/[{folder}/]builder-report-{scenario}.md`
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter (e.g., `folder=connect-mobile` → `output/reports/connect-mobile/builder-report-{scenario}.md`). Omit it only when `folder` is unset. This matches the canonical path defined in `agents/shared/path-resolution.md`. Writing to the non-folder path when folder is set causes downstream consumers (Reviewer cross-validation, Orchestrator gating) to fail to locate the report.
 
 ```markdown
 # Builder Report: {scenario}

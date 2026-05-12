@@ -25,7 +25,7 @@ Reads the Reviewer scorecard, fixes critical issues by dimension priority, re-ru
 - **Run tests — type-aware:**
   - web/api/hybrid: `runCommand` → `cd output && npx playwright test tests/{type}/{scenario}.spec.ts --project=chrome`
   - mobile/mobile-hybrid: `runCommand` → `node scripts/mobile-runner.js --scenario={name} --platform={android|ios} --cycle={N} [--folder={sub}]`. Then poll `Test-Path output\test-results\cycle{N}-done.json` (or `ls` on bash) every 30s and branch on `marker.status` per `agents/core/healer.md` §6 Phase 3. **NEVER** spawn `npx wdio` directly; **NEVER** rely on `runCommand` notification for runner completion (the runner always exits 0; the marker file IS the signal).
-- Use `editFiles` to save the healer report to `output/reports/healer-report-{scenario}.md`
+- Use `editFiles` to save the healer report to `output/reports/[{folder}/]healer-report-{scenario}.md`
 
 **CRITICAL:** The healer report MUST be saved as a file using `editFiles` — do NOT just print it in chat.
 

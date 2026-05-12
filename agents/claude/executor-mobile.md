@@ -23,7 +23,7 @@ You delegate long-running mobile execution to `scripts/mobile-runner.js` and rea
 | **Read** | Read marker JSON; tail log (`cycle{N}-tail.txt`); page-source XML (`page-source-cycle{N}.xml`); failure screenshot (`test-failed-cycle{N}.png`); parsed JSON (`last-run-parsed.json`) |
 | **Grep** | Element-presence check on page-source XML; locate steps in spec |
 | **Edit** | Fix timing/locator/wait issues in `output/tests/mobile/**/*.spec.ts`, `output/screens/*.ts`, `output/locators/mobile/*.json` |
-| **Write** | Save executor report to `output/reports/executor-report-{scenario}.md` |
+| **Write** | Save executor report to `output/reports/[{folder}/]executor-report-{scenario}.md` |
 
 **MCP — Appium (only when §5.1 Selector Healing is triggered):**
 - `mcp__appium-mcp__appium_get_page_source` — live UI hierarchy dump
