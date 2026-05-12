@@ -1198,6 +1198,24 @@ describe('Mobile-Hybrid Flow @smoke @P1 @android-only', () => {
 
 `browser.call()` wraps async non-WebDriver code within a WDIO test. CAPTURE variables are shared between API and mobile phases via outer-scope `let`.
 
+### 16.7a No `(browser as any)` Casts — MANDATORY
+
+**MUST NOT use `(browser as any).<method>(…)` casts in mobile specs or screen objects.** The `output/core/wdio-types.d.ts` module augmentation (shipped by `setup.js` from `templates/core-mobile/wdio-types.d.ts`) declares all WDIO + Appium mobile commands so they are directly type-checkable on the `browser` global.
+
+**Wrong:**
+```typescript
+await (browser as any).terminateApp(process.env.APP_PACKAGE!);  // ❌ silences TypeScript
+```
+
+**Right:**
+```typescript
+await browser.terminateApp(process.env.APP_PACKAGE!);  // ✓ type-checked via wdio-types.d.ts
+```
+
+**If you need a method that isn't in `wdio-types.d.ts`:** the correct response is to ADD IT to `templates/core-mobile/wdio-types.d.ts` with the correct signature (source from Appium's command reference, not by guessing), then `setup.js` re-runs will propagate the addition. **Do NOT** add `(browser as any)` casts as a workaround.
+
+**Builder self-audit:** before finalizing, grep the generated spec and screen objects for `(browser as any)`. Count MUST be 0. If non-zero, replace with direct `browser.<method>(…)` calls and add any missing method declarations to `wdio-types.d.ts`.
+
 ---
 
 ### 16.8 Mobile Anti-Patterns — NEVER Do These
