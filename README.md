@@ -158,10 +158,14 @@ EOF
 # @QE Builder Run Builder for scenario speedtest-run-test, type mobile.
 # Input: scenarios/mobile/speedtest-run-test.enriched.md
 
-# 7. Run the test (platform filter is MANDATORY — see Mobile Platform Targeting below)
-cd output && PLATFORM=android npx wdio run wdio.conf.ts \
-  --spec tests/mobile/speedtest/speedtest-run-test.spec.ts \
-  --mochaOpts.grep "@android-only|@cross-platform"
+# 7. Run the test via the canonical mobile-runner.js (platform filter is added
+#    automatically based on --platform; the runner writes a cycle{N}-done.json
+#    marker that the @QE Mobile Executor agent uses for cycle-counter tracking).
+#    See "Running Mobile Tests" below for the marker file format + bypass option.
+node scripts/mobile-runner.js \
+  --scenario=speedtest-run-test \
+  --platform=android \
+  --cycle=1
 ```
 
 iOS Quick Start follows the same shape but requires macOS + Xcode + WebDriverAgent. See [Mobile Test Automation → iOS setup](#ios-setup) below.
@@ -228,7 +232,8 @@ Each agent has one job and hard boundaries. The Explorer verifies flows but does
 | **Enrichment Agent** | NO | Converts natural language or Swagger/OpenAPI specs into structured scenario `.md` | `scenarios/{type}/{name}.md` |
 | **Explorer** | YES | Verifies scenario flow in a live browser, captures element selectors from MCP snapshot (DOM probe fallback for non-accessible elements), maps steps to pages | `{scenario}.enriched.md` (with ELEMENT annotations) + explorer report |
 | **Builder** | NO | Extracts ELEMENT annotations from enriched.md → creates locator JSONs, page objects, spec files, and test data | locators.json + PageObject.ts + spec.ts + test-data.json |
-| **Executor** | YES | Runs tests, fixes timing/selector issues (max cycles configurable) | Fixed code + executor report |
+| **Executor** (web/api/hybrid) | YES | Runs Playwright tests, fixes timing/selector issues (max cycles configurable) | Fixed code + executor report |
+| **Mobile Executor** (mobile/mobile-hybrid) | YES | Invokes `scripts/mobile-runner.js`, reads `cycle{N}-done.json` marker, classifies status (TEST_PASS / TEST_FAILURE / INFRA_FAILURE / ENV_FAILURE / RUNNER_CRASH), applies page-source-XML-based Diagnostic Gate, fixes timing/selector issues. INFRA / RUNNER_CRASH retries don't count toward cycle budget. | Fixed code + executor-mobile report + per-cycle marker JSON |
 | **Reviewer** | NO | Audits code against 9 quality dimensions, produces scorecard with verdict | Review scorecard (APPROVED / NEEDS FIXES) |
 | **Healer** | NO | Fixes quality issues flagged by Reviewer, re-runs tests (max 2 cycles) | Healer report + fixed code |
 | **Orchestrator** | NO | Coordinates all agents in sequence, enforces hard gates between stages | Pipeline summary |
@@ -360,14 +365,33 @@ The Explorer needs an MCP server to interact with the app under test. **Web/hybr
     },
     "appium-mcp": {
       "command": "npx",
-      "args": ["-y", "appium-mcp@latest"],
-      "env": { "ANDROID_HOME": "${env:ANDROID_HOME}" }
+      "args": ["-y", "appium-mcp@1.72.12"],
+      "env": { "ANDROID_HOME": "${env:ANDROID_HOME}", "APPIUM_URL": "http://localhost:4723" }
     }
   }
 }
 ```
 
 **If you use nvm, fnm, or volta**, bare `npx` may not resolve from VS Code's MCP host. In that case use the full path returned by `which npx` and set `PATH` explicitly in the server's `env` block. (`npm run setup` will also patch the paths automatically on first run.) After editing, **reload the VS Code window** (`Ctrl+Shift+P` → "Developer: Reload Window") for both MCP servers to start.
+
+> **Note on the `appium-mcp` version pin** — the example above pins `appium-mcp@1.72.12` (not `@latest`). Using `@latest` causes npx to hit the npm registry on every Explorer agent invocation, adding 1-3 minutes of cold-start time. Update the pinned version manually when a newer release is verified by your team — run `npm view appium-mcp version` to see the current latest. **Windows + corporate-network users:** if you hit `npm error spawn git ENOENT`, `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, or EBUSY/EPERM errors during the MCP install, see `docs/onboarding/android-device.md` §10 for the full troubleshooting playbook (Git for Windows prerequisite, TLS-interception workarounds, and the global-install alternative).
+
+**Alternative for fragile environments — global install instead of npx.** Some Windows + corporate-network setups have repeatedly broken the `npx`-driven MCP install (Git missing, TLS interception, file-lock races). The reliable workaround is to install `appium-mcp` globally once, then point the MCP config at the binary directly:
+
+```bash
+npm install -g appium-mcp@1.72.12
+```
+
+Then in `.vscode/mcp.json` replace the `appium-mcp` block's `command`+`args` with:
+```json
+"appium-mcp": {
+  "command": "appium-mcp",
+  "args": [],
+  "env": { "ANDROID_HOME": "${env:ANDROID_HOME}", "APPIUM_URL": "http://localhost:4723" }
+}
+```
+
+This bypasses every npx-related failure mode (no per-invocation install, no TLS round-trip, no cache lock contention) at the cost of a one-time global install. See `docs/onboarding/android-device.md` §5.1 for the full rationale.
 
 For mobile, **also ensure Appium 2.x is running** in a separate terminal before invoking the Explorer:
 ```bash
@@ -1563,30 +1587,54 @@ PLATFORM=ios npx wdio run wdio.conf.ts --spec tests/mobile/customer/smoke.spec.t
 
 ### Running Mobile Tests
 
-> **ALWAYS pass the platform filter.** Every mobile run must include `--mochaOpts.grep "@<platform>-only|@cross-platform"` so the wrong-platform specs are skipped. This is non-negotiable — see [Mobile Platform Targeting](#mobile-platform-targeting--platform-header-convention) above. The examples below show the filter on every command.
+> **Canonical entry point: `scripts/mobile-runner.js`.** All mobile runs should invoke the runner script, not `npx wdio` directly. The runner handles target detection, Appium health-check + auto-start, bounded wdio timeout, cycle marker file writing (`output/test-results/cycle{N}-done.json`), failure-artifact capture, and INFRA/RUNNER_CRASH retry policy — none of which happen if you bypass it. The QE Mobile Executor agent reads the marker to make cycle-counter decisions.
+
+> **Platform filter is automatic via `--platform`.** The runner internally adds `--mochaOpts.grep "@<platform>-only|@cross-platform"` based on the `--platform` argument, so the wrong-platform specs are always skipped. No need to construct the grep yourself.
 
 **Single spec (Android):**
 ```bash
-PLATFORM=android npx wdio run wdio.conf.ts \
-  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
-  --mochaOpts.grep "@android-only|@cross-platform"
+node scripts/mobile-runner.js \
+  --scenario=flipkart-add-to-cart \
+  --platform=android \
+  --cycle=1 \
+  --folder=flipkart
 ```
 
-**Single spec (iOS):**
+**Single spec (iOS Simulator):**
 ```bash
-PLATFORM=ios npx wdio run wdio.conf.ts \
+node scripts/mobile-runner.js \
+  --scenario=flipkart-add-to-cart \
+  --platform=ios \
+  --cycle=1 \
+  --folder=flipkart
+```
+
+**Runner outputs (per cycle):**
+- `output/test-results/cycle{N}-done.json` — marker with `status` (TEST_PASS / TEST_FAILURE / INFRA_FAILURE / ENV_FAILURE / RUNNER_CRASH), durations, target info, results, artifact paths
+- `output/test-results/cycle{N}-raw.txt` — full wdio stdout/stderr
+- `output/test-results/cycle{N}-tail.txt` — last 200 lines + every error line (for fast diagnosis)
+- `output/test-results/page-source-cycle{N}.xml` — Appium page source at failure point (if any test failed)
+- `output/test-results/test-failed-cycle{N}.png` — screenshot at failure point (if any)
+
+**Bypass the runner for tight iteration (NOT recommended for normal use):**
+```bash
+# Direct wdio invocation — no marker file produced, no INFRA retry policy,
+# no cycle-counter integration with the Mobile Executor agent. Use only
+# when you're rapidly iterating on a spec and don't need agent-level
+# tracking. The marker-driven flow is the canonical path otherwise.
+
+# Android:
+cd output && PLATFORM=android node node_modules/@wdio/cli/bin/wdio.js run wdio.conf.ts \
+  --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
+  --mochaOpts.grep "@android-only|@cross-platform"
+
+# iOS:
+cd output && PLATFORM=ios node node_modules/@wdio/cli/bin/wdio.js run wdio.conf.ts \
   --spec tests/mobile/flipkart/flipkart-add-to-cart.spec.ts \
   --mochaOpts.grep "@ios-only|@cross-platform"
 ```
 
-**All mobile specs in one command** (the `wdio.conf.ts` `specs` glob already matches `tests/mobile/**/*.spec.ts`):
-```bash
-# Android — runs @android-only + @cross-platform specs, skips @ios-only
-PLATFORM=android npx wdio run wdio.conf.ts --mochaOpts.grep "@android-only|@cross-platform"
-
-# iOS — runs @ios-only + @cross-platform specs, skips @android-only
-PLATFORM=ios npx wdio run wdio.conf.ts --mochaOpts.grep "@ios-only|@cross-platform"
-```
+(The above uses `node …/wdio.js …` instead of `npx wdio …` because on Node 25 + Windows, `npx`/`npx.cmd` spawn fails with `ENOENT` or `EINVAL`, and adding `shell:true` breaks because cmd.exe interprets the `|` in the grep pattern as a pipe. Direct Node invocation has neither problem and is portable to Linux/macOS too.)
 
 The `beforeSuite` hook in `wdio.conf.ts` calls `terminateApp` + `activateApp` before every spec file, so 20-30 specs run cleanly back-to-back without device-state contamination (~1s reset per spec vs ~15s for full session restart).
 
@@ -1998,10 +2046,53 @@ All agents read this file instead of using hardcoded values:
     "defaultPlatform": "android",
     "testTimeoutMs": 240000,
     "actionTimeoutMs": 45000,
-    "commandTimeoutMs": 60000
+    "commandTimeoutMs": 60000,
+    "runner": {
+      "maxRunDurationMs": 1200000,
+      "cleanupOnCycle1": true,
+      "tailLines": 200,
+      "videoOnSuccess": false
+    },
+    "target": {
+      "headless": false,
+      "cleanupOnExit": true,
+      "resetOnInfraFailure": true,
+      "emulatorBootTimeoutMs": 90000,
+      "simulatorBootTimeoutMs": 30000,
+      "useSnapshotForEmulator": false
+    },
+    "appium": {
+      "url": "http://localhost:4723",
+      "autoStart": true,
+      "startupTimeoutMs": 30000,
+      "cleanupOnExit": false
+    }
   }
 }
 ```
+
+#### `mobile.runner|target|appium` — Mobile execution behavior (Phase 1)
+
+These sub-blocks configure `scripts/mobile-runner.js`. The legacy flat keys (`appiumHost`, `appiumPort`, `defaultPlatform`, `testTimeoutMs`, `actionTimeoutMs`, `commandTimeoutMs`) are kept for backward compatibility but the sub-blocks are the source of truth:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `runner.maxRunDurationMs` | 1200000 (20 min) | Cap wdio runtime per cycle; on timeout, runner emits `INFRA_FAILURE` with `wdio_hung` reason |
+| `runner.cleanupOnCycle1` | true | Wipe `output/test-results/*` on cycle 1 to avoid stale artifacts misleading diagnosis |
+| `runner.tailLines` | 200 | Lines kept in `cycle{N}-tail.txt` (filtered wdio log for fast diagnosis) |
+| **`runner.videoOnSuccess`** | **false** | **`true` = record + save + attach to Allure for every test (Playwright `video: 'on'` equivalent); `false` = retain-on-failure only.** Flip to `true` for customer-facing report demos. Failure videos are always saved + attached regardless. |
+| `target.headless` | false | Emulator/simulator runs without window (for CI) |
+| `target.cleanupOnExit` | true | Shut down emulator/simulator only if runner auto-started it |
+| `target.resetOnInfraFailure` | true | On INFRA retry, hard-reset target instead of retrying wdio session |
+| `target.emulatorBootTimeoutMs` | 90000 | Max wait for emulator boot when auto-starting |
+| `target.simulatorBootTimeoutMs` | 30000 | Max wait for iOS Simulator boot |
+| `target.useSnapshotForEmulator` | false | Use AVD snapshot for fast boot (set true for CI determinism) |
+| `appium.url` | http://localhost:4723 | Where the runner probes `/status` and forwards wdio traffic |
+| `appium.autoStart` | true | Runner spawns Appium if `/status` is unreachable |
+| `appium.startupTimeoutMs` | 30000 | Max wait for Appium readiness after auto-start |
+| `appium.cleanupOnExit` | false | Default false — keeps Appium warm for the next run |
+
+The mobile runner is the canonical execution path for mobile/mobile-hybrid scenarios — see [Running Mobile Tests](#running-mobile-tests) above for invocation.
 
 #### `appContext` — Per-Type Application Context Files
 
@@ -2200,6 +2291,99 @@ Strict boundaries prevent agents from stepping on each other's work or modifying
 | `output/test-data/{web,api,hybrid,mobile}/*.json` | Builder | Create/modify |
 | `scenarios/app-contexts/*.md` | Explorer | Read/write — self-improving patterns. Mobile may have a separate `{app}-ios.md` / `{app}-android.md` per platform if behavior diverges. |
 | `templates/core-mobile/*`, `templates/config-mobile/*` | Framework maintainer | **Source of truth** for mobile runtime. `setup.js` copies these to `output/` on every setup. To change runtime behavior, edit the template and re-run `npm run setup`. |
+
+---
+
+## Framework Maintenance
+
+This section covers framework-level concerns that don't show up in everyday scenario authoring: contributor workflows, drift-detection tooling, diagnostic env vars, and the canonical artifacts each mobile run produces.
+
+### Pre-commit hook + `rule-sync-check` (for framework contributors)
+
+The framework duplicates a few critical universal rules between `agents/core/executor.md` and `agents/core/executor-mobile.md` — specifically Fix Rules #9 (Semantic Guard), #10 (Necessary-and-Sufficient Scope), #11 (Throw-Free Page-Object Fixes), and the §4.7 Informed Retargeting Exception. The duplication is deliberate (LLM agents are unreliable at hopping between docs mid-cycle), but a drift-detection script ensures the mirrored sections stay in sync.
+
+**Activation (done automatically by `npm run setup`):**
+```bash
+# setup.js wires a git pre-commit hook:
+git config core.hooksPath .githooks
+```
+
+The hook runs `npm run rule-sync-check` on every commit; if the source section in `executor.md` has changed without a matching update in `executor-mobile.md`, the commit is blocked.
+
+**Maintainer workflow when editing universal rules:**
+```bash
+# 1. Edit the rule in agents/core/executor.md
+# 2. Check what drifted:
+npm run rule-sync-check
+#    → reports which mirror in executor-mobile.md needs updating
+
+# 3. Propagate the change to agents/core/executor-mobile.md
+#    (search for "MIRRORED FROM executor.md §X" anchor comments)
+
+# 4. Bless the new state:
+npm run rule-sync-rehash
+
+# 5. Commit executor.md + executor-mobile.md + scripts/.rule-sync-hashes.json together
+```
+
+**If git isn't installed on the contributor's machine:** the hook installation is silently skipped at setup time (per the non-git guard in `setup.js`). The framework itself doesn't need git for runtime — only the drift check does. Users who only run scenarios (vs editing rules) don't need git.
+
+### Diagnostic env vars (opt-in, default off)
+
+Most observability lives in agent reports + metrics JSONs and is always on. A small number of diagnostic capabilities are env-var-gated to avoid per-run latency cost when not needed:
+
+| Env var | Default | What it does | When to enable |
+|---|---|---|---|
+| `EXPLORER_STEP_TIMING` | unset (off) | Explorer captures `stepStartMs` / `stepEndMs` for every scenario step and writes `stepDurations: [...]` array in the Explorer metrics JSON. Categorizes each step (verify / action / capture / screenshot / wait / setup / teardown / other). Adds ~1-3% wall-time overhead because the agent has to capture timestamps at step boundaries. | Opening a new latency investigation on Explorer ("Explorer is slow on type X" reports), comparing before/after of an Appium / MCP / Playwright MCP version upgrade, or surfacing per-step latency hotspots in cloud-device runs (Phase 2). Leave off for routine runs and CI. |
+
+**Enabling for one session (PowerShell example):**
+```powershell
+$env:EXPLORER_STEP_TIMING = "true"
+code .                                 # launch VS Code FROM this PowerShell (env var inherits)
+# Invoke @QE Explorer as usual; metrics JSON will now have stepDurations populated.
+# Close VS Code when done. Next launch (without re-setting) is back to default-off.
+```
+
+**Enabling persistently** (across reboots, for an ongoing investigation):
+```powershell
+[System.Environment]::SetEnvironmentVariable('EXPLORER_STEP_TIMING', 'true', 'User')
+# Close + reopen VS Code. When investigation is done:
+[System.Environment]::SetEnvironmentVariable('EXPLORER_STEP_TIMING', $null, 'User')
+```
+
+> **Important:** `EXPLORER_STEP_TIMING` must be set BEFORE VS Code is launched. The agent reads it from VS Code's process environment, which inherits from the shell at launch time. Setting it in `.env` files does NOT work — `.env` is loaded only by `wdio.conf.ts` at test execution time, not by the agent runtime.
+
+### Mobile runner artifacts — per-cycle output files
+
+When `scripts/mobile-runner.js` runs a cycle, it writes the following under `output/test-results/`:
+
+| Artifact | Content | Read by |
+|---|---|---|
+| `cycle{N}-done.json` | **Atomic marker file** (`.tmp` → rename) with `status` field (TEST_PASS / TEST_FAILURE / INFRA_FAILURE / ENV_FAILURE / RUNNER_CRASH), timestamps, durations, target info, results, artifact paths | QE Mobile Executor agent — single source of truth for cycle-counter decisions |
+| `cycle{N}-raw.txt` | Full wdio stdout/stderr stream | Agent on demand only — verbose |
+| `cycle{N}-tail.txt` | Last 200 lines + every error/fail line (filtered) | Agent by default — fast diagnosis |
+| `page-source-cycle{N}.xml` | Appium page source captured at first failure point | Agent during Diagnostic Gate (TEST_FAILURE only) |
+| `test-failed-cycle{N}.png` | Screenshot at first failure point | Agent during Diagnostic Gate (TEST_FAILURE only) |
+| `appium-cycle{N}.log` | Appium server stdout (only if runner auto-started Appium) | Agent during INFRA_FAILURE diagnosis |
+| `mobile-results.json` | WDIO JSON reporter output (raw test results) | `scripts/test-results-parser.js` — produces `last-run-parsed.json` |
+| `last-run-parsed.json` | Structured pass/fail per test (parsed) | Agent for multi-failure cycles |
+
+The runner **always exits 0** — status is in the marker, not the exit code. This decouples the agent from any shell's exit-code handling and is what makes the Copilot agent flow reliable on long-running mobile tests.
+
+### Onboarding troubleshooting — Windows + corporate networks
+
+Mobile setup on Windows + corporate environments has hit several known failure modes (Git not installed, npm hits TLS-intercepting proxy, `appium-mcp` cold-start, file-lock races). The full diagnostic playbook is in `docs/onboarding/android-device.md` §10:
+
+| Symptom | Section |
+|---|---|
+| Explorer hangs ~3 min on first invocation, then proceeds without Appium tools | §10 Symptom 1 |
+| Explorer starts, then "tools become unavailable" mid-session | §10 Symptom 2 |
+| `tool_search` finds no `mcp__appium-mcp__*` tools at all | §10 Symptom 3 |
+| `npm error spawn git ENOENT` in MCP output | §10 Symptom 4 |
+| `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` corporate TLS interception | §10 Symptom 5 |
+| `EBUSY` / `EPERM` cleanup errors during npm install on Windows | §10 Symptom 6 |
+
+§5.1 of the same doc covers the **global-install alternative** to npx (recommended for Windows + corporate networks): `npm install -g appium-mcp@1.72.12` once, then point the MCP config at the global binary directly.
 
 ---
 
