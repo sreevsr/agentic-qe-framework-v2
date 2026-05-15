@@ -1182,6 +1182,52 @@ export async function createTestUser(page: Page, data: UserData): Promise<string
 
 **When NOT to use `@steps`:** Internal utility functions that don't interact with the app (data formatters, calculation helpers, assertion utilities). These don't need Explorer walkthrough and should NOT have `@steps`. They remain callable from TypeScript code directly but are not callable via `USE_HELPER` from scenarios.
 
+**Mobile helpers — differences from web:** The same `@steps` convention applies to mobile, with these mechanical differences:
+
+| | Web (Playwright) | Mobile (WDIO + Appium) |
+|---|---|---|
+| File location | `output/pages/*.helpers.ts` | `output/screens/*.helpers.ts` |
+| Imports | `import { Page, test, expect } from '@playwright/test';` | `import { browser, expect } from '@wdio/globals';` |
+| Function pattern | standalone `export async function method(page: Page, ...)` | `applyHelpers(screen)` extends the screen object; methods use `this` |
+| Action verbs in `@steps` | Click, Navigate, Fill | **Tap, Swipe, Enter** |
+| Step-level visibility | `await test.step('...', async () => {...})` | `await wdioStep('...', async () => {...})` from `output/core/wdio-step.ts` |
+| Runtime report | Playwright trace viewer | WDIO + Allure (`npm run report:allure:mobile`) |
+| Missing-helper marker | `test.fixme('...')` | `it.skip('...')` |
+
+```typescript
+// output/screens/NewCustomerScreen.helpers.ts
+import { browser, expect } from '@wdio/globals';
+import { NewCustomerScreen } from './NewCustomerScreen';
+import { wdioStep } from '../core/wdio-step';
+
+export interface NewCustomerScreenWithHelpers extends NewCustomerScreen {
+  createNewCustomer(): Promise<string>;
+}
+
+/**
+ * @steps
+ * 1. Tap the "New Customer" button
+ * 2. Enter {{customerName}} in the Name field
+ * 3. CAPTURE: the new customer name as {{customerName}}
+ */
+export function applyHelpers(screen: NewCustomerScreen): NewCustomerScreenWithHelpers {
+  const enriched = screen as NewCustomerScreenWithHelpers;
+  enriched.createNewCustomer = async function (): Promise<string> {
+    const customerName = `customer-${Date.now()}`;
+    await wdioStep('Tap the "New Customer" button', async () => {
+      await this.tapNewCustomerButton();
+    });
+    await wdioStep(`Enter "${customerName}" in the Name field`, async () => {
+      await this.fillCustomerName(customerName);
+    });
+    return customerName;
+  };
+  return enriched;
+}
+```
+
+The scenario syntax is identical: `USE_HELPER: NewCustomerScreen.createNewCustomer -> {{customerName}}`. The Mobile Explorer walks the `@steps` via Appium MCP for state advancement (no element capture); the Mobile Builder generates `applyHelpers(new NewCustomerScreen(browser)).createNewCustomer()` at the call site.
+
 ### Authentication
 
 All credentials go in `output/.env` — never hardcoded in scenarios or generated code.

@@ -162,6 +162,7 @@ const MOBILE_CORE_FILES = [
   { src: 'base-screen.ts',          dest: path.join('core', 'base-screen.ts') },
   { src: 'mobile-locator-loader.ts', dest: path.join('core', 'mobile-locator-loader.ts') },
   { src: 'popup-guard.ts',           dest: path.join('core', 'popup-guard.ts') },
+  { src: 'wdio-step.ts',             dest: path.join('core', 'wdio-step.ts') },
   { src: 'wdio-types.d.ts',          dest: path.join('core', 'wdio-types.d.ts') },
 ];
 

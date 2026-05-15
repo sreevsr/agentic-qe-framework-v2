@@ -1111,6 +1111,24 @@ export function dismissLoginPrompt(screen: FlipkartHomeScreenWithHelpers): Promi
 }
 ```
 
+**Step-level visibility — `wdioStep()` wrapper:** Each action in a mobile `@steps`-walkable helper SHOULD be wrapped with `wdioStep(name, async () => {...})` imported from `output/core/wdio-step.ts`. This produces nested Allure steps under the calling spec's `it()` row — the mobile equivalent of Playwright's `test.step` for web helpers. One `wdioStep()` per `@steps` entry, 1:1. The wrapper auto-marks `passed`/`failed` and re-throws on error so the test still fails.
+
+```typescript
+import { wdioStep } from '../core/wdio-step';
+
+enriched.createNewCustomer = async function (): Promise<string> {
+  await wdioStep('Tap the Save button', async () => {
+    await this.tapSave();
+  });
+  await wdioStep('VERIFY: Confirmation screen is displayed', async () => {
+    expect(await this.isConfirmationVisible()).toBe(true);
+  });
+  return customerName;
+};
+```
+
+This convention applies to mobile **helpers only**. Mobile **specs** in `output/tests/mobile/**` continue to use `// Step N — ...` comments + `console.log` per the Builder's code-generation rules — the comment markers are still what the Mobile Executor's pre-flight step-count check counts.
+
 **HARD STOP:** Same as web — if the helpers file does not exist or the method is missing:
 - Do NOT create the helpers file
 - Emit warning: `// WARNING: USE_HELPER requested FlipkartHomeScreen.dismissLoginPrompt but FlipkartHomeScreen.helpers.ts not found`
