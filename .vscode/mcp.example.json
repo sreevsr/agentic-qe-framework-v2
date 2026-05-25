@@ -1,19 +1,28 @@
 {
   "$schema": "https://aka.ms/vscode-mcp.schema.json",
-  "$comment": "Template MCP server config. Copy this file to .vscode/mcp.json and edit paths/env vars for your local environment. The .vscode/mcp.json file is gitignored so your local paths never leak to source control.",
+  "$comment": "TEMPLATE — do not use directly. Copy this file to .vscode/mcp.json (which is gitignored) and edit for your machine. The Playwright MCP works as-is for web/hybrid. For mobile/mobile-hybrid, uncomment the appium-mcp block below.",
   "servers": {
     "playwright": {
-      "$comment": "Playwright MCP — required by the Explorer for web/hybrid scenarios. The --viewport-size below sets the Explorer browser to 1920×1080. Keep this value aligned with output/playwright.config.ts → projects[].use.viewport so Explorer and Executor see the app at the same size. Change or remove if your test suite runs at a different viewport.",
+      "$comment": "Playwright MCP — Explorer's browser for web/hybrid scenarios. PINNED to 0.0.74 (not @latest) on purpose: it bundles Playwright 1.60 (Chromium build 1223), matching output/'s @playwright/test 1.60.0 so the Explorer and Executor share ONE browser build. @latest / 0.0.75 bundle a 1.61 prerelease (build 1224); Playwright then garbage-collects whichever browser the other side is not using. setup.js reads this version and installs the matching browser. To upgrade: bump this version AND output/'s @playwright/test (templates/config/package.json) to versions on the same Playwright minor line, re-run `npm run setup`, smoke-test, then commit so the whole team moves together. Keep --viewport-size aligned with output/playwright.config.ts → projects[].use.viewport.",
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest",
+        "@playwright/mcp@0.0.74",
         "--isolated",
         "--browser", "chromium",
         "--viewport-size", "1920,1080"
       ]
-    },
-    "appium-mcp": {
-      "$comment": "Appium MCP — required by the Explorer for mobile/mobile-hybrid scenarios. Requires: Appium server running on localhost:4723, ANDROID_HOME env var set, Git on PATH (npm needs it for transitive deps), device connected via ADB. NOTE: the version is PINNED (not @latest) — using @latest causes npx to hit the npm registry on every Explorer agent invocation, adding 1-3 minutes of cold-start time. Update the version manually when a newer release is verified by your team. Run `npm view appium-mcp version` to see the current latest. TROUBLESHOOTING: if you hit cold-start hangs, TLS cert errors, EBUSY/EPERM during install, or 'spawn git ENOENT', see docs/onboarding/android-device.md §10 — and consider switching to the global-install alternative documented in §5.1 (more reliable on Windows + corporate networks).",
+    }
+/*  --- appium-mcp: COMMENTED OUT BY DEFAULT ---
+    Web/api devs: leave this commented out — VS Code starts EVERY server in
+    this file on agent launch, and an Appium MCP with no Appium server running
+    hangs "Starting mcp servers...".
+    Mobile devs: delete this block's opening and closing comment markers to
+    enable it. The leading comma below rejoins this server to "playwright" —
+    keep it.
+    Requires: Appium server on localhost:4723, ANDROID_HOME env var set,
+    Git on PATH (npm needs it for transitive deps), device connected via ADB.
+    ,"appium-mcp": {
+      "$comment": "Appium MCP — version is PINNED (not @latest); @latest hits the npm registry on every Explorer invocation, adding 1-3 min cold-start. Run `npm view appium-mcp version` to check the latest, and update only when your team verifies it.",
       "command": "npx",
       "args": ["-y", "appium-mcp@1.72.12"],
       "env": {
@@ -21,5 +30,6 @@
         "APPIUM_URL": "http://localhost:4723"
       }
     }
+*/
   }
 }
