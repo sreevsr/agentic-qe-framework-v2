@@ -145,6 +145,8 @@ const OUTPUT_DIRS = [
   'screenshots', 'test-results',
   'reports', 'reports/metrics',
   'scout-reports', 'auth',
+  // Framework-level utilities (csv-grid compare, grid row collectors, etc.) — see UTILS_FILES
+  'utils',
   // Mobile (WDIO + Appium) — added for mobile feature parity v1.0
   'screens', 'tests/mobile', 'test-data/mobile', 'locators/mobile',
 ];
@@ -164,6 +166,17 @@ const MOBILE_CORE_FILES = [
   { src: 'popup-guard.ts',           dest: path.join('core', 'popup-guard.ts') },
   { src: 'wdio-step.ts',             dest: path.join('core', 'wdio-step.ts') },
   { src: 'wdio-types.d.ts',          dest: path.join('core', 'wdio-types.d.ts') },
+];
+
+// ---------------------------------------------------------------------------
+// Framework-level utility files (TypeScript only).
+// Pure helpers + Playwright integrations that are shared across all apps (not
+// per-scenario, not per-page). Always overwritten during setup — framework-managed,
+// not user-edited. Lives in output/utils/. Consumers: helpers in output/pages/{app}/*.helpers.ts.
+// ---------------------------------------------------------------------------
+const UTILS_FILES = [
+  { src: 'csv-grid-compare.ts',   dest: path.join('utils', 'csv-grid-compare.ts') },
+  { src: 'grid-row-collector.ts', dest: path.join('utils', 'grid-row-collector.ts') },
 ];
 
 // ---------------------------------------------------------------------------
@@ -421,6 +434,29 @@ async function main() {
     console.log(`  ${SYMBOLS.ok} Copied: ${file.dest}${existed ? ' (overwritten)' : ''}`);
   }
 
+  // Step 4a: Copy framework utility templates (TypeScript only)
+  // Always overwritten — these are framework-managed pure helpers used by team-owned
+  // page helpers (output/pages/{app}/*.helpers.ts).
+  if (language === 'typescript') {
+    const UTILS_DIR = path.join(TEMPLATES, 'utils');
+    if (fs.existsSync(UTILS_DIR)) {
+      console.log(`\n${SYMBOLS.arrow} Copying framework utility files (always overwrite — framework-managed)...`);
+      for (const file of UTILS_FILES) {
+        const src = path.join(UTILS_DIR, file.src);
+        const dest = path.join(OUTPUT, file.dest);
+        if (!fs.existsSync(src)) {
+          console.log(`  ${SYMBOLS.skip} Utils template not found: ${file.src} (skipping)`);
+          continue;
+        }
+        const existed = fs.existsSync(dest);
+        fs.copyFileSync(src, dest);
+        console.log(`  ${SYMBOLS.ok} Copied: ${file.dest}${existed ? ' (overwritten)' : ''}`);
+      }
+    } else {
+      console.log(`\n${SYMBOLS.skip} Utils template directory not found (templates/utils/) — skipping utils setup`);
+    }
+  }
+
   // Step 4b: Copy mobile templates (TypeScript only — WDIO + Appium support)
   // Mobile config files (wdio.conf.ts, capabilities.ts) skip if exist (user-customized).
   // Mobile core files (base-screen, mobile-locator-loader, popup-guard) always overwrite.
@@ -612,6 +648,12 @@ function runValidation() {
   const configFileChecks = CONFIG_FILES.filter(f => f.dest !== '.env.example').map(f => ({
     label: `output/${f.dest}`, ok: fs.existsSync(path.join(OUTPUT, f.dest))
   }));
+  // Utils file checks (TypeScript only — Python/JavaScript don't use these yet)
+  const utilsFileChecks = language === 'typescript'
+    ? UTILS_FILES.map(f => ({
+        label: `output/${f.dest}`, ok: fs.existsSync(path.join(OUTPUT, f.dest))
+      }))
+    : [];
 
   const checks = [
     // Output project structure
@@ -621,6 +663,8 @@ function runValidation() {
     { label: `output/.language = ${language}`,     ok: fs.existsSync(path.join(OUTPUT, '.language')) },
     // Core framework files (language-specific)
     ...coreFileChecks,
+    // Framework utility files (TypeScript only)
+    ...utilsFileChecks,
     // Test directories
     { label: 'output/tests/web/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'web')) },
     { label: 'output/tests/api/',                  ok: fs.existsSync(path.join(OUTPUT, 'tests', 'api')) },

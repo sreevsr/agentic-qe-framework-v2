@@ -95,7 +95,7 @@ Optional `folder` parameter organizes output within subfolders:
 | `output/test-data/shared/` | Team | **Read ONLY — NEVER modify** |
 | `output/core/*` | Framework (setup.js) | **Read ONLY** |
 | `output/pages/*.ts` | Explorer/Builder | Create/modify |
-| `output/locators/*.json` | Explorer/Builder | Create/modify |
+| `output/locators/*.json` | Builder | Create/modify (Explorer reads ONLY — for fingerprint-based key reuse, per agents/core/explorer.md §3.6) |
 | `output/tests/**/*.spec.ts` | Explorer/Builder | Create/modify |
 | `output/test-data/{type}/*.json` | Explorer/Builder | Create/modify |
 | `scenarios/app-contexts/*.md` | Explorer/Builder | Read/write |

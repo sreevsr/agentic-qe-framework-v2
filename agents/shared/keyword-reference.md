@@ -378,6 +378,202 @@ The `@steps` block and the TypeScript implementation can drift if someone update
 
 ---
 
+## Grid / Aggregate Verification Patterns — Natural-Language Phrasings for Common Helpers
+
+**Why this section exists:** Some verification patterns (CSV-vs-grid match, "every value in column X is within range", "sum a column across pages", "find first row matching") are so common that writing them as raw `USE_HELPER:` blocks leaks the helper's API into the scenario file. The result is JavaScript-shaped pseudo-steps like `REPORT: {{result.mismatches.map(m => m.rowKey).join(', ')}}` that non-developer testers can't author or safely edit.
+
+This section defines a small vocabulary of **natural-language patterns** that the Enricher and Builder recognize and translate into the right helper call automatically. The author writes intent in English; the Builder picks the helper, supplies the parameters, and auto-emits the diagnostic REPORT line.
+
+> **Helper reference implementations.** The helpers named below (`DataGridColumnHelpers`, `DataGridCsvVerifier`) have ready-to-use reference implementations in the framework's `reference-helpers/` folder — copy them to `output/pages/` to enable these patterns for your app. See `reference-helpers/README.md` for adoption guidance. If your app has no data grids or CSV exports, skip this entire section.
+
+### How the patterns work
+
+Each pattern has:
+- **NL phrasing** — exactly what the user writes in the scenario `.md` (single-quoted column names, literal disambiguating phrases like *"checking all pages"*, *"aligned by"*).
+- **Helper mapping** — which helper the Builder calls + which return-field options.
+- **Auto-emitted REPORT** — the Builder automatically generates a REPORT step after the VERIFY/CAPTURE, pulling identifying values from the helper's return shape. The author does NOT write `.map(...).join(...)` themselves.
+- **Required parts** — fields the Builder will error on if missing (don't silently default).
+
+The literal phrases are the disambiguating signals — Builder uses them to decide which pattern matched.
+
+### Pattern 1 — Verify column values are within a date range
+
+**NL phrasing** (write this in the scenario):
+
+```
+VERIFY: Use the team-owned helper DataGridColumnHelpers.verifyColumnDatesInRange to verify
+every '<column-name>' value in the datagrid is within {{fromDateVar}} and {{toDateVar}}
+(inclusive); align rows by '<key-column-name>', walking pagination if a control is present;
+report any mismatches.
+```
+
+**Required parts:**
+- **`Use the team-owned helper DataGridColumnHelpers.verifyColumnDatesInRange`** — explicit helper name (REQUIRED per `enrichment-agent.md` §USE_HELPER rule — see Disambiguation rule 1 below)
+- `Every '<col>' value` — column name in single quotes
+- `in the datagrid` — literal phrase (distinguishes from CSV / other data sources)
+- `is within {{from}} and {{to}}` — two date variables previously CAPTUREd
+- `(inclusive)` — boundary semantic, literal
+- `align rows by '<key-col>'` — single-quoted key column for mismatch identification
+- `walking pagination if a control is present` — pagination signal (the helper passes `pageNumberCollector` either way; the phrase makes intent visible)
+- `report any mismatches` — triggers Builder's auto-emitted REPORT step listing mismatched `<key-col>` values
+
+**Builder generates:**
+```typescript
+const result = await verifyColumnDatesInRange(page, {
+  columnName: '<col>',
+  keyColumnName: '<key-col>',
+  fromDate: <fromDateVar>,
+  toDate: <toDateVar>,
+  rowCollector: pageNumberCollector({ headersSelector: 'thead th', rowsSelector: 'tbody tr' }),
+});
+expect(result.ok).toBe(true);
+// Auto-emitted REPORT step:
+console.log(`Compared ${result.rowsCompared} rows; ${result.mismatches.length} mismatch(es); ` +
+  `mismatched ${'<key-col>'}s: ${result.mismatches.map(m => m.rowKey).join(', ')}`);
+```
+
+**Soft variant:** use `VERIFY_SOFT:` instead of `VERIFY:`.
+
+### Pattern 2 — Capture from the first row matching a predicate
+
+**NL phrasing:**
+
+```
+CAPTURE: Use the team-owned helper DataGridColumnHelpers.captureFirstRowMatching to find
+the first row in the datagrid where '<column>' is <predicate>; record '<col-a>' as {{varA}}
+and '<col-b>' as {{varB}}, walking pagination if a control is present.
+```
+
+**Supported predicates (verbatim phrasing — Builder pattern-matches these exactly):**
+
+| Predicate phrase | Matches |
+|---|---|
+| `a non-zero number` / `a non-zero numeric value` | `parseFloat(v.replace(/[$,]/g, '')) !== 0` |
+| `non-empty` / `any non-empty text` | `v.trim() !== '' && v !== '--'` |
+| `exactly equal to '<value>'` | `v.trim() === '<value>'` |
+| `matching /<regex>/` | regex test (slash-delimited) |
+
+**Required parts:**
+- **`Use the team-owned helper DataGridColumnHelpers.captureFirstRowMatching`** — explicit helper name (REQUIRED per Disambiguation rule 1 below)
+- `the first row in the datagrid where '<col>' is <predicate>` — predicate column + matcher
+- `record '<col-a>' as {{varA}}` — capture pairs (1 or more, AND-joined)
+- `walking pagination if a control is present` — pagination signal
+
+**Builder generates:**
+```typescript
+const firstMatch = await captureFirstRowMatching(page, {
+  predicateColumn: '<column>',
+  matcher: <derived from predicate phrase>,
+  captureColumns: ['<col-a>', '<col-b>'],
+  rowCollector: pageNumberCollector({ headersSelector: 'thead th', rowsSelector: 'tbody tr' }),
+});
+const varA = firstMatch.cells['<col-a>'];
+const varB = firstMatch.cells['<col-b>'];
+```
+
+### Pattern 3 — Sum a column across pages
+
+**NL phrasing:**
+
+```
+CAPTURE: Use the team-owned helper DataGridColumnHelpers.sumColumnAcrossPages to sum all
+'<column>' values across all pages of the datagrid as {{var}}.
+```
+
+**Required parts:**
+- **`Use the team-owned helper DataGridColumnHelpers.sumColumnAcrossPages`** — explicit helper name (REQUIRED per Disambiguation rule 1 below)
+- `sum all '<col>' values` — column name in single quotes
+- `across all pages of the datagrid` — literal pagination signal
+- `as {{var}}` — capture variable (the helper returns a `ColumnSumReport`; `var.sum` is the numeric total — use it as `{{var.sum}}` in any follow-up VERIFY)
+
+**Builder generates:**
+```typescript
+const sumResult = await sumColumnAcrossPages(page, {
+  columnName: '<column>',
+  rowCollector: pageNumberCollector({ headersSelector: 'thead th', rowsSelector: 'tbody tr' }),
+});
+const var = sumResult.sum;  // numeric
+```
+
+When followed by `VERIFY_SOFT: {{var}} is exactly equal to {{otherVar}}`, the Builder emits `expect.soft(var).toBe(otherVar)` with auto-screenshot on failure.
+
+### Pattern 4 — Verify exported CSV matches displayed grid
+
+**NL phrasing:**
+
+```
+VERIFY: Use the team-owned helper DataGridCsvVerifier.verifyExportedCsvMatchesGrid to
+compare the downloaded CSV against the datagrid row-for-row, aligned by '<key-column>'
+(at least N rows must be compared, walking pagination if a control is present); report
+any mismatches and rows present on only one side.
+```
+
+**Required parts:**
+- **`Use the team-owned helper DataGridCsvVerifier.verifyExportedCsvMatchesGrid`** — explicit helper name (REQUIRED per Disambiguation rule 1 below)
+- `compare the downloaded CSV against the datagrid row-for-row` — literal anchor phrase
+- `aligned by '<key-col>'` — single-quoted key column
+- `(at least N rows must be compared)` — `N` is a literal integer (becomes `minRowsCompared`)
+- `walking pagination if a control is present` — pagination signal
+- `report any mismatches and rows present on only one side` — auto-emits the REPORT with mismatch count + rowsInUiNotInCsv + rowsInCsvNotInUi
+
+**Builder generates:**
+```typescript
+const csvResult = await verifyExportedCsvMatchesGrid(page, {
+  csvPath: <captured downloadPath>,
+  rowCollector: pageNumberCollector({ headersSelector: 'thead th', rowsSelector: 'tbody tr' }),
+  ...testData.csvCompare,            // columnMap + ignore lists from JSON
+  // minRowsCompared: N comes from "(at least N rows must be compared)"
+});
+expect(csvResult.ok).toBe(true);
+// Auto-emitted REPORT:
+console.log(`Compared ${csvResult.rowsCompared} datagrid rows against the CSV; ` +
+  `${csvResult.mismatches.length} mismatch(es); ` +
+  `${csvResult.rowsInUiNotInCsv.length} row(s) in UI not in CSV; ` +
+  `${csvResult.rowsInCsvNotInUi.length} row(s) in CSV not in UI`);
+```
+
+The `columnMap` / `ignoreUiColumns` / `ignoreCsvColumns` / normalizers come from the scenario's test-data JSON `csvCompare` block — NOT inline in the scenario `.md`.
+
+### Disambiguation rules — required for ALL patterns
+
+1. **Enricher MUST preserve the full NL phrase verbatim in the structured Steps section.** Do NOT reduce a Grid/Aggregate Pattern step to bare `USE_HELPER: ClassName.methodName -> {{var}}` syntax. The full NL phrase carries the parameters Builder needs (column names, predicates, key columns) — bare USE_HELPER strips them. This is a documented EXCEPTION to the general USE_HELPER passthrough rule in `agents/core/enrichment-agent.md` §6.12, and the exception applies whenever a step's NL starts with the literal phrase `Use the team-owned helper <Class>.<method> to ...`. See enrichment-agent.md §6.12 (USE_HELPER exception for Grid/Aggregate Patterns) for the canonical statement.
+
+   - ✅ Preserved (Enricher emits this as the structured Step):
+     ```
+     21. VERIFY: Use the team-owned helper DataGridColumnHelpers.verifyColumnDatesInRange to verify
+         every 'Completion Time' value in the datagrid is within {{fromDate}} and {{toDate}} (inclusive);
+         align rows by 'Load ID', walking pagination if a control is present; report any mismatches.
+     ```
+   - ❌ Reduced (parameters stripped — Builder cannot construct the helper call):
+     ```
+     21. USE_HELPER: DataGridColumnHelpers.verifyColumnDatesInRange
+     ```
+
+2. **Each pattern includes an EXPLICIT HELPER NAME** in the form `Use the team-owned helper <ClassName>.<methodName> to ...`. The Enricher's existing rule (`agents/core/enrichment-agent.md` §USE_HELPER passthrough) requires helper references to be explicit — the Enricher MUST NOT invent or guess helper names. Authors MUST include the helper name verbatim:
+   - ✅ `Use the team-owned helper DataGridColumnHelpers.verifyColumnDatesInRange to ...`
+   - ❌ `Use DataGridColumnHelpers.verifyColumnDatesInRange to ...` (missing "the team-owned helper")
+   - ❌ `Verify ... using the helper to ...` (no class.method name)
+   - ❌ `Verify ...` (no helper reference at all — Enricher will emit a flat scenario step; Builder will then generate a custom page-object method instead of using the framework helper, bypassing the convention entirely)
+
+   The explicit naming is what triggers the Enricher to emit `USE_HELPER: ClassName.methodName -> {{var}}` in the structured `.md`. Without it, the Enricher correctly cannot guess which helper is intended, the framework helper is bypassed, and the resulting spec contains duplicated logic on page objects instead of helper calls. **This rule is non-negotiable — every pattern in this section MUST start with `Use the team-owned helper <Class>.<method> to`.**
+
+3. **Column names MUST be single-quoted** in the NL — `'Start Date'`, `'Total($)'`. Double quotes, no quotes, or backticks are NOT recognized.
+4. **The literal disambiguating phrases are required, verbatim** — `"in the datagrid"`, `"walking pagination if a control is present"` / `"walking pagination if present"` / `"across all pages of the datagrid"`, `"aligned by"`, `"report any mismatches"`. Substituting synonyms ("inside the grid", "for all pages", "matched on") will cause the Builder to fail to recognize the pattern.
+5. **The integer N** in *"(at least N rows must be compared)"* is a literal whole number (`1`, `5`, `100`). No variables.
+6. **REPORT is auto-emitted** — the author does NOT write a separate `REPORT:` step after a VERIFY using these patterns. The Builder emits it automatically based on the helper's return shape.
+7. **Enricher MUST NOT add conditional qualifiers** to these patterns. *"Every X value …"* stays *"Every X value …"* — no *"if any rows exist"*, no *"when pagination is shown"*, no *"if the grid is non-empty"*. The patterns are unconditional by design; the helper itself raises clear errors (e.g., `InsufficientRowsError`) if the data is empty. (See `enrichment-agent.md` §9.1 Faithful Translation Rule for the general principle.)
+8. **`VERIFY_SOFT:` variants** are valid for patterns 1, 3, and 4 — same NL shape, soft assertion semantics.
+
+### When to extend this section
+
+Add a new pattern to this section ONLY when:
+1. A new team-owned helper has been added to `output/pages/*.helpers.ts` AND
+2. The pattern is expected to appear in 3+ scenarios (one-off helpers don't need their own NL pattern — they can use the raw `USE_HELPER:` syntax)
+
+For one-off helpers used in a single scenario, raw `USE_HELPER: HelperName.methodName -> {{var}}` is fine. The patterns above exist only for high-frequency reuse cases where the API leakage was creating real authoring friction.
+
+---
+
 ## Control Flow Keywords — Conditional Logic, Loops, and Error Handling
 
 **These keywords apply to ALL scenario types (web, api, hybrid, mobile, mobile-hybrid).** They express runtime control flow that cannot be represented as flat sequential steps.

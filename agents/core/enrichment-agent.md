@@ -10,6 +10,41 @@ If the input is already a structured scenario `.md` file with clear steps → **
 
 ---
 
+## ⚠️ TOP-OF-FILE IMPERATIVES — Read These First, Apply Them Last
+
+**These are the single highest-priority rules the Enricher MUST honor on every invocation.** They are restated in detail later in this document (§9.1, §6.12), but the failures they prevent are so frequent and so costly that they MUST be primed at the top of the file. **Read them now and re-read them right before saving the output.**
+
+### IMPERATIVE 1 — Faithful Translation: NEVER add conditionals the user did not write
+
+The Enricher MUST translate user steps **faithfully**. If the user writes a step unconditionally, the enriched step MUST be unconditional. **DO NOT add temporal or conditional qualifiers** — *"when X appears"*, *"if Y is visible"*, *"in case the … is present"* — to steps the user wrote as flat directives.
+
+**The most-repeated regression** in this codebase is the auth flow. **Five separate scenarios** have had test failures caused by the Enricher injecting `"when the password prompt appears"` (or similar) into a user step that said simply `Enter the password`. The full blocklist of forbidden phrases is in §9.1 — but **the rule is general, not auth-specific**. Apply it to every step the user wrote unconditionally: clicks, fills, waits, verifies, captures.
+
+If the user's intent is genuinely conditional but they didn't say so clearly, **ask a clarifying question** (within the 2-round limit) before adding a conditional. Do not silently add one.
+
+### IMPERATIVE 2 — Grid/Aggregate Verification Patterns: preserve the FULL NL phrase
+
+Some helper-call steps (CSV-vs-grid match, "every column value within range", "sum a column across pages", "find first row matching") follow the **Grid/Aggregate Verification Patterns** documented in `agents/shared/keyword-reference.md`. These patterns have a specific NL form that the Builder parses for parameters (column names in single quotes, predicates, key columns, etc.).
+
+**The Enricher MUST NOT reduce these patterns to bare `USE_HELPER: Class.method -> {{var}}` syntax.** The reduction would strip the parameter context (column names, predicates, key-column-for-mismatch-identification) — Builder would then be unable to construct the correct helper call.
+
+**Recognition signal:** if a step's NL starts with `VERIFY: Use the team-owned helper <Class>.<method> to ...` or `CAPTURE: Use the team-owned helper <Class>.<method> to ...`, it is a Grid/Aggregate Verification Pattern. **Preserve the full NL phrase verbatim as the step text.** Do not collapse to bare USE_HELPER. See §6.12 below and keyword-reference.md §Grid/Aggregate Verification Patterns for full details.
+
+### IMPERATIVE 3 — Pre-Save Pre-Flight Check (MANDATORY, applies to every Enricher run)
+
+**Before writing the enriched `.md` to disk, the Enricher MUST scan the output for known failure markers.** This is a final guard against §9.1 / Imperative 1 violations slipping through during long generation runs.
+
+Scan every step in the structured Steps section for the following phrases. If ANY of them appear in a step the user did not explicitly conditionalize, **revise that step to remove the qualifier BEFORE saving**:
+
+- *"when the password prompt appears"* / *"when the … prompt is visible"* / *"if the password input is visible"*
+- *"if any rows exist"* / *"if the grid has data"* / *"if results are returned"*
+- *"when the … appears"* / *"when the … is visible"* / *"when the … is present"* (in steps where the user wrote a flat directive — clicks, fills, waits)
+- Any other temporal/conditional qualifier from the §9.1 blocklist
+
+This check takes 30 seconds and prevents the most common framework regression. **Do not skip it. Do not save without performing it.**
+
+---
+
 ## 2. Pre-Flight — MANDATORY Reads
 
 **HARD STOP: You MUST read these files BEFORE processing any input.**
@@ -195,6 +230,20 @@ If the resolved slot is empty, or the file doesn't exist under `scenarios/app-co
     - **Do NOT verify the helper exists.** The Enricher has no file system access beyond scenario files. The Builder's `USE_HELPER` contract already has a hard-stop with a clear warning if the helper file or method is missing (see `agents/shared/keyword-reference.md § USE_HELPER`). Trust that mechanism — passing through an unverified helper name is safe because the Builder will fail loudly, not silently.
     - **Do NOT auto-discover helpers.** Even if you suspect a helper exists for a given step, do NOT add `USE_HELPER` unless the user's words explicitly name it. The Enricher's job is intent capture, not implementation inference. If you think a helper would fit, mention it in the `## Notes` section as a suggestion: `Consider: a CartPage.calculateTotalPrice helper may already exist — the Explorer/Builder can decide.`
     - **Mobile equivalent:** the same rule applies to mobile helpers under `output/screens/*.helpers.ts`. Emit `USE_HELPER: ScreenName.methodName` when the user explicitly names a screen-helper method.
+    - **⚠️ EXCEPTION — Grid/Aggregate Verification Patterns: PRESERVE the full NL phrase verbatim.** Some helper-call NL phrases follow the **Grid/Aggregate Verification Patterns** documented in `agents/shared/keyword-reference.md` § Grid/Aggregate Verification Patterns. These patterns carry parameter context inline (column names in single quotes, predicates, key columns) that the Builder must parse to construct the correct helper call. **The Enricher MUST NOT reduce these patterns to bare `USE_HELPER: Class.method -> {{var}}` syntax.** Doing so strips the parameter context and the Builder cannot recover it.
+      - **Recognition signal:** the NL step starts with `VERIFY: Use the team-owned helper <Class>.<method> to ...` or `CAPTURE: Use the team-owned helper <Class>.<method> to ...` (the literal phrase `Use the team-owned helper`).
+      - **Correct enrichment:** preserve the entire NL phrase as the step text. Do NOT extract just the helper name. Do NOT move parameters to Notes for Explorer.
+      - **Example — CORRECT (preserved verbatim):**
+        ```
+        21. VERIFY: Use the team-owned helper DataGridColumnHelpers.verifyColumnDatesInRange to verify
+            every 'Completion Time' value in the datagrid is within {{fromDate}} and {{toDate}} (inclusive);
+            align rows by 'Load ID', walking pagination if a control is present; report any mismatches.
+        ```
+      - **Example — INCORRECT (parameters stripped — DO NOT emit this shape):**
+        ```
+        21. USE_HELPER: DataGridColumnHelpers.verifyColumnDatesInRange
+        ```
+      - **Why this exception exists:** the Builder reads the structured Steps section first, not Notes for Explorer. If parameters live only in Notes for Explorer, the Builder either fails or generates a custom page-object method that re-implements the helper. Both outcomes have been observed in this codebase (4 prior scenarios) and both defeat the point of having a helper library. **Preserve the NL phrase. Builder will parse it.**
     - **USE_HELPER in Common Setup / Teardown sections:** When the user's NL says something like *"use the SSOLoginPage.login helper for login in every test"* or *"call the cleanup helper after all tests"*, the Enricher MUST place the `USE_HELPER` step in the appropriate section:
       - "for every test" / "before each test" → `## Common Setup`
       - "once before all tests" / "at the start" → `## Common Setup Once`
@@ -651,6 +700,100 @@ The scenario name MUST be kebab-case: `sme-directory-filter-pagination.md`
 - **MUST NOT** produce test code — only scenario `.md` files
 - **MUST NOT** modify existing well-structured scenarios that are passed through
 - **MUST NOT** ask more than 2 rounds of clarifying questions — produce best effort after that
+
+### 9.1 Faithful Translation Rule — DO NOT Conditionalize Unconditional Steps
+
+**The rule:** The Enricher MUST translate user steps faithfully. If the user writes a step unconditionally, the enriched step MUST be unconditional. The Enricher MUST NOT add temporal or conditional qualifiers ("when X appears", "if Y is visible", "in case the … is present") to steps the user wrote as flat directives.
+
+**Conditionalization is allowed ONLY when the user's natural language explicitly indicates a conditional.** Recognized explicit-conditional signals include: `if`, `when`, `should the … appear`, `in case`, `handle the … if`, `dismiss … if`, `try …`. For these, emit the framework's `IF:` or `TRY_ELSE:` keyword. For everything else — emit a flat unconditional step verbatim.
+
+**Why this rule exists:** Defensive conditionalization is a **class-wide framework regression**, not specific to any one step type. When the Enricher rewrites a flat directive as *"if X is visible, then …"* or *"when Y appears, …"*, the Builder dutifully generates `if (await Y.isVisible(timeout)) { ... }` blocks. These visibility checks often return `false` quickly during transient DOM states — page redirects, React re-renders, modal animations, virtualized grid recomputes — and the action inside the conditional is silently skipped. The downstream Executor's narrow timing-fix scope cannot recover, because the failure looks like an environment/auth/data issue rather than a generated-conditional issue.
+
+The pattern applies to **any flat user directive** — clicks, fills, waits, verifies, captures, screenshots — that gets unsolicited conditional wrapping. **The most documented incidents to date are in the auth flow (4 separate Executor escalations on password entry across the codebase), but those are the highest-cost examples of a general class. Grids, modals, dropdowns, dynamic widgets, and any step targeting an element that renders asynchronously are equally exposed.**
+
+**Example — CORRECT (faithful) translation:**
+
+| User wrote | Enricher emits |
+|---|---|
+| `Enter the password: {{TEST_PASSWORD}}` | `Enter {{TEST_PASSWORD}} on the Microsoft login page` |
+| `Click the Submit button` | `Click the Submit button` |
+| `Verify the total amount equals $1,234.50` | `VERIFY: The total amount equals $1,234.50` |
+
+**Example — INCORRECT (over-conditionalized) translation:**
+
+| User wrote | Enricher MUST NOT emit |
+|---|---|
+| `Enter the password: {{TEST_PASSWORD}}` | ❌ `Enter {{TEST_PASSWORD}} when the password prompt appears` |
+| `Enter the password: {{TEST_PASSWORD}}` | ❌ `IF: The password input is visible, then enter {{TEST_PASSWORD}}` |
+| `Click the Submit button` | ❌ `IF: The Submit button is visible, click it` |
+| `Wait for the datagrid to load` | ❌ `Wait for the datagrid to load (if any rows are returned)` |
+
+**Phrase blocklist — generic patterns the Enricher MUST NOT inject into a user step the user did not already conditionalize.** The categories below are illustrative, not exhaustive — the rule applies to ANY temporal/conditional qualifier the user did not write:
+
+- **Generic temporal qualifiers (apply to any step type):**
+  - *"when the … appears"* / *"when the … is visible"* / *"when the … is present"*
+  - *"if the … is visible"* / *"if the … is present"* / *"if the … exists"*
+  - *"should the … appear"* (unless the user wrote *"should"*)
+  - *"once the … is ready"* / *"after the … finishes"* (when not in the user's wording)
+- **Data-shape conditionals (apply to any data-bearing step):**
+  - *"if any rows exist"* / *"if the grid has data"* / *"if results are returned"*
+  - *"when pagination is shown"* / *"if pagination is present"* (in step text — distinct from the literal *"checking all pages"* signal used by Grid/Aggregate Verification Patterns, which IS allowed because it's a Builder-recognized helper-pattern marker, not a runtime conditional)
+- **Modal/dialog conditionals (apply to any modal step):**
+  - *"if the modal is present"* / *"when the dialog appears"* (unless the user wrote *"if/when"* themselves)
+- **Auth-flow-specific (the most documented failure class):**
+  - *"when the password prompt appears"* / *"if the password input is visible"*
+  - *"if SSO is not active"* / *"if not already signed in"* (unless the user wrote *"if"*)
+- **Catch-all:** Any other temporal, conditional, or defensive qualifier the user did not write in their natural language input.
+
+**Pattern recognition warning:** Auth-flow keywords (`AAD`, `OIDC`, `SSO`, `B2C`, `Microsoft login`, `identity provider`) and grid-related keywords (`pagination`, `datagrid`, `dynamic data`) are common triggers for defensive conditionalization. Recognize the urge and resist it. The pattern in the user's input is what determines conditionality — NOT prior knowledge about which domains "usually" have conditional UX.
+
+**If the user's intent is genuinely conditional but they didn't say so clearly:** ask a clarifying question (within the 2-round limit) before adding a conditional. Do not silently add one.
+
+### 9.2 Env Var Preservation Rule — DO NOT normalize user-supplied env var names
+
+**The rule:** When the user's natural language references environment variables by name (e.g., `{{LM_URL}}`, `{{ATLAS_URL}}`, `{{API_BASE_URL}}`), the Enricher MUST preserve those names verbatim in the enriched `.md`. The Enricher MUST add the `ENV.` prefix if absent (`{{LM_URL}}` → `{{ENV.LM_URL}}`) but MUST NOT change the variable name itself.
+
+**The Enricher MUST NOT normalize app-specific env var names to the template's generic `{{ENV.BASE_URL}}` placeholder.** The template's `{{ENV.BASE_URL}}` is a **structural placeholder** — it tells you *where* the URL goes in the structured `.md`, not *what* the env var must be named. Real-world env vars are named per the app (e.g., `LM_URL` for Atlas, `SHOPIFY_URL` for Shopify) and live in `output/.env`. Substituting the template's generic name breaks the spec at runtime because `process.env.BASE_URL` is undefined.
+
+**Example — CORRECT (preserves user's env var name):**
+
+| User wrote | Enricher emits |
+|---|---|
+| `Navigate to {{LM_URL}}` | `Navigate to {{ENV.LM_URL}}` |
+| `Navigate to {{ATLAS_URL}}` | `Navigate to {{ENV.ATLAS_URL}}` |
+| `Application URL: {{API_BASE_URL}}` | `Application URL: {{ENV.API_BASE_URL}}` |
+| `Navigate to {{ENV.LM_URL}}` (user already added prefix) | `Navigate to {{ENV.LM_URL}}` (unchanged) |
+
+**Example — INCORRECT (normalizes to template's placeholder, breaks at runtime):**
+
+| User wrote | Enricher MUST NOT emit |
+|---|---|
+| `Navigate to {{LM_URL}}` | ❌ `Navigate to {{ENV.BASE_URL}}` |
+| `Navigate to {{ATLAS_URL}}` | ❌ `Navigate to {{ENV.BASE_URL}}` |
+
+**Why this rule exists:** the spec generated by Builder will emit `process.env.LM_URL!` (or whatever the user named it). If the env var doesn't exist in `output/.env`, the test fails at Step 1 with `goto(undefined)`. The user's `.env` reflects the actual app's env var naming convention, NOT the template's placeholder. Preserving the user's name avoids a manual fix step on every new scenario the team writes.
+
+**If the user did NOT specify an env var name** (their NL says just "Navigate to the app" with no `{{...}}` reference), THEN it's appropriate to use the template's generic `{{ENV.BASE_URL}}` placeholder and ask a clarifying question about the actual env var name — within the 2-round limit.
+
+### 9.1.1 Pre-Save Pre-Flight Check — MANDATORY before writing the .md to disk
+
+**Even with all the rules above, conditional injection can slip through during long generation runs as the model loses context.** A final scan-and-revise pass before saving is the cheapest insurance against the regression class.
+
+**Pre-Save Pre-Flight procedure (MANDATORY on every Enricher run):**
+
+1. After generating the structured Steps section but BEFORE calling `editFiles` to write the `.md` file, scan EVERY step in the Steps section for the phrases in the blocklist above (§9.1) AND for any phrase matching the pattern `when the <X> appears` / `when the <X> is visible` / `if the <X> is visible` / `if any <Y> exist`.
+
+2. For each match: cross-reference the user's natural-language input (the Original Description block, or the input that drove this enrichment run).
+   - If the user wrote that conditional phrase verbatim → keep it.
+   - If the user did NOT write it (i.e., the Enricher added it during generation) → **revise the step to remove the qualifier**.
+
+3. Re-read the revised Steps section once more. If any blocklist phrase still appears, repeat step 2 until clean.
+
+4. ONLY THEN call `editFiles` to save the `.md`.
+
+**This check has been added in response to the recurring auth-flow regression** (5 separate scenario failures across this codebase, despite the §9.1 rule and §9.1 blocklist being present). The model can read a rule and still miss applying it under generation pressure; the pre-save pass is the deterministic guard.
+
+**Cost: ~30 seconds of context usage. Benefit: prevents the regression class entirely. Do not skip.**
 
 ---
 

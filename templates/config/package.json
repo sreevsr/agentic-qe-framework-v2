@@ -11,6 +11,7 @@
     "test:p0": "npx playwright test --grep @P0 --project=chrome",
     "test:p1": "npx playwright test --grep @P1 --project=chrome",
     "test:headed": "npx playwright test --project=chrome --headed",
+    "test:unit": "npx playwright test --project=unit",
     "test:mobile:android": "PLATFORM=android npx wdio run wdio.conf.ts --spec",
     "test:mobile:ios": "PLATFORM=ios npx wdio run wdio.conf.ts --spec",
     "typecheck": "tsc --noEmit",
@@ -29,6 +30,7 @@
     "xlsx": "^0.18.0"
   },
   "dependencies": {
+    "csv-parse": "^5.6.0",
     "@wdio/allure-reporter": "^9.27.0",
     "@wdio/cli": "^9.0.0",
     "@wdio/json-reporter": "^9.0.0",

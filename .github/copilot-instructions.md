@@ -59,7 +59,7 @@ Pipeline: [Enrichment Agent] → Explorer/Builder → Executor → Reviewer → 
 | `output/test-data/shared/` | Team | Read ONLY — **NEVER modify** |
 | `output/core/*` | Framework | Read ONLY (managed by setup.js) |
 | `output/pages/*.ts` | Explorer/Builder | Create/modify |
-| `output/locators/*.json` | Explorer/Builder | Create/modify |
+| `output/locators/*.json` | Builder | Create/modify (Explorer reads ONLY — for fingerprint-based key reuse, per .github/agents/explorer.agent.md) |
 | `output/tests/**/*.spec.ts` | Explorer/Builder | Create/modify |
 | `scenarios/app-contexts/*.md` | Explorer/Builder | Read/write |
 

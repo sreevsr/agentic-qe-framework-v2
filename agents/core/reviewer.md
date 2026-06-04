@@ -154,8 +154,9 @@ After collecting all 9 scores, do a quick cross-dimension check for issues that 
 
 - Locator JSON element name doesn't match page object's `this.loc.get()` call → Dim 1 + Dim 3
 - `waitForURL` missing after navigation method → Dim 2 + Dim 9
-- `process.env` variable in spec has no entry in `.env.example` → Dim 7 + Dim 5
 - CAPTURE variable in scenario has no getter in spec → Dim 9 + Dim 3
+
+**NOT a cross-dimension issue (do NOT raise):** `process.env` variable in spec missing from `.env.example`. Per `agents/core/quality-gates.md` §2b and `agents/04-reviewer/dimensions/dim-7-security.md`, `.env.example` is a developer-onboarding template, not a runtime contract. The scenario `.md` `## Application` section is the authoritative source for required env vars. This MUST NOT dock Dim 7 or Dim 5 scores.
 
 If cross-dimension issues found, adjust the relevant dimension scores and add to findings.
 

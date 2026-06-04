@@ -802,6 +802,35 @@ The Explorer report documents:
 - App-context patterns confirmed or newly discovered
 - Flow issues encountered
 
+### 6.0: LEDGER Markers — MANDATORY Anti-Fabrication Evidence
+
+**HARD STOP: The Explorer MUST emit one `<!-- LEDGER:END step=N -->` HTML comment marker immediately after each Step Results table row, where `N` is the step number from that row.**
+
+**Why this exists:** The Reviewer's anti-fabrication gate (`agents/core/reviewer.md` §Step 4a, Check 2) counts these markers and compares against the claimed step count. A run with 42 claimed steps but 0 LEDGER markers triggers `## WARNING: LEDGER INCOMPLETE` and caps Dimension 9 (Fidelity) at 2/5 — even when exploration is genuine. Emitting markers turns the check from a warning into a pass.
+
+**When to emit each marker — strict timing rule (defeats pre-emission fabrication):**
+
+A marker for step `N` MUST be written to the report file ONLY AFTER:
+1. The MCP browser interaction for step `N` has actually been performed (e.g., `browser_click`, `browser_type`, `browser_snapshot` returned a result), AND
+2. The corresponding Step Results table row for step `N` has been fully written (Description, Status, Selector Used, Notes all populated)
+
+**MUST NOT** emit all 42 markers up-front in a single batch. **MUST NOT** emit a marker for a step that was SKIPPED or NOT_EXPLORED (those steps appear in the table with status `BLOCKED` or `SKIPPED` and get NO ledger marker).
+
+**Format:**
+
+```markdown
+| 3 | Click filter icon | VERIFIED | 2 | th:first-child svg:last-of-type | SVG element, not IMG — attempt 1 used img selector |
+<!-- LEDGER:END step=3 -->
+| 4 | Enter filter text | VERIFIED | 2 | [data-testid="filter-input"] | fill() didn't trigger filter → used pressSequentially |
+<!-- LEDGER:END step=4 -->
+| 5 | VERIFY: Grid filtered | BLOCKED | 3 | .grid-cell | Grid content not accessible via DOM |
+```
+(Note: step 5 is BLOCKED → NO marker emitted)
+
+**Cost:** ~15 tokens per step (e.g., ~630 tokens for a 42-step scenario). No additional MCP calls, no additional browser interactions, no additional wall-clock time.
+
+**Self-audit before saving the report:** Count the markers you have emitted. The count MUST equal the number of VERIFIED-status rows in your Step Results table. If they don't match, fix the report before saving.
+
 ---
 
 ## 6a. Time Tracking and Metrics — MANDATORY

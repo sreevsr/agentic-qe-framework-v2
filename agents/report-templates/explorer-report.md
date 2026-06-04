@@ -44,14 +44,21 @@
 
 ## Step Results
 
+**MANDATORY: After each VERIFIED row, emit a `<!-- LEDGER:END step=N -->` marker (see `agents/core/explorer.md` §6.0). Markers MUST be written AFTER the MCP interaction for that step has completed — never pre-emitted in a batch. BLOCKED/SKIPPED rows get NO marker.**
+
 | Step | Description | Status | Attempts | Selector Used | Notes |
 |------|-------------|--------|----------|---------------|-------|
 | 1 | Navigate to {{ENV.BASE_URL}} | VERIFIED | 1 | N/A (navigation) | Redirect chain: /login → /home |
+<!-- LEDGER:END step=1 -->
 | 2 | Login with SSO | VERIFIED | 1 | input[name="loginfmt"] | Microsoft SSO flow |
+<!-- LEDGER:END step=2 -->
 | 3 | Click filter icon | VERIFIED | 2 | th:first-child svg:last-of-type | SVG element, not IMG — attempt 1 used img selector |
+<!-- LEDGER:END step=3 -->
 | 4 | Enter filter text | VERIFIED | 2 | [data-testid="filter-input"] | fill() didn't trigger filter → used pressSequentially |
+<!-- LEDGER:END step=4 -->
 | 5 | VERIFY: Grid filtered | BLOCKED | 3 | .grid-cell | Grid content not accessible via DOM |
 [MUST list EVERY step — no omissions. Status: VERIFIED / BLOCKED / SKIPPED (API in web)]
+[Step 5 above is BLOCKED → intentionally has NO LEDGER marker]
 
 ---
 

@@ -45,11 +45,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chrome',
+      testDir: './tests',
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chrome',
         headless: process.env.HEADLESS !== 'false',
-        viewport: { width: 1920, height: 1080 },
+        viewport: { width: 1280, height: 1024 },
         launchOptions: {
           args: [
             // Suppress Chrome's Private Network Access permission prompt
@@ -63,6 +64,22 @@ export default defineConfig({
             // '--disable-web-security',
           ],
         },
+      },
+    },
+    {
+      // Unit tests for framework-level utilities under output/utils/.
+      // Kept out of the default `chrome` project so regression runs (npm test) don't pick them up.
+      // Invoke with: `npm run test:unit` or `npx playwright test --project=unit`.
+      // Some collector tests use the `page` fixture with inline data: URLs — no app navigation,
+      // no .env required.
+      name: 'unit',
+      testDir: './utils',
+      testMatch: '**/*.test.ts',
+      timeout: 30000,
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+        // No baseURL, trace, video — these are fast pure/inline-HTML tests.
       },
     },
   ],

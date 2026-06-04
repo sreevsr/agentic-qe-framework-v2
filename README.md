@@ -255,6 +255,76 @@ The incremental pipeline preserves Executor-healed selectors (`"_healed": true` 
 
 ---
 
+## Project Structure
+
+```
+agentic-qe-framework-v2/
+├── agents/                          ← Agent instructions (the framework's "brain")
+│   ├── core/                          Platform-neutral agent specs — REAL behavioral logic
+│   │   ├── explorer.md, executor.md, enrichment-agent.md, reviewer.md, healer.md
+│   │   ├── explorer-builder.md        Builder responsibilities (shared with Explorer)
+│   │   └── code-generation-rules.md, quality-gates.md, scenario-handling.md
+│   ├── shared/                        Cross-agent references
+│   │   ├── keyword-reference.md       NL phrasing → TypeScript code patterns
+│   │   ├── guardrails.md              Enterprise ownership boundaries
+│   │   └── type-registry.md           Scenario-type-specific behavior
+│   ├── claude/                        Claude Code tool wrappers (thin — reference core/)
+│   ├── 04-reviewer/                   Reviewer dimensions + scorecard template
+│   └── report-templates/              Standardized report templates per agent
+│
+├── skills/                          ← Three-level progressive disclosure
+│   ├── registry.md                    Level 1 — discovery index (~50 tokens per skill)
+│   └── {domain}/*.skill.md            Level 2 — full instructions, loaded on activation
+│
+├── scenarios/
+│   ├── web/, api/, hybrid/, mobile/   Test scenarios authored by users
+│   └── app-contexts/                  Learned per-app patterns (self-improving across runs)
+│
+├── templates/                       ← Files setup.js auto-installs into output/
+│   ├── config, config-mobile, ...     Per-language Playwright configs
+│   ├── core, core-mobile, ...         Per-language core utilities (base-page, etc.)
+│   └── utils/                         Shared utilities (csv-grid-compare, grid-row-collector)
+│
+├── reference-helpers/               ← Opt-in helpers teams copy into output/pages/
+│   ├── README.md                      Adoption guidance
+│   ├── DataGridColumnHelpers.helpers.ts
+│   └── DataGridCsvVerifier.helpers.ts
+│
+├── scripts/                         ← Deterministic scripts (zero LLM tokens)
+│
+├── contracts/                       ← Agent I/O manifests (Agent Hub integration)
+│
+├── ci/                              ← CI/CD workflows, test runner, defect tracker
+│
+├── output/                          ← Generated Playwright project (created by setup.js;
+│                                       all per-scenario page objects, locators, specs,
+│                                       test data, and reports go here)
+│
+├── CLAUDE.md                          Project instructions for Claude Code
+├── .github/copilot-instructions.md    Project instructions for GitHub Copilot
+├── setup.js                           Bootstrap — copies templates/ into output/
+└── README.md                          This file
+```
+
+### Where things go
+
+| You want to... | Edit | Don't touch |
+|---|---|---|
+| Change an agent's behavior | `agents/core/*.md` | `agents/claude/` wrappers (rewrite core/) |
+| Add an NL pattern testers can write in scenarios | `agents/shared/keyword-reference.md` | `agents/core/builder.md` (Builder reads keyword-reference) |
+| Document a learned per-app behavior | `scenarios/app-contexts/{app}.md` | scenarios in `scenarios/web/` |
+| Write a test scenario | `scenarios/{type}/[{folder}/]{name}.md` | anything in `output/` |
+| Change what `setup.js` installs into a fresh project | `templates/*` | `output/*` (regenerated on setup) |
+| Add a deterministic script the agents can call | `scripts/*.js` + reference it from the relevant agent's `.md` | inline scripting in agent instructions |
+| Update an agent's report format | `agents/report-templates/*.md` | individual agent `.md` files (they reference the template) |
+
+**Generated vs authored — the boundary that matters most:**
+
+- Anything under `output/` is **generated** by the agents per-app. The team owns scenarios and helpers; the framework owns the agents that produce the rest. Files ending in `.helpers.ts` are an exception — they are team-owned and the Builder never modifies them.
+- Anything under `agents/`, `skills/`, `scripts/`, `templates/`, `reference-helpers/`, or `contracts/` is **framework code** — shared across all teams using the framework, and edited deliberately, not regenerated.
+
+---
+
 ## Prerequisites
 
 **Core (all scenario types):**
@@ -311,8 +381,29 @@ npm run setup
 
 This creates the `output/` directory with:
 - Playwright config (`playwright.config.ts`)
-- Core utilities (`base-page.ts`, `locator-loader.ts`, `test-data-loader.ts`, `shared-state.ts`)
+- Core utilities (`base-page.ts`, `locator-loader.ts`, `test-data-loader.ts`, `shared-state.ts`) — the
+  base infrastructure every generated page object and spec depends on
+- Shared utilities (`utils/grid-row-collector.ts`, `utils/csv-grid-compare.ts`) — generic, app-agnostic
+  primitives for walking paginated grids and diffing CSV exports against UI data. Used by the
+  optional reference helpers (see §1b below)
 - `.env.example` with credential placeholders
+
+### 1b. Optional: Reference Helpers for Grid/CSV Verification
+
+The framework ships ready-to-use helper modules in `reference-helpers/` that pair with the
+**Grid / Aggregate Verification Patterns** in `agents/shared/keyword-reference.md` — verifying
+CSV exports against displayed grids, summing columns across pages, capturing the first row
+matching a predicate, verifying date ranges across paginated columns.
+
+These are **opt-in** — not auto-installed. Adopt them if your application has data grids with
+pagination or a CSV export feature you need to verify against UI data:
+
+```bash
+cp reference-helpers/*.helpers.ts output/pages/
+```
+
+Skip this entirely if your app has no grids or CSV exports. See `reference-helpers/README.md`
+for full adoption guidance, including the dependency on the shared utilities installed in §1.
 
 ### 2. Configure Environment
 
