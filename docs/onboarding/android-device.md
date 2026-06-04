@@ -34,6 +34,7 @@ This guide walks through setting up the Agentic QE Framework v2 to run mobile te
 | **Android SDK platform-tools installed** (just `adb`, you don't need the full SDK or emulator) | `adb` is how your machine talks to the device | Already covered if you ran the emulator guide. Otherwise: install just platform-tools via `sdkmanager "platform-tools"` or `brew install android-platform-tools` (macOS) or `sudo apt install android-tools-adb` (Linux) |
 | **Java JDK 17** | Appium UiAutomator2 requires it | `java --version` → `17.x` |
 | **Node.js 18+** | Framework requires it | `node --version` |
+| **Git** | Required by `npm install` of the Appium MCP server (some transitive dependencies are fetched via git URLs; npm shells out to `git` during install). Without Git on PATH, you'll see `npm error spawn git ENOENT` when the MCP server tries to start. | `git --version` → `2.x.x`. Windows users: install [Git for Windows](https://git-scm.com/download/win), accept the default option to add it to PATH. |
 | **OEM USB driver** (Windows only) | Windows needs a device-specific driver to recognize the device. macOS and Linux usually don't. | Search "<device model> USB driver" — Google Pixel uses Google USB Driver (bundled with Android Studio); Samsung uses Samsung USB Driver; etc. |
 | **Appium 2.x + UiAutomator2 driver** | The automation engine | `appium --version` and `appium driver list --installed` |
 
@@ -210,6 +211,43 @@ Identical to the emulator guide — see [android-emulator.md § 6](android-emula
 
 After editing `.vscode/mcp.json`, **reload the VS Code window** (`Ctrl+Shift+P` → **Developer: Reload Window**).
 
+### 5.1 Alternative install path — global install (recommended for Windows / corporate networks)
+
+The default `.vscode/mcp.example.json` runs Appium MCP via `npx -y appium-mcp@<version>`, which fetches and caches the package on each fresh VS Code session. That works fine on Linux / macOS with normal network access, but on Windows + corporate networks the npx flow has multiple failure modes (TLS interception, file-lock races during cleanup, missing `git` for transitive deps). If your coworker hits any of the symptoms in §10 below, switch to the **global install** path documented here. It's slower to set up once but more reliable thereafter — the binary is cached in `%APPDATA%\npm\` (Windows) or your npm prefix (Linux/macOS), and VS Code spawns it directly without per-session install.
+
+**One-time setup:**
+
+```bash
+npm install -g appium-mcp@1.72.12
+```
+
+Notes:
+- **Always pin the version.** Use `appium-mcp@<version>`, never bare `appium-mcp`. Run `npm view appium-mcp version` to see the latest, then coordinate with your team before bumping.
+- **Windows:** no admin needed; npm installs to `%APPDATA%\npm\` by default.
+- **Linux / macOS:** if you see `EACCES` errors, set a user-scoped global prefix first: `npm config set prefix ~/.npm-global` and add `~/.npm-global/bin` to your shell PATH. **Never use `sudo npm install -g`** — it works but creates root-owned files that bite later. A Node version manager like [`nvm`](https://github.com/nvm-sh/nvm) handles this automatically.
+- **Verify the install:** `appium-mcp --version` (or just `Get-Command appium-mcp` on PowerShell). Should print a version, not "command not found."
+
+**Update `.vscode/mcp.json` to invoke the global binary instead of npx:**
+
+Replace your `appium-mcp` server entry with:
+
+```json
+"appium-mcp": {
+  "command": "appium-mcp",
+  "args": [],
+  "env": {
+    "ANDROID_HOME": "${env:ANDROID_HOME}",
+    "APPIUM_URL": "http://localhost:4723"
+  }
+}
+```
+
+Three changes from the npx default: `"command": "appium-mcp"` (was `"npx"`), `"args": []` (was `["-y", "appium-mcp@<version>"]`), and on Windows you may want to also append your npm global directory to the inner `PATH` (e.g. `C:\\Users\\<you>\\AppData\\Roaming\\npm`) so VS Code's spawned process can locate the binary even if its inherited PATH is incomplete.
+
+**Reload VS Code window after the edit.**
+
+**To upgrade later:** `npm install -g appium-mcp@<new-version>` and reload VS Code. No `.vscode/mcp.json` change needed unless you want to record the version somewhere.
+
 ---
 
 ## 6. Start Appium
@@ -285,7 +323,200 @@ These issues are specific to physical devices and don't occur on emulators.
 
 ---
 
-## 10. Maintenance — Keeping Real Devices Healthy for Testing
+## 10. Troubleshooting — Appium MCP + Connectivity
+
+These issues apply equally to physical devices and emulators — they are about how the Explorer agent reaches Appium, not about device hardware. Read this section if your coworker (or you) sees the Explorer hang for several minutes when invoked, then proceed without live verification.
+
+### Two distinct components — easy to confuse
+
+| Component | What it is | Where it runs |
+|---|---|---|
+| **Appium server** | The automation runtime that drives the device. Listens on `localhost:4723`. Started by you with `appium`. | Long-running process; you start it once per session in a separate terminal (step 6 above). |
+| **Appium MCP server** | A thin Node wrapper (`appium-mcp` npm package) that exposes Appium operations as MCP tools to AI agents. Spawned by VS Code when an agent first needs Appium tools. | Lazy startup — VS Code does NOT start it when the editor opens; it spawns when the Explorer (or Mobile Executor) is invoked and Copilot determines it needs `mcp__appium-mcp__*` tools. |
+
+Both must be alive for the Explorer to do live mobile exploration. Symptom-to-cause mapping below.
+
+### Symptom 1 — Explorer hangs ~3 minutes when first invoked, then proceeds without Appium tools
+
+**What you see:**
+- You invoke `@QE Explorer` for a mobile scenario in Copilot Agent Mode.
+- The agent appears stuck for 1-3 minutes (no output, no tool calls).
+- Eventually the agent "wakes up" but the Explorer report says "Appium MCP tools were NOT exposed to the agent at runtime" — and the report is marked PARTIAL with knowledge-derived element annotations instead of live-verified ones.
+
+**Root cause:** The default `.vscode/mcp.example.json` template uses `npx -y appium-mcp@latest`. On every fresh agent invocation, `npx`:
+1. Hits the npm registry to resolve `@latest`,
+2. Downloads / updates the package and its dependencies into npm's cache,
+3. Spawns the MCP server.
+
+On Windows + a corporate proxy, this is routinely 90-180 seconds. VS Code's MCP startup window is shorter, so the agent starts iterating before tools are registered → tools never show up → Explorer falls back to knowledge-derived mode.
+
+**Fix — pin the version (recommended):** edit `.vscode/mcp.json` (your local copy, not the template), replace `appium-mcp@latest` with a specific version such as `appium-mcp@1.72.12`. The example template now ships pinned by default; if your `.vscode/mcp.json` was created before this fix, copy the latest example:
+
+```bash
+# 1. Check current published version
+npm view appium-mcp version
+# 2. Edit .vscode/mcp.json — change "appium-mcp@latest" to "appium-mcp@<that-version>"
+# 3. Reload VS Code window (Ctrl+Shift+P → Developer: Reload Window)
+# 4. Re-invoke the Explorer
+```
+
+After pinning, the second invocation onward should start the MCP server in ~5 seconds (cache hit, no registry round-trip).
+
+> **Note — the same pattern exists for Playwright MCP** (`@playwright/mcp@latest`). The web Explorer hits this less visibly because the Playwright MCP server starts faster, but if you observe similar 1-3 minute Explorer hangs on web scenarios, apply the same fix to the `playwright` server entry in `.vscode/mcp.json`.
+
+### Symptom 2 — Explorer starts, then "tools become unavailable" mid-session
+
+**What you see:**
+- The Explorer agent runs for a few minutes; some Appium tool calls succeed.
+- Then the agent reports tools are no longer available, or every tool call fails with a connection error.
+
+**Root cause (most likely):** The Appium MCP server (the wrapper) is alive, but the **Appium server itself** (`localhost:4723`) is down or unreachable. When the wrapper tries to forward a tool call, the underlying connection fails. Some MCP servers exit on persistent backend errors → tools disappear from VS Code's tool list.
+
+**Diagnose:**
+```bash
+# Is Appium running?
+curl http://localhost:4723/status
+# Expected: JSON with "ready": true
+# If you get connection refused → Appium is down. Restart it (step 6 above).
+
+# Is the device still attached?
+adb devices
+# Expected: your device serial with status "device".
+# If "unauthorized" → unlock device, accept the USB debugging prompt.
+# If empty → check USB cable / port.
+```
+
+**Fix — keep Appium alive in a dedicated terminal:**
+- Run `appium` in a terminal you keep open for the entire test session — do NOT background it inside an editor that might be closed.
+- On Windows, consider running Appium as a Windows service, or use a tool like `pm2` to keep it alive across reboots.
+
+### Symptom 3 — `tool_search` finds no `mcp__appium-mcp__*` tools at all
+
+**What you see:**
+- The Explorer logs "tool_search returned no Appium tools" or similar.
+- The agent never even tries to call Appium tools — it goes straight to knowledge-derived annotations.
+
+**Diagnose with the appium-mcp self-test:** the package exposes a built-in diagnostic tool called `appium_skills`. Invoke it from Copilot:
+- "Use the `appium_skills` tool to check my local Appium setup."
+- If the tool itself is unavailable → the MCP server isn't running. See Symptom 1.
+- If it runs and reports specific issues → follow its remediation steps (typically: install `appium`, install the `uiautomator2` driver, set `ANDROID_HOME`).
+
+**If the MCP server logs show `EADDRINUSE` on port 4723:**
+- Something other than Appium is holding the port (maybe a stale Appium from a previous session).
+- `lsof -i :4723` (Linux/macOS) or `netstat -ano | findstr :4723` (Windows) to find the process. Kill and restart Appium.
+
+### Cross-check before invoking the Explorer for mobile
+
+Run these three commands and confirm all three pass before invoking the Explorer agent:
+
+```bash
+# 1. Appium server reachable
+curl http://localhost:4723/status        # → "ready": true
+
+# 2. Device connected
+adb devices                               # → your serial, status "device"
+
+# 3. Android SDK env vars set
+echo $ANDROID_HOME                        # → path to your SDK
+which adb                                 # → resolves under $ANDROID_HOME/platform-tools
+```
+
+If any of these fail, the Explorer will hit one of the symptoms above no matter how the MCP server is configured.
+
+### Symptom 4 — `npm error spawn git ENOENT` in MCP output
+
+**What you see:** the MCP output panel shows the appium-mcp server failing to start, with an error like:
+```
+npm error code ENOENT
+npm error syscall spawn git
+npm error path git
+npm error errno -4058
+```
+
+**Root cause:** Git is not installed (or not on PATH). Some `appium-mcp` transitive dependencies are declared with git URLs; npm shells out to `git` during install.
+
+**Fix:**
+1. Install [Git for Windows](https://git-scm.com/download/win) (default options — installer adds it to PATH automatically; if not, see below).
+2. Open a brand-new PowerShell window (existing windows have stale PATH) and verify: `git --version` should print `2.x.x`.
+3. **If `git --version` works in standalone PowerShell but not in VS Code** → close VS Code completely (Task Manager: confirm no `Code.exe` process), then relaunch from a shell that has git on PATH (`code .` from PowerShell). VS Code inherits PATH at launch time.
+4. **If the Git installer added git to "Git Bash only" mode** (no PATH update) → manually add `C:\Program Files\Git\bin` to User PATH:
+   ```powershell
+   [System.Environment]::SetEnvironmentVariable('Path', ([System.Environment]::GetEnvironmentVariable('Path','User') + ';C:\Program Files\Git\bin'), 'User')
+   ```
+   Close + reopen PowerShell, retest.
+
+### Symptom 5 — `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` (corporate TLS interception)
+
+**What you see:** the MCP output panel or the npm install output shows:
+```
+npm error code UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+npm error request to https://codeload.github.com/.../tar.gz/<sha> failed,
+       reason: unable to get local issuer certificate
+```
+
+**Root cause:** A corporate firewall, antivirus, or security agent is performing TLS interception. The corporate-controlled root CA is in Windows trust store but Node.js doesn't read the Windows store by default — it uses its own bundled Mozilla CA bundle.
+
+**Three fix paths, ordered by effort:**
+
+**Path A — Tell Node to trust Windows trust store (cleanest, no IT involvement, requires Node ≥ 22.10):**
+```powershell
+[System.Environment]::SetEnvironmentVariable('NODE_OPTIONS', '--use-system-ca', 'User')
+```
+Close VS Code completely, reopen, retry. The `--use-system-ca` flag tells Node to also trust the Windows certificate store, which already has the corporate root CA your browser uses. **No security tradeoff.**
+
+**Path B — Disable strict-ssl temporarily (fastest unblock; security tradeoff):**
+```powershell
+npm config set strict-ssl false
+npm install -g appium-mcp@1.72.12   # or your retry command
+npm config set strict-ssl true       # restore IMMEDIATELY after install succeeds
+```
+Use only as a **diagnostic / one-shot unblock**. Don't leave `strict-ssl=false` in your config — it disables TLS verification globally.
+
+**Path C — Configure npm + Node to trust the corporate CA explicitly (proper, permanent):**
+1. Get the corporate root CA in PEM format from your IT / Security team. Many companies publish it on an internal wiki under names like "Internal SSL Cert" or "MITM CA."
+2. Save it as `C:\Users\<you>\corp-ca.pem`.
+3. Configure:
+   ```powershell
+   npm config set cafile "C:\Users\<you>\corp-ca.pem"
+   [System.Environment]::SetEnvironmentVariable('NODE_EXTRA_CA_CERTS', 'C:\Users\<you>\corp-ca.pem', 'User')
+   ```
+4. Close VS Code completely, reopen, retry.
+
+**Recommended order:** try Path A first (one command, no tradeoff). If your Node version doesn't support `--use-system-ca`, fall back to Path B for the immediate unblock and Path C for the permanent fix.
+
+### Symptom 6 — `EBUSY` / `EPERM` errors during `npm install` cleanup on Windows
+
+**What you see:** `npx -y appium-mcp@<version>` exits with code 1 after a flurry of warnings like:
+```
+npm warn cleanup Failed to remove some directories
+npm warn cleanup [Error: EBUSY: resource busy or locked, rmdir '...\_npx\<hash>\node_modules\<some-package>']
+npm warn cleanup [Error: EPERM: operation not permitted, rmdir '...']
+```
+
+**Root cause:** Another process (Windows Defender real-time scanning, a leftover Node process from a previous failed npx, or VS Code's file watcher) is holding files open in the npx temp cache while npm tries to roll back a partial install. npx cleanup fails → exit 1.
+
+**Fix — kill leftover Node processes, clean the broken cache, then switch to global install:**
+```powershell
+# 1. Close VS Code completely (Task Manager: no Code.exe)
+# 2. Kill leftover npm/node processes from previous attempts
+taskkill /F /IM node.exe 2>$null
+taskkill /F /IM npm.exe 2>$null
+Start-Sleep -Seconds 5     # let antivirus release file locks
+
+# 3. Delete the broken npx temp cache
+Remove-Item -Path "$env:LOCALAPPDATA\npm-cache\_npx" -Recurse -Force -ErrorAction Continue
+
+# 4. Switch from npx to global install (different cache, less prone to lock races)
+npm install -g appium-mcp@1.72.12
+
+# 5. Update .vscode/mcp.json to use the global binary directly — see § 5.1 above
+```
+
+The npx flow has been the source of every Windows-specific issue in this troubleshooting section. **Once on the global-install path (§5.1), Symptoms 4-6 mostly cease to apply** — the package is installed once and VS Code spawns the cached binary directly.
+
+---
+
+## 11. Maintenance — Keeping Real Devices Healthy for Testing
 
 Real-device testing adds some upkeep that emulators don't need:
 

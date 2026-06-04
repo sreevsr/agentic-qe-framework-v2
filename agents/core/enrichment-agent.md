@@ -574,7 +574,9 @@ If the parsed spec includes security schemes (Bearer token, OAuth, API key):
 
 **When enrichment is performed (natural language, partial, or Swagger input), MUST generate an enrichment report. Read the full template from `agents/report-templates/enrichment-report.md` and follow it EXACTLY.**
 
-Save to: `output/reports/enrichment-report-{scenario}.md`
+Save to: `output/reports/[{folder}/]enrichment-report-{scenario}.md`
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter. Omit it only when `folder` is unset. Matches the canonical path defined in `agents/shared/path-resolution.md`.
 
 **NOT required for passthrough** (well-structured .md input passed directly to Explorer).
 

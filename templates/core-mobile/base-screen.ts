@@ -1,3 +1,4 @@
+import allureReporter from '@wdio/allure-reporter';
 import { MobileLocatorLoader } from './mobile-locator-loader';
 
 /** Default timeout for all mobile element interactions (ms). */
@@ -35,11 +36,39 @@ export class BaseScreen {
     await el.click();
   }
 
-  /** Type text into an element (clears it first). Hides keyboard after typing. */
+  /**
+   * Type text into an element (clears it first). Hides keyboard after typing.
+   *
+   * Robustness note: the primary path uses `el.setValue(text)` which delegates
+   * to the WDIO/Appium `/element/{id}/value` endpoint. On some Appium driver
+   * versions + TWA / WebView apps that endpoint can return "unknown command"
+   * (historically documented as Quirk #1 in app-context for Connect Mobile and
+   * similar TWA apps). When that happens, fall back to Appium's
+   * `mobile: type` script command, which uses a different code path that
+   * works on most builds where `/element/value` is broken.
+   *
+   * The fallback fires only on the specific error class — generic timeouts /
+   * element-not-found errors propagate normally rather than getting masked.
+   */
   async typeText(elementKey: string, text: string): Promise<void> {
     const el = await this.loc.get(elementKey);
     await el.clearValue();
-    await el.setValue(text);
+    try {
+      await el.setValue(text);
+    } catch (err) {
+      const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+      // Quirk #1 signature: "unknown command", "method not found", "not implemented".
+      // Anything else (timeout, stale element, not-found) → re-throw to surface real defects.
+      const isUnknownCommand = msg.includes('unknown command') ||
+                               msg.includes('not implemented') ||
+                               msg.includes('method has not been implemented');
+      if (!isUnknownCommand) throw err;
+      // FRAGILE: Quirk #1 fallback — driver-version-specific. Some TWA/WebView builds
+      // require `mobile: type` instead of the standard /element/value endpoint.
+      // Focus the field first so the typed characters land in the right input.
+      await el.click();
+      await this.driver.execute('mobile: type', { text });
+    }
     try { await this.driver.hideKeyboard(); } catch { /* keyboard may not be open */ }
   }
 
@@ -301,18 +330,47 @@ export class BaseScreen {
   // EVIDENCE
   // ════════════════════════════════════════════════════════════════════
 
-  /** Take a screenshot and save it to test-results/screenshots/{name}.png */
+  /**
+   * Take a screenshot, save it to test-results/screenshots/{name}.png, AND
+   * attach it to the Allure report so it renders inline in the customer-facing
+   * HTML report. Both effects are wrapped in independent try/catch — a disk
+   * failure (full disk, permissions) doesn't prevent the Allure attachment,
+   * and vice versa.
+   *
+   * Returns the disk path. Empty string if the disk write failed (Allure
+   * attach may still have succeeded — check the report).
+   */
   async takeScreenshot(name: string): Promise<string> {
-    const base64 = await this.driver.takeScreenshot();
+    let base64: string;
+    try {
+      base64 = await this.driver.takeScreenshot();
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not capture screenshot "${name}": ${(e as Error).message}`);
+      return '';
+    }
+
+    const buf = Buffer.from(base64, 'base64');
     const filePath = `test-results/screenshots/${name}.png`;
 
-    const fs = await import('fs');
-    const pathMod = await import('path');
-    const dir = pathMod.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    let diskOk = false;
+    try {
+      const fs = await import('fs');
+      const pathMod = await import('path');
+      const dir = pathMod.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, buf);
+      diskOk = true;
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not save screenshot to disk: ${(e as Error).message}`);
+    }
 
-    return filePath;
+    try {
+      allureReporter.addAttachment(`Screenshot: ${name}`, buf, 'image/png');
+    } catch (e) {
+      console.error(`[takeScreenshot] Could not attach screenshot to Allure: ${(e as Error).message}`);
+    }
+
+    return diskOk ? filePath : '';
   }
 
   /**

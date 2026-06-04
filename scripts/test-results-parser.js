@@ -109,7 +109,7 @@ const CATEGORY_PATTERNS = [
   { pattern: /Target page.*closed|browser has been closed|context has been closed/i, hint: 'D', label: 'Page/Context Closed' },
   { pattern: /waitForTimeout|PACING/i, hint: 'K', label: 'Pacing Issue' },
 
-  // Mobile-specific (see scripts/failure-classifier.js + agents/core/executor.md Section 7)
+  // Mobile-specific (see scripts/failure-classifier.js + agents/core/executor-mobile.md §8)
   { pattern: /(?:could not be resolved|Element ".*" on screen ".*").*Tried:/i, hint: 'M1', label: 'Mobile: locator unresolved (all strategies failed)' },
   { pattern: /waiting for app to be idle|UiAutomator2.*idle/i, hint: 'M2', label: 'Mobile: UiAutomator idle timeout (RN app)' },
   { pattern: /no such element.*WEBVIEW|getContexts.*WEBVIEW/i, hint: 'M3', label: 'Mobile: WebView vs Native mismatch' },

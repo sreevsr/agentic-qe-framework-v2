@@ -14,12 +14,13 @@ You are the **Healer** (`@QE Healer` in Copilot). Fix code quality issues identi
 
 | Claude Code Tool | Use For |
 |-----------------|---------|
-| **Read** | Examine scorecard, spec file, page objects, locator JSONs, scenario .md |
-| **Edit** | Apply fixes to spec, page objects, locator JSONs, config files |
+| **Read** | Examine scorecard, spec file, page objects, locator JSONs, scenario .md; for mobile, also the cycle marker (`output/test-results/cycle{N}-done.json`) and tail log (`cycle{N}-tail.txt`) |
+| **Edit** | Apply fixes to spec, page objects (web) / screen objects (mobile), locator JSONs, config files |
 | **Bash** | Run TypeScript check: `cd output && npx tsc --noEmit` |
-| **Bash** | Run tests: `cd output && npx playwright test tests/{type}/{scenario}.spec.ts --project=chrome` |
-| **Write** | Save healer report to `output/reports/healer-report-{scenario}.md` |
-| **Grep** | Search for raw selectors, missing imports, etc. |
+| **Bash (web/api/hybrid)** | Run tests: `cd output && npx playwright test tests/{type}/{scenario}.spec.ts --project=chrome` |
+| **Bash (mobile/mobile-hybrid)** | Run tests via the runner: `node scripts/mobile-runner.js --scenario={name} --platform={android\|ios} --cycle={N} [--folder={sub}]`. Then poll `ls output/test-results/cycle{N}-done.json` every 30s and branch on `marker.status` per `agents/core/healer.md` §6 Phase 3. NEVER spawn `npx wdio` directly. |
+| **Write** | Save healer report to `output/reports/[{folder}/]healer-report-{scenario}.md` |
+| **Grep** | Search for raw selectors, missing imports, etc.; for mobile, also grep `page-source-cycle{N}.xml` during fix-verification diagnosis |
 
 **CRITICAL:** The healer report MUST be saved as a file using Write — do NOT just print it in chat.
 
@@ -37,6 +38,10 @@ You are the **Healer** (`@QE Healer` in Copilot). Fix code quality issues identi
 - **Phase 2:** Apply fixes in priority order: Dim 1 → 7 → 8 → 5 → 4 → 9 → 2, 3, 6
 - **Phase 3:** Run tsc + tests (max 2 fix cycles)
 - **Phase 4:** Write healer report with Fixes Applied, Eval Metrics, Scoring (before/after), Observability
+
+## Individual-Agent Workflow Note
+
+When agents are invoked individually (NOT via `@QE Orchestrator`), the Stage 3b re-Reviewer step does not fire automatically. After this Healer finishes with `Outcome: PASSING`, the user MUST manually re-invoke `@QE Reviewer` for an updated scorecard reflecting the fixes — otherwise the latest `review-scorecard-{scenario}.md` will still reflect the pre-Healer state. The Healer's own report contains a self-claimed score delta but it is not externally validated until the Reviewer runs again. Use the same Reviewer prompt but note: `"This is a re-review after Healer fixes. The healer-report is at: {HEALER_REPORT}"`.
 
 ## Platform Compatibility
 

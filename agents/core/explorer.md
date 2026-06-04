@@ -791,7 +791,9 @@ for post-click navigation; avoid waitForLoadState('networkidle') — analytics p
 
 **MUST read the full report template from `agents/report-templates/explorer-report.md` and follow it EXACTLY.**
 
-Save to: `output/reports/explorer-report-{scenario}.md`
+Save to: `output/reports/[{folder}/]explorer-report-{scenario}.md`
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter (e.g., `folder=connect-mobile` → `output/reports/connect-mobile/explorer-report-{scenario}.md`). Omit it only when `folder` is unset. Other consumers (Reviewer, precheck script, Builder) all expect this folder-prefixed path per the canonical `agents/shared/path-resolution.md`. Writing to a non-folder path when folder is set causes downstream tools to report `explorerReportFound: false`.
 
 The Explorer report documents:
 - Steps verified vs blocked
@@ -813,6 +815,29 @@ The Explorer report documents:
 3. **Compute `durationMs`**: calculate the difference between endTime and startTime in milliseconds.
 4. **Fill the Duration field** in the explorer report: populate `**Duration:** {N}m {N}s` in the MANDATORY header block AND the Observability section's Duration row. Both MUST have the same computed value (e.g., `5m 40s` for durationMs=340000). NEVER leave a `~{N}` placeholder in the saved report.
 
+### Per-Step Timing — OPT-IN via `EXPLORER_STEP_TIMING=true`
+
+Per-step timing is **disabled by default** because capturing timestamps at each step boundary adds measurable overhead (1-3% on a typical Explorer run, more if the agent has to shell out to `date` for timestamps). This capability is a **diagnostic tool for latency investigations**, not standard runtime instrumentation. Keep it off in routine runs; enable when investigating slow Explorer behavior.
+
+**Activation gate — check `process.env.EXPLORER_STEP_TIMING`:**
+
+- **If `process.env.EXPLORER_STEP_TIMING === 'true'`** → capture per-step timings per the procedure below.
+- **Otherwise (default — env var unset, empty, or any other value)** → skip the capture. Set `stepDurations: []` in the metrics JSON and set `observabilityNote` to `"per-step timing disabled — set EXPLORER_STEP_TIMING=true to enable"`. Do NOT spend tokens estimating timings.
+
+**Capture procedure (only when gate is on):**
+
+1. **BEFORE each step's first action**: record the current epoch milliseconds (`Date.now()` equivalent) as `stepStartMs`.
+2. **AFTER the step is complete** (annotation written, screenshot captured if any, ready to move to next step): record `stepEndMs` and compute `stepDurationMs = stepEndMs - stepStartMs`.
+3. **Accumulate** these into an array, one entry per scenario step (including Common Setup steps and Common Teardown steps if present).
+4. **Categorize** each step by its keyword type — one of: `verify` | `action` | `capture` | `screenshot` | `wait` | `setup` | `teardown` | `other`. This enables breakdowns by step kind (especially useful for SCREENSHOT steps, which are typically the slowest due to image capture/serialization).
+5. **Write to the metrics JSON** under `stepDurations` per the schema below. Do NOT include this in the explorer report markdown (keep the markdown human-readable; the JSON is for tooling).
+
+If the Explorer cannot reliably record per-step times even when the gate is on (e.g., the agent runtime does not expose a clock), it MUST write `stepDurations: []` and set `observabilityNote` to explain why ("runtime did not expose Date.now() during step processing"). Never fabricate values.
+
+**When to enable:** opening a new latency investigation, comparing before/after of a perf-impacting change (Appium driver upgrade, MCP server change, new scenario complexity class), or responding to a "my Explorer run took N minutes" report from another QE engineer.
+
+**When to leave off (default):** all routine pipeline runs, CI runs, customer-facing scenarios. The aggregate `durationMs` field alone is enough for trend tracking; per-step breakdown is only needed when actively diagnosing.
+
 ### Metrics JSON — MANDATORY Output
 
 **MUST** write a metrics file to `output/reports/metrics/explorer-metrics-{scenario}.json` on EVERY run.
@@ -833,6 +858,12 @@ The Explorer report documents:
   "pagesVisited": 0,
   "helpersWalked": 0,
   "appContextUpdated": false,
+  "stepDurations": [
+    { "stepIndex": 1, "type": "setup", "durationMs": 0 },
+    { "stepIndex": 2, "type": "verify", "durationMs": 0 },
+    { "stepIndex": 3, "type": "action", "durationMs": 0 }
+  ],
+  "observabilityNote": "",
   "contextWindowPercent": "Platform does not expose context window usage",
   "tokenEstimate": "Platform does not expose token count",
   "metricsVersion": "2.1.0"
@@ -847,6 +878,8 @@ The Explorer report documents:
 - `elementsDiscovered`: count of ELEMENT annotations produced
 - `pagesVisited`: count of distinct page sections in enriched.md
 - `helpersWalked`: count of USE_HELPER steps where @steps were walked
+- `stepDurations`: array of `{stepIndex, type, durationMs}` — one entry per scenario step in positional order (Common Setup + Steps + Common Teardown, continuous numbering). `type` is one of `setup|verify|action|capture|screenshot|wait|teardown|other`. **Populated ONLY when `EXPLORER_STEP_TIMING=true`** (see Per-Step Timing section above). Empty array `[]` in all other cases (default), or when the gate is on but the runtime cannot expose a clock. Whenever empty, set `observabilityNote` to explain why ("per-step timing disabled" or "runtime did not expose Date.now()").
+- `observabilityNote`: free-form string for caveats; empty string when no caveats. Required when `stepDurations` is empty.
 
 ---
 

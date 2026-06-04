@@ -335,7 +335,62 @@ Credentials and URLs MUST use `process.env.VARIABLE` — NEVER hardcode.
 4. Count CAPTURE → Count variable assignments → **MUST match**
 5. Count SCREENSHOT → Count `page.screenshot()` + `attach()` → **MUST match**
 
+**For mobile/mobile-hybrid scenarios — counts MUST come from grep, NOT from LLM estimation.** Mobile specs use `// Step N — …` comment markers instead of native `test.step()`, which makes the step count easy to mis-estimate when the spec is split across `before()`, `it()`, and `after()` hooks. The Builder MUST run these greps (or the agent-runtime equivalent) and report the literal output count in the self-audit:
+
+```bash
+# Scenario step count (Common Setup + Steps + Common Teardown headings considered)
+grep -cE '^[0-9]+\.\s' {scenario}.md
+
+# Spec step marker count (across before, it, after — single file-wide grep)
+grep -cE '^\s*// Step [0-9]+ —' {spec}.ts
+```
+
+If the two counts don't match, the Builder MUST locate the missing step markers and emit them BEFORE finalizing. Reporting `step count match: YES` while the actual numbers are inconsistent (per grep output) is a self-audit defect and undermines Reviewer cross-validation.
+
 **If ANY mismatch → fix NOW.**
+
+### 5.1a: Mobile Lifecycle Hook Coverage — MANDATORY (mobile/mobile-hybrid only)
+
+After generating the mobile spec, the Builder MUST verify that every Common Setup/Teardown section in the scenario `.md` maps to the corresponding Mocha hook in the spec per `code-generation-rules.md §16.9`.
+
+**Audit procedure:**
+
+1. Grep the scenario `.md` for the four section headings (note: ORDER of grep alternatives matters because longer headings must match before shorter ones — `Common Setup Once` is matched as a unit, not as "Common Setup" + "Once"):
+
+   ```bash
+   grep -cE '^## (Common Setup Once|Common Setup|Common Teardown Once|Common Teardown)$' {scenario}.md
+   ```
+
+   Capture which specific headings are present (not just the count).
+
+2. Grep the generated spec for the four corresponding hook signatures:
+
+   ```bash
+   grep -cE '^\s*(beforeEach|afterEach|before|after)\(' {spec}.ts
+   ```
+
+   Capture which hook names appear.
+
+3. **Cross-check using the §16.9 mapping table**:
+
+   | Heading in scenario | Required hook in spec |
+   |---|---|
+   | `## Common Setup Once` | `before(` |
+   | `## Common Setup` | `beforeEach(` |
+   | `## Common Teardown` | `afterEach(` |
+   | `## Common Teardown Once` | `after(` |
+
+   Every heading in the scenario MUST have its corresponding hook present in the spec. Heading present + hook absent = coverage gap.
+
+4. **Report in the Builder report's Self-Audit Results section** (mandatory format):
+
+   - **Sections in scenario:** {N} ({comma-separated list of headings found})
+   - **Hooks in spec:** {N} ({comma-separated list of hook names found})
+   - **Section-to-hook coverage:** 100% — or list each gap as `{heading} → missing {hook}()`
+
+5. **If coverage < 100%, the Builder MUST regenerate the missing hooks BEFORE finalizing.** Do NOT mark the run COMPLETE with section gaps. Do NOT relocate `## Common Setup` content into `before()` to make the count match — that is a §16.9 HARD RULE violation, not a fix.
+
+**Why this exists:** Real defect observed in earlier mobile pipeline runs — Builder generated specs that completely omitted `## Common Setup` (the agent treated the section as "context" rather than as a hook spec), and downstream Executor cycles had to improvise by manually adding the setup. The self-audit catches this class of error before downstream stages waste cycles on it.
 
 ### 5.2: Raw Selector Audit
 
@@ -364,7 +419,9 @@ Credentials and URLs MUST use `process.env.VARIABLE` — NEVER hardcode.
 
 ## 6. Builder Report — MANDATORY
 
-Save to: `output/reports/builder-report-{scenario}.md`
+Save to: `output/reports/[{folder}/]builder-report-{scenario}.md`
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter (e.g., `folder=connect-mobile` → `output/reports/connect-mobile/builder-report-{scenario}.md`). Omit it only when `folder` is unset. This matches the canonical path defined in `agents/shared/path-resolution.md`. Writing to the non-folder path when folder is set causes downstream consumers (Reviewer cross-validation, Orchestrator gating) to fail to locate the report.
 
 ```markdown
 # Builder Report: {scenario}

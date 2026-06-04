@@ -49,7 +49,7 @@ if (fs.existsSync(historyFile)) {
 /**
  * Categorize error message into failure types.
  *
- * Mobile categories (mapped to agents/core/executor.md Section 7 — Mobile Failure Signatures):
+ * Mobile categories (mapped to agents/core/executor-mobile.md §8 — Mobile Failure Signatures):
  *   GLIDE_TYPING_INJECTION       — keyboard visible during swipe; text grows in EditText
  *   MULTI_ELEMENT_TEXT_MATCH     — locator text spans two TextView elements
  *   COMPOSE_NO_ACCESSIBILITY_NODE — element rendered as Canvas, no a11y node

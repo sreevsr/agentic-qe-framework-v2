@@ -47,6 +47,7 @@ const FLAGS = {
   allBrowsers: process.argv.includes('--all-browsers'),
   validateOnly: process.argv.includes('--validate-only'),
   skipInstall: process.argv.includes('--skip-install'),
+  skipHooks: process.argv.includes('--skip-hooks'),
   language,
 };
 
@@ -161,6 +162,8 @@ const MOBILE_CORE_FILES = [
   { src: 'base-screen.ts',          dest: path.join('core', 'base-screen.ts') },
   { src: 'mobile-locator-loader.ts', dest: path.join('core', 'mobile-locator-loader.ts') },
   { src: 'popup-guard.ts',           dest: path.join('core', 'popup-guard.ts') },
+  { src: 'wdio-step.ts',             dest: path.join('core', 'wdio-step.ts') },
+  { src: 'wdio-types.d.ts',          dest: path.join('core', 'wdio-types.d.ts') },
 ];
 
 // ---------------------------------------------------------------------------
@@ -187,6 +190,139 @@ function runCommand(cmd, cwd, label) {
 }
 
 // ---------------------------------------------------------------------------
+// Strip // and /* */ comments from JSONC so JSON.parse can read it.
+// String-aware: comment markers inside "..." values are left alone, so
+// URLs like "https://..." survive intact.
+// ---------------------------------------------------------------------------
+function stripJsonComments(text) {
+  let out = '';
+  let inString = false, inSingle = false, inMulti = false, escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (inSingle) { if (c === '\n') { inSingle = false; out += c; } continue; }
+    if (inMulti)  { if (c === '*' && n === '/') { inMulti = false; i++; } continue; }
+    if (inString) {
+      out += c;
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; out += c; continue; }
+    if (c === '/' && n === '/') { inSingle = true; i++; continue; }
+    if (c === '/' && n === '*') { inMulti = true; i++; continue; }
+    out += c;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Install pre-commit hook for rule-sync-check drift detection.
+// - Skipped on --skip-hooks
+// - Skipped silently if not a git repo (zip download, etc.)
+// - Idempotent: re-running setup just re-confirms core.hooksPath
+// ---------------------------------------------------------------------------
+function installGitHooks() {
+  if (FLAGS.skipHooks) {
+    console.log(`${SYMBOLS.info} --skip-hooks: pre-commit hook install skipped`);
+    return;
+  }
+
+  // Detect git repo (silent on failure)
+  try {
+    execSync('git rev-parse --git-dir', { cwd: ROOT, stdio: 'pipe' });
+  } catch {
+    console.log(`${SYMBOLS.info} Not a git repo — skipping pre-commit hook install`);
+    return;
+  }
+
+  const hookPath = path.join(ROOT, '.githooks', 'pre-commit');
+  if (!fs.existsSync(hookPath)) {
+    console.log(`${SYMBOLS.warn} .githooks/pre-commit missing — skipping hook install`);
+    return;
+  }
+
+  // Configure git to use .githooks (idempotent — running twice is a no-op)
+  try {
+    execSync('git config core.hooksPath .githooks', { cwd: ROOT, stdio: 'pipe' });
+  } catch (err) {
+    console.log(`${SYMBOLS.warn} Could not set core.hooksPath: ${err.message}`);
+    return;
+  }
+
+  // Ensure executable bit on Linux/macOS (Windows ignores file modes)
+  if (!isWin) {
+    try {
+      fs.chmodSync(hookPath, 0o755);
+    } catch {
+      // best effort — not fatal
+    }
+  }
+
+  console.log(`${SYMBOLS.ok} Pre-commit hook installed (.githooks/pre-commit → npm run rule-sync-check)`);
+}
+
+// ---------------------------------------------------------------------------
+// Install the Chromium build used by the Playwright MCP server.
+//
+// The Explorer drives a browser through @playwright/mcp, whose bundled
+// Playwright is independent of output/'s @playwright/test. Step 7 installs
+// output/'s browser (for the Executor); this installs the MCP's browser
+// (for the Explorer). When the two Playwright versions differ, the Explorer
+// fails with "no chrome browser" unless this runs.
+//
+// The MCP version is read straight from .vscode/mcp.json (the file VS Code
+// actually launches), so there is ONE source of truth: pin the version
+// there, re-run setup, and the browser follows automatically.
+//
+// Non-fatal: a failure here only affects web/hybrid Explorer runs.
+// ---------------------------------------------------------------------------
+function installMcpBrowser() {
+  console.log(`\n${SYMBOLS.arrow} Installing Playwright MCP browser (for the Explorer)...`);
+
+  // Prefer the live local config; fall back to the committed template.
+  const candidates = [
+    path.join(ROOT, '.vscode', 'mcp.json'),
+    path.join(ROOT, '.vscode', 'mcp.example.json'),
+  ];
+  const mcpFile = candidates.find(f => fs.existsSync(f));
+  if (!mcpFile) {
+    console.log(`  ${SYMBOLS.skip} No .vscode/mcp.json or mcp.example.json — skipping MCP browser install`);
+    return;
+  }
+
+  // mcp.json is JSONC (// and /* */ comments), so extract the pinned package
+  // spec by regex. The quote must sit immediately before @playwright/mcp, so
+  // prose mentioning the package inside a "$comment" string never matches.
+  let mcpText;
+  try {
+    mcpText = fs.readFileSync(mcpFile, 'utf8');
+  } catch (e) {
+    console.log(`  ${SYMBOLS.warn} Could not read ${path.basename(mcpFile)}: ${e.message} — skipping`);
+    return;
+  }
+  const match = mcpText.match(/"(@playwright\/mcp@[^"\s]+)"/);
+  if (!match) {
+    console.log(`  ${SYMBOLS.skip} No pinned @playwright/mcp@<version> in ${path.basename(mcpFile)} — skipping`);
+    console.log(`  ${SYMBOLS.info} (Playwright MCP server may be commented out — expected for api/mobile-only setups)`);
+    return;
+  }
+  const mcpSpec = match[1];
+
+  // `npx -y` auto-confirms the package download; `install-browser
+  // chrome-for-testing` fetches the Chromium build the MCP's `--browser
+  // chromium` server uses. This is the command proven in Explorer logs.
+  const cmd = `${npxCmd} -y ${mcpSpec} install-browser chrome-for-testing`;
+  if (runCommand(cmd, ROOT, `Playwright MCP browser install (${mcpSpec})`)) {
+    return;
+  }
+  // Non-fatal — warn loudly so the cause is visible if the Explorer later fails.
+  console.log(`  ${SYMBOLS.warn} MCP browser install failed. Web/hybrid Explorer runs may`);
+  console.log(`     fail with "no chrome browser". Re-run manually with:`);
+  console.log(`         npx -y ${mcpSpec} install-browser chrome-for-testing`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -197,6 +333,7 @@ async function main() {
   console.log(`${SYMBOLS.info} Language: ${language}`);
   if (FLAGS.validateOnly) console.log(`${SYMBOLS.info} Mode:     Validate only (no install)`);
   if (FLAGS.skipInstall) console.log(`${SYMBOLS.info} Mode:     Skip install (dirs + files only)`);
+  if (FLAGS.skipHooks) console.log(`${SYMBOLS.info} Mode:     Skip git hook install`);
   if (FLAGS.allBrowsers) console.log(`${SYMBOLS.info} Browsers: All (Chrome, Firefox, WebKit)`);
   console.log('');
 
@@ -208,11 +345,38 @@ async function main() {
   }
   console.log(`${SYMBOLS.ok} Node.js version check passed`);
 
+  // Git check — required by `npm install` of Appium MCP server (transitive deps use git URLs)
+  // Non-fatal: warn loudly so the user sees it before the agent fails mysteriously, but
+  // don't block setup since git is only required for mobile MCP, not for web automation.
+  try {
+    execSync('git --version', { stdio: 'pipe' });
+    console.log(`${SYMBOLS.ok} Git found on PATH`);
+  } catch {
+    console.log('');
+    console.log(`${SYMBOLS.warn} Git not found on PATH.`);
+    console.log(`     Required by 'npm install' of the Appium MCP server (some transitive`);
+    console.log(`     dependencies are fetched via git+ssh; npm shells out to 'git' during install).`);
+    console.log(`     Mobile/mobile-hybrid scenarios will fail at MCP startup with`);
+    console.log(`     'npm error spawn git ENOENT' until git is installed.`);
+    if (isWin) {
+      console.log(`     Install Git for Windows: https://git-scm.com/download/win`);
+    } else if (process.platform === 'darwin') {
+      console.log(`     Install via: brew install git  (or 'xcode-select --install')`);
+    } else {
+      console.log(`     Install via your package manager (e.g. 'sudo apt install git').`);
+    }
+    console.log(`     Web/api/hybrid scenarios are unaffected — proceeding with setup.`);
+    console.log('');
+  }
+
   // If validate-only, skip to validation
   if (FLAGS.validateOnly) {
     runValidation();
     return;
   }
+
+  // Step 1.5: Install git pre-commit hook (rule-sync-check drift detection)
+  installGitHooks();
 
   // Step 2: Create output directory structure
   console.log(`\n${SYMBOLS.arrow} Creating output/ directory structure...`);
@@ -349,33 +513,41 @@ async function main() {
   fs.writeFileSync(path.join(OUTPUT, '.language'), language);
   console.log(`  ${SYMBOLS.ok} Language marker: ${language}`);
 
-  // Step 5d: Patch .vscode/mcp.json with nvm PATH if needed
-  console.log(`\n${SYMBOLS.arrow} Configuring VS Code MCP server...`);
+  // Step 5d: Check VS Code MCP server config.
+  // nvm/fnm/volta users: VS Code may not see the node binary on PATH, so the
+  // Playwright MCP server needs an explicit npx path + PATH env. We do NOT
+  // rewrite mcp.json automatically — it is JSONC with hand-written comments
+  // (e.g. the disabled appium-mcp block) that a JSON.stringify round-trip
+  // would silently destroy. Instead we print the snippet to add by hand.
+  console.log(`\n${SYMBOLS.arrow} Checking VS Code MCP server config...`);
   const mcpJsonPath = path.join(ROOT, '.vscode', 'mcp.json');
-  if (fs.existsSync(mcpJsonPath)) {
+  if (!fs.existsSync(mcpJsonPath)) {
+    console.log(`  ${SYMBOLS.skip} .vscode/mcp.json not found — copy .vscode/mcp.example.json to .vscode/mcp.json`);
+  } else {
     const nodeBinDir = path.dirname(process.execPath);
     const isNvm = nodeBinDir.includes('.nvm') || nodeBinDir.includes('fnm') || nodeBinDir.includes('volta');
-    if (isNvm) {
-      try {
-        const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
-        const pw = mcpConfig.servers && mcpConfig.servers.playwright;
-        if (pw && !(pw.env && pw.env.PATH)) {
-          pw.command = path.join(nodeBinDir, isWin ? 'npx.cmd' : 'npx');
-          pw.env = { PATH: `${nodeBinDir}:\${env:PATH}` };
-          fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2) + '\n');
-          console.log(`  ${SYMBOLS.ok} Patched .vscode/mcp.json with node path: ${nodeBinDir}`);
-          console.log(`  ${SYMBOLS.info} Node is managed by nvm/fnm/volta — VS Code needs the explicit path`);
-        } else {
-          console.log(`  ${SYMBOLS.skip} .vscode/mcp.json already has env.PATH configured`);
-        }
-      } catch (e) {
-        console.log(`  ${SYMBOLS.warn} Could not patch .vscode/mcp.json: ${e.message}`);
-      }
+    if (!isNvm) {
+      console.log(`  ${SYMBOLS.ok} System-installed node detected — no MCP path config needed`);
     } else {
-      console.log(`  ${SYMBOLS.skip} System-installed node detected — no MCP config patching needed`);
+      let alreadyPatched = false;
+      try {
+        const mcpConfig = JSON.parse(stripJsonComments(fs.readFileSync(mcpJsonPath, 'utf8')));
+        const pw = mcpConfig.servers && mcpConfig.servers.playwright;
+        alreadyPatched = !!(pw && pw.env && pw.env.PATH);
+      } catch (e) {
+        console.log(`  ${SYMBOLS.warn} Could not parse .vscode/mcp.json: ${e.message}`);
+      }
+      if (alreadyPatched) {
+        console.log(`  ${SYMBOLS.ok} .vscode/mcp.json already has env.PATH configured`);
+      } else {
+        const npxPath = path.join(nodeBinDir, isWin ? 'npx.cmd' : 'npx');
+        const pathVal = `${nodeBinDir}${isWin ? ';' : ':'}\${env:PATH}`;
+        console.log(`  ${SYMBOLS.warn} Node is managed by nvm/fnm/volta — VS Code needs an explicit path.`);
+        console.log(`     Edit .vscode/mcp.json -> servers.playwright and add these two keys:`);
+        console.log(`         "command": ${JSON.stringify(npxPath)},`);
+        console.log(`         "env": { "PATH": ${JSON.stringify(pathVal)} }`);
+      }
     }
-  } else {
-    console.log(`  ${SYMBOLS.skip} .vscode/mcp.json not found — skipping MCP config`);
   }
 
   if (!FLAGS.skipInstall) {
@@ -416,6 +588,10 @@ async function main() {
     if (!runCommand(playwrightInstallCmd, OUTPUT, 'Playwright browser install')) {
       process.exit(1);
     }
+
+    // Step 7b: Install the browser for the Playwright MCP server (Explorer).
+    // Separate from Step 7 — the MCP bundles its own Playwright version.
+    installMcpBrowser();
   } else {
     console.log(`\n${SYMBOLS.skip} Skipping dependency and browser install (--skip-install mode)`);
   }

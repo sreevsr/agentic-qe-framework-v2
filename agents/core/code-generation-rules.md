@@ -585,6 +585,72 @@ async getProductPrice(productName: string): Promise<string> {
 
 The base element (`cartTable`) and the target element (`cartProductPrice`) both come from LocatorLoader. Only the structural scoping (`.locator('tbody tr').filter()`) is inline.
 
+### 11.1 Dynamic-Value Locator Pattern — PERMITTED (clarification of "no raw selectors")
+
+The "no raw selectors" rule means **no literal hardcoded selector strings in TypeScript code.** It does **NOT** forbid selectors that template a runtime value into a structural pattern. The distinction:
+
+- **Raw selector (FORBIDDEN):** `await page.locator('//button[@id="submit-1234"]')` — literal string, no runtime variable, should be `submitButton` in the JSON.
+- **Dynamic-value selector (PERMITTED with conditions below):** `` await this.driver.$(`//*[@text='${dayNorm}']`) `` — structure is fixed (`//*[@text='…']`), only the value is computed at runtime.
+
+**When you MAY use a dynamic-value selector inline in a page/screen object** (ALL of the following must hold):
+
+1. **The element identity depends on a runtime value** — today's date, a CAPTURE'd order number, a user-provided dropdown option, a parameterized test-data value. The value cannot be known when the locator JSON is written.
+2. **The structural part of the selector is fixed.** Only the value field changes; the strategy (xpath template, UiSelector chain, role-based query) is constant.
+3. **The construction is wrapped in a page/screen object method, never in the spec.** Specs call methods like `await screen.tapReasonOption(value)` — they do NOT construct selectors themselves.
+4. **The method documents the dynamic value with a `// FRAGILE:` or `// DISCOVERED:` comment** explaining why the static pattern can't be captured as a locator JSON key.
+5. **The corresponding static element has a related entry in the locator JSON.** E.g., for "Tap Reason dropdown then select option by value", the `reasonDropdown` itself is a static locator JSON key; only the option-cell selection uses the dynamic value.
+
+**Examples — acceptable:**
+
+```typescript
+// Mobile — dynamic dropdown option (value at runtime)
+async selectReason(value: string): Promise<void> {
+  await this.tap('reasonDropdown');  // static — JSON key
+  // FRAGILE: dropdown options are listed at runtime; value parameterizes the
+  // selector. Static reasonDropdown is in event-change-adjust-form.locators.json.
+  const option = await this.driver.$(`android=new UiSelector().text("${value}")`);
+  await option.click();
+}
+
+// Mobile — today's date in a custom WebView calendar
+async selectCurrentDay(): Promise<void> {
+  // FRAGILE: day cells use @text=<dayNum-without-leading-zeros>; the WebView
+  // does not expose stable resource-ids. dayNorm computed at runtime.
+  const dayNorm = String(new Date().getDate());
+  const dayCell = await this.driver.$(`//*[@text='${dayNorm}']`);
+  await dayCell.click();
+}
+
+// Web — element identified by CAPTURE'd order number
+async openCapturedOrder(orderNumber: string): Promise<void> {
+  // FRAGILE: order number captured at runtime; structure is fixed.
+  // Static orderRow base is in cart-page.locators.json.
+  const row = this.page.locator(this.loc.get('orderRow'))
+    .filter({ hasText: orderNumber });
+  await row.click();
+}
+```
+
+**Examples — NOT acceptable (still raw selector violations):**
+
+```typescript
+// Hardcoded literal — belongs in JSON
+await this.driver.$('//*[@text="On Time"]');   // ❌ "On Time" is fixed, not dynamic
+
+// Constructed-but-not-actually-dynamic — still hardcoded under template syntax
+const fixedName = "Submit";
+await this.driver.$(`//button[@aria-label='${fixedName}']`);  // ❌ fixedName never changes
+
+// Inline in spec
+await page.locator(`[data-testid='${productId}']`).click();  // ❌ belongs in page object
+```
+
+**Reviewer Dim 1 implications:** Dynamic-value selectors that meet ALL five conditions above are NOT counted as raw-selector violations. Selectors that violate ANY condition (especially #1 — value isn't actually dynamic, or #3 — construction in spec) ARE counted.
+
+**Builder self-audit (§5.2 in builder.md):** When grepping for raw selectors, the Builder MUST distinguish:
+- Inline `driver.$(\`...${variable}...\`)` or `page.locator(\`...${variable}...\`)` — check the five conditions; report PERMITTED if all hold, RAW VIOLATION if any fail
+- Inline `driver.$('...')` or `page.locator('...')` with NO template variable — always RAW VIOLATION, move to JSON
+
 ---
 
 ## 12. Structural Assertions — NEVER Use Data Values for Existence Checks — MANDATORY
@@ -969,7 +1035,7 @@ describe('Speedtest — Run Speed Test @smoke @P0 @android-only', () => {
 3. **Mocha hooks** — `before`/`after`/`beforeEach`/`afterEach` — NOT `test.beforeAll`/`test.afterAll`
 4. **No `test.step()`** — Use comment markers: `// Step N — description`
 5. **No `expect.soft()`** — For VERIFY_SOFT, use try/catch pattern
-6. **No `test.info().attach()`** — For SCREENSHOT, use `await screen.takeScreenshot('name')`
+6. **No `test.info().attach()`** — For SCREENSHOT, use `await screen.takeScreenshot('name')`. **`takeScreenshot` is the canonical method name** — already defined in `BaseScreen`. **MUST NOT add a wrapper method on the screen-object** (e.g., do NOT generate `async captureScreenshot(name) { return this.takeScreenshot(name); }`). The Builder calls `screen.takeScreenshot()` directly from the spec. Aliasing the method name adds maintenance burden, breaks framework-wide grep audits, and provides no value. If a Reviewer scorecard flags `captureScreenshot` calls in a regenerated spec, the Builder MUST replace them with `takeScreenshot` and remove any wrapper method.
 7. **Tags in title strings** — `it('test name @smoke @P0', ...)` NOT `{ tag: ['@smoke'] }`
 8. **Platform tag MANDATORY** — every top-level `describe` title MUST include exactly one of `@android-only`, `@ios-only`, or `@cross-platform` (see §16.3a below)
 9. **Screen instantiation** — `new ScreenName(browser)` in `before()` hook, NOT in each test
@@ -1085,6 +1151,26 @@ await browser.action('pointer')
 
 **MUST** include `// FRAGILE:` comment explaining why selectors are not available.
 
+### 16.6a Empty Locator JSON — Coordinate-Only Screens (MANDATORY pattern)
+
+Some mobile screens have **NO locatable elements** — every interaction goes through coordinate taps because the underlying overlay/popup exposes no accessibility attributes (e.g., a custom WebView date picker, a Compose overlay drawing primitives). For these screens, the Builder MUST still generate a locator JSON file, but with an explanatory `$comment` instead of trying to invent dummy keys:
+
+```json
+{
+  "$comment": "Coordinate-only screen — all interactions use driver.action(pointer) with documented coordinates inside the screen-object methods. No accessibility attributes are available on this overlay's elements. See {ScreenName}.ts for the touch sequences and the // FRAGILE: rationale per coordinate.",
+  "$pattern": "coordinate-only"
+}
+```
+
+**Rules:**
+
+- **MUST generate the file even when empty.** A missing JSON file is a different kind of defect — it implies the Builder forgot the screen. An empty-but-documented file unambiguously says "intentional, coordinate-only."
+- **MUST include `$comment` explaining the design choice and pointing to the screen-object file.** A bare `{}` looks like a Builder bug; a documented `{}` reads as intentional.
+- **MUST NOT add dummy keys** like `"placeholder": {"android": {"xpath": ""}}` to avoid the empty look. That breaks `MobileLocatorLoader` queries.
+- **MUST validate that the corresponding screen object never calls `this.loc.get('…')` on a key from this file.** All interactions in coordinate-only screens flow through `driver.action('pointer')` directly. `MobileLocatorLoader` handles `{}` files gracefully — it loads them as an empty key map, and any subsequent `loc.get('…')` call throws a clear "key not found, available keys: " error. The Builder must therefore ensure no `loc.get` calls exist on coordinate-only screen objects.
+
+**Reviewer Dim 1 audit:** an empty locator JSON file paired with a coordinate-only screen object is NOT a violation. An empty file paired with a screen object that calls `loc.get(…)` IS a defect — Builder didn't carry through the design.
+
 ### 16.7 Mobile-Hybrid Spec Pattern
 
 For `mobile-hybrid` type (native app + API calls):
@@ -1111,6 +1197,24 @@ describe('Mobile-Hybrid Flow @smoke @P1 @android-only', () => {
 ```
 
 `browser.call()` wraps async non-WebDriver code within a WDIO test. CAPTURE variables are shared between API and mobile phases via outer-scope `let`.
+
+### 16.7a No `(browser as any)` Casts — MANDATORY
+
+**MUST NOT use `(browser as any).<method>(…)` casts in mobile specs or screen objects.** The `output/core/wdio-types.d.ts` module augmentation (shipped by `setup.js` from `templates/core-mobile/wdio-types.d.ts`) declares all WDIO + Appium mobile commands so they are directly type-checkable on the `browser` global.
+
+**Wrong:**
+```typescript
+await (browser as any).terminateApp(process.env.APP_PACKAGE!);  // ❌ silences TypeScript
+```
+
+**Right:**
+```typescript
+await browser.terminateApp(process.env.APP_PACKAGE!);  // ✓ type-checked via wdio-types.d.ts
+```
+
+**If you need a method that isn't in `wdio-types.d.ts`:** the correct response is to ADD IT to `templates/core-mobile/wdio-types.d.ts` with the correct signature (source from Appium's command reference, not by guessing), then `setup.js` re-runs will propagate the addition. **Do NOT** add `(browser as any)` casts as a workaround.
+
+**Builder self-audit:** before finalizing, grep the generated spec and screen objects for `(browser as any)`. Count MUST be 0. If non-zero, replace with direct `browser.<method>(…)` calls and add any missing method declarations to `wdio-types.d.ts`.
 
 ---
 
@@ -1170,7 +1274,15 @@ RIGHT: UiAutomator2 performance settings applied in the `before()` hook (see `te
 
 ### 16.9 Mobile Lifecycle Hooks — Code Pattern
 
-When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook. `USE_HELPER` steps in these sections are emitted as helper function calls inside the hook — see `keyword-reference.md § USE_HELPER in lifecycle hooks` for the full pattern. Mapping:
+When a mobile scenario file contains any of `## Common Setup Once`, `## Common Setup`, `## Common Teardown`, `## Common Teardown Once`, the Builder MUST emit the corresponding Mocha hook EXACTLY per the mapping table below. `USE_HELPER` steps in these sections are emitted as helper function calls inside the hook — see `keyword-reference.md § USE_HELPER in lifecycle hooks` for the full pattern.
+
+**HARD RULES — do NOT deviate:**
+
+- **MUST NOT consolidate `## Common Setup` into `before()` even when the scenario has only one `it()` block.** The mapping is fixed: `## Common Setup` → `beforeEach()`. The scenario author's choice of heading expresses run cadence (per-test vs once-only); the Builder must preserve that intent. `beforeEach` overhead on a single-test spec is negligible — there is no "optimization" justification for collapsing it into `before()`.
+- **MUST NOT skip any section.** If `## Common Setup` exists in the scenario but the spec has no `beforeEach()`, that is a Dim 9 Scenario-to-Code Fidelity violation — not a stylistic choice. Same for the other three section→hook pairs.
+- **MUST NOT rename, merge, or reassign hooks.** The mapping is bidirectional and exact. Do not put `## Common Setup` content into `before()`. Do not put `## Common Teardown` content into `after()`. Do not split one section across multiple hooks.
+
+**Section → Hook mapping (exact, no alternates):**
 
 | Section in `.md` | Mocha hook |
 |---|---|
@@ -1178,6 +1290,8 @@ When a mobile scenario file contains any of `## Common Setup Once`, `## Common S
 | `## Common Setup` | `beforeEach()` |
 | `## Common Teardown` | `afterEach()` |
 | `## Common Teardown Once` | `after()` |
+
+**Note for single-`it()` specs:** Even when the scenario produces only one `it()` block, `## Common Setup` STILL maps to `beforeEach()`, NOT `before()`. The two are functionally equivalent for one test, but the Builder's job is to preserve scenario author intent — not to optimize. If the author wanted run-once semantics, they would have written `## Common Setup Once`. Mocha's overhead for `beforeEach` on a single test is sub-millisecond and never observable in test runtime.
 
 ```typescript
 import { browser, expect } from '@wdio/globals';

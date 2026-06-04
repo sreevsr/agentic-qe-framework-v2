@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Pre-commit: detect drift between universal rules in agents/core/executor.md
+# and their mirrors in agents/core/executor-mobile.md.
+#
+# Wired by setup.js (`git config core.hooksPath .githooks`). To bypass for an
+# emergency (rare), run `git commit --no-verify` — but you SHOULD propagate the
+# rule update to executor-mobile.md and run `npm run rule-sync-rehash` first.
+
+set -e
+
+# Skip silently if Node isn't available (e.g. docs-only contributor without dev env)
+if ! command -v node >/dev/null 2>&1; then
+  echo "[pre-commit] node not on PATH; skipping rule-sync-check."
+  exit 0
+fi
+
+# Run from the repo root regardless of cwd
+cd "$(git rev-parse --show-toplevel)"
+
+node scripts/rule-sync-check.js

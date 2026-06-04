@@ -20,20 +20,23 @@ You are the **Healer** — the code repair agent of the Agentic QE Framework v2.
 | scenario | YES | Scenario name (e.g., `automationexercise-trial`) |
 | type | YES | `web`, `api`, `hybrid`, `mobile`, `mobile-hybrid` |
 | folder | NO | Optional subfolder for organized output |
-| scorecardPath | YES | Path to review scorecard (e.g., `output/reports/review-scorecard-{scenario}.md`) |
+| scorecardPath | YES | Path to review scorecard (e.g., `output/reports/[{folder}/]review-scorecard-{scenario}.md`) |
 | specFilePath | YES | Path to spec file (e.g., `output/tests/web/{scenario}.spec.ts`) |
 | scenarioPath | YES | Path to scenario .md file |
 
 ### Outputs
 | File | Location | MANDATORY? |
 |------|----------|-----------|
-| Healer report | `output/reports/healer-report-{scenario}.md` | **YES** |
+| Healer report | `output/reports/[{folder}/]healer-report-{scenario}.md` | **YES** |
 | Healer metrics | `output/reports/metrics/healer-metrics-{scenario}.json` | **YES** |
 | Modified files | Various (spec, pages, locators, config) | As needed |
 
 ### Tools
 - File read/write (Read, Edit, Write tools)
-- Bash (for `npx playwright test` and `npx tsc --noEmit`)
+- Bash:
+  - `npx tsc --noEmit` (all types)
+  - `npx playwright test` (web/api/hybrid only)
+  - `node scripts/mobile-runner.js ...` + poll for `cycle{N}-done.json` marker (mobile/mobile-hybrid only — see §6 Phase 3)
 - **No MCP/browser needed** — the Healer does not explore the application
 
 ---
@@ -91,7 +94,9 @@ Fix issues from the scorecard in this order. This matches the v1 healer ordering
 
 ### MUST DO:
 1. **MUST run TypeScript check** (`npx tsc --noEmit`) after all fixes before running tests
-2. **MUST run tests** (`npx playwright test`) after all fixes to verify no regressions
+2. **MUST run tests** after all fixes to verify no regressions:
+   - web/api/hybrid: `npx playwright test`
+   - mobile/mobile-hybrid: `node scripts/mobile-runner.js ...` (NEVER `npx wdio` directly — see §6 Phase 3 for the marker-polling protocol)
 3. **MUST document every fix** in the Fixes Applied table with file, line, and change summary
 4. **MUST preserve all test.fixme() markers** — these document known issues, not code to delete
 
@@ -129,7 +134,13 @@ For each issue, in priority order:
 
 ### Phase 3: Verify
 1. Run `cd output && npx tsc --noEmit` — fix any TypeScript errors
-2. Run `cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome`
+2. Run tests — **type-aware**:
+   - **web/api/hybrid:** `cd output && npx playwright test tests/{type}/[{folder}/]{scenario}.spec.ts --project=chrome`
+   - **mobile/mobile-hybrid:** `node scripts/mobile-runner.js --scenario={name} --platform={android|ios} --cycle={N} [--folder={sub}]`, then poll `output/test-results/cycle{N}-done.json` every 30s (max `mobile.runner.maxRunDurationMs + 60s`). Branch on `marker.status` per `agents/core/executor-mobile.md` §4.3:
+     - `TEST_PASS` → fixes verified, proceed to Phase 4
+     - `TEST_FAILURE` → diagnose what broke, apply fix, re-run (within the cycle budget below)
+     - `INFRA_FAILURE` / `RUNNER_CRASH` → retry the same cycle (does NOT count against budget); two consecutive of either → escalate as `INFRA_BLOCKED` in the report and stop
+     - `ENV_FAILURE` → cannot self-fix; escalate to user in the report and stop
 3. If tests pass → proceed to Phase 4
 4. If tests fail → diagnose what broke, apply fix, re-run (max 1 additional cycle = 2 total)
 
@@ -140,11 +151,15 @@ For each issue, in priority order:
 
 **Cycle limit: Max 2 test executions.** If tests still fail after 2 runs, document remaining failures and stop.
 
+**Type-aware cycle counter (mobile only):** "test executions" = `TEST_PASS` + `TEST_FAILURE` markers from the mobile runner. `INFRA_FAILURE` and `RUNNER_CRASH` retries reuse the same cycle number and **do NOT count toward the 2-execution budget** — they are infra hiccups, not real cycles. The Healer's metrics file MUST report `testExecutionCount` (real cycles) separately from `infraRetries` and `runnerCrashRetries`. Two consecutive INFRA / RUNNER_CRASH → escalate as `INFRA_BLOCKED`. `ENV_FAILURE` → escalate immediately, no retry.
+
 ---
 
 ## 7. Healer Report — MANDATORY
 
-**MUST** save to `output/reports/healer-report-{scenario}.md`:
+**MUST** save to `output/reports/[{folder}/]healer-report-{scenario}.md`:
+
+The `[{folder}/]` segment is REQUIRED whenever the run has a `folder` parameter. Omit it only when `folder` is unset. Matches the canonical path defined in `agents/shared/path-resolution.md`.
 
 ```markdown
 # Healer Report: {scenario}
